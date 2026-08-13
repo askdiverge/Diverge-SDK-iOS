@@ -33,62 +33,44 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-([Bb]eta|[Cc]anary)\.[0-9]+)?$ ]]; then
-            echo "Tag '$TAG' is not a valid SemVer release tag."
-            echo "Expected: v1.2.3 | v1.2.3-beta.1 | v1.2.3-canary.1"
+            echo "Invalid tag '$TAG'" >&2
             exit 1
           fi
-
           VERSION="${TAG#v}"
           BASE_VERSION="${VERSION%%-*}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
-
           TAG_LOWER="$(echo "$TAG" | tr '[:upper:]' '[:lower:]')"
           if [[ "$TAG_LOWER" == *beta* || "$TAG_LOWER" == *canary* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "label=beta/canary (prerelease)" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "label=stable" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check VERSION file matches tag
         run: |
-          set -euo pipefail
           FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
           BASE="${{ steps.meta.outputs.base_version }}"
-          if [[ "$FILE_VERSION" != "$BASE" ]]; then
-            echo "VERSION file ($FILE_VERSION) does not match tag base ($BASE)."
-            echo "Bump VERSION, run ./scripts/sync-version.sh, commit, then retag."
-            exit 1
-          fi
+          [[ "$FILE_VERSION" == "$BASE" ]] || { echo "VERSION mismatch"; exit 1; }
 
       - name: Check version sync
         run: ./scripts/check-version.sh
 
       - name: Require CHANGELOG entry
         run: |
-          set -euo pipefail
           BASE="${{ steps.meta.outputs.base_version }}"
           FULL="${{ steps.meta.outputs.version }}"
-          if ! grep -Eq "^## \[($FULL|$BASE)\]" CHANGELOG.md; then
-            echo "CHANGELOG.md must contain a section like '## [$FULL]' or '## [$BASE]'."
-            exit 1
-          fi
+          grep -Eq "^## \[($FULL|$BASE)\]" CHANGELOG.md
 
       - name: Create release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: ${{ steps.meta.outputs.tag }}
-          target_commitish: ${{ github.sha }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
           body: |
-            See [CHANGELOG.md](https://github.com/mohamedaldahoul/Diverge-SDK-iOS/blob/${{ steps.meta.outputs.tag }}/CHANGELOG.md).
-
-            Channel: ${{ steps.meta.outputs.label }}
+            See CHANGELOG.md. Prefer SemVer pins — do not track main.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
