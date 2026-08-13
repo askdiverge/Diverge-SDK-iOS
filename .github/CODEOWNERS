@@ -1,0 +1,11 @@
+# CODEOWNERS is intentionally inactive until org teams / Boozt access are finalized.
+# Uncomment and replace with real GitHub usernames or team slugs, then enable
+# "Require review from Code Owners" in branch protection.
+#
+# Example:
+# * @DialogIntelligens/diverge-sdk-maintainers
+# /Sources/ @DialogIntelligens/diverge-sdk-maintainers
+# /android/ @DialogIntelligens/diverge-sdk-maintainers
+#
+# Handover checklist: decide collaborator invites vs a dedicated Boozt team
+# with write access before turning this on.

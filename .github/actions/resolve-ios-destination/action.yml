@@ -1,0 +1,77 @@
+name: Resolve iOS Simulator destination
+description: Pick an xcodebuild destination listed for the scheme (iPhone Simulator, optional macOS fallback).
+
+inputs:
+  scheme:
+    description: Xcode scheme name
+    required: false
+    default: DivergeSDK-Package
+  project:
+    description: Optional -project argument (path to .xcodeproj). Leave empty for Swift packages.
+    required: false
+    default: ""
+  allow-macos:
+    description: If no iOS Simulator destination is listed, fall back to macOS (SPM package tests).
+    required: false
+    default: "false"
+
+outputs:
+  destination:
+    description: xcodebuild -destination value
+    value: ${{ steps.resolve.outputs.destination }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve destination
+      id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        list_args=()
+        if [[ -n "${{ inputs.project }}" ]]; then
+          list_args+=(-project "${{ inputs.project }}")
+        fi
+        list_args+=(-scheme "${{ inputs.scheme }}" -showdestinations)
+
+        echo "Resolving destinations for scheme ${{ inputs.scheme }}..."
+        xcodebuild "${list_args[@]}" 2>/dev/null | tee /tmp/xcode-destinations.txt || true
+
+        # Only use destinations xcodebuild lists as available for this scheme.
+        # Do NOT fall back to raw simctl UDIDs — those can exist while the iOS
+        # platform is missing, and xcodebuild will reject them (exit 70).
+        DEST_LINE="$(
+          awk -F'[{}]' '
+            /platform:iOS Simulator/ && /name:iPhone/ && /id:/ && !/error:/ && !/dvtdevice-/ {
+              gsub(/^ +| +$/, "", $2)
+              print $2
+              exit
+            }
+          ' /tmp/xcode-destinations.txt
+        )"
+
+        DEST=""
+        if [[ -n "$DEST_LINE" ]]; then
+          ID="$(echo "$DEST_LINE" | sed -n 's/.*id:\([^,]*\).*/\1/p' | tr -d ' ')"
+          if [[ -n "$ID" ]]; then
+            DEST="platform=iOS Simulator,id=${ID}"
+          else
+            NAME="$(echo "$DEST_LINE" | sed -n 's/.*name:\([^,]*\).*/\1/p' | sed 's/^ *//;s/ *$//')"
+            DEST="platform=iOS Simulator,name=${NAME:-iPhone 16}"
+          fi
+        elif [[ "${{ inputs.allow-macos }}" == "true" ]] && grep -q 'platform:macOS' /tmp/xcode-destinations.txt; then
+          DEST="platform=macOS,arch=arm64"
+          echo "No iOS Simulator destination for scheme; falling back to macOS."
+        else
+          echo "::error::No usable destination for scheme ${{ inputs.scheme }}"
+          echo "xcodebuild -showdestinations had no iPhone Simulator entries."
+          if grep -q 'iOS .* is not installed' /tmp/xcode-destinations.txt; then
+            echo "Hint: install the iOS platform (xcodebuild -downloadPlatform iOS)."
+            grep -o 'error:[^}]*' /tmp/xcode-destinations.txt | head -5 || true
+          fi
+          exit 1
+        fi
+
+        echo "destination=${DEST}" >> "$GITHUB_OUTPUT"
+        echo "Using destination: ${DEST}"

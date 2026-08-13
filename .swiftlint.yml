@@ -1,0 +1,38 @@
+# SwiftLint — Diverge SDK
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - vertical_whitespace_closing_braces
+
+disabled_rules:
+  - todo
+  - trailing_whitespace
+
+excluded:
+  - .build
+  - .swiftpm
+  - android
+  - Docs
+  - Samples/iOS/.build
+  - Samples/iOS/DivergeSample.xcodeproj
+
+line_length:
+  warning: 120
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+
+identifier_name:
+  min_length:
+    warning: 2
+  excluded:
+    - id
+    - x
+    - y
+    - i
+    - j
+
+reporter: xcode

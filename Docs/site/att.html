@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>App Tracking Transparency — Diverge SDK</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <p class="brand"><a href="index.html">Diverge SDK</a></p>
+  </header>
+  <main>
+    <h1>App Tracking Transparency (ATT)</h1>
+    <p>
+      The <strong>host app</strong> owns the ATT consent prompt
+      (<code>ATTrackingManager.requestTrackingAuthorization</code>).
+      The Diverge SDK does <strong>not</strong> present that prompt.
+    </p>
+
+    <h2>Current SDK contract (v0.1)</h2>
+    <table>
+      <thead>
+        <tr><th>Behavior</th><th>SDK?</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Requests ATT authorization</td>
+          <td>No</td>
+          <td>Host app only</td>
+        </tr>
+        <tr>
+          <td>Reads IDFA / advertising identifier</td>
+          <td>No</td>
+          <td>Not used by the current SDK surface</td>
+        </tr>
+        <tr>
+          <td>Uses AppTrackingTransparency framework</td>
+          <td>No</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Requires <code>NSUserTrackingUsageDescription</code></td>
+          <td>No (for SDK alone)</td>
+          <td>Add only if the <em>host</em> tracks users</td>
+        </tr>
+        <tr>
+          <td>Stores API key / environment in SDK memory</td>
+          <td>Yes</td>
+          <td>In-process after <code>configure</code>; not tracking</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>If product later adds tracking</h2>
+    <ol>
+      <li>Update this page and the Privacy Manifest with accurate domains / data types.</li>
+      <li>Document that the host must show ATT before any IDFA access.</li>
+      <li>Add <code>NSUserTrackingUsageDescription</code> guidance to the Info.plist template.</li>
+    </ol>
+
+    <h2>Related</h2>
+    <ul>
+      <li><a href="https://github.com/DialogIntelligens/Diverge-SDK/tree/main/Dev-Docs/privacy">Privacy Manifest &amp; Info.plist templates</a></li>
+      <li><a href="https://developer.apple.com/documentation/apptrackingtransparency">Apple — App Tracking Transparency</a></li>
+    </ul>
+  </main>
+</body>
+</html>

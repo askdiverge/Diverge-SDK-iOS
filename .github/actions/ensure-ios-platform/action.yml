@@ -1,0 +1,97 @@
+name: Ensure iOS Simulator platform
+description: Prefer an installed Xcode with iPhone Simulator destinations; download platform only as a last resort.
+
+inputs:
+  scheme:
+    description: Scheme used to probe destinations
+    required: false
+    default: DivergeSDK-Package
+  project:
+    description: Optional -project path
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure iOS platform
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        list_args=()
+        if [[ -n "${{ inputs.project }}" ]]; then
+          list_args+=(-project "${{ inputs.project }}")
+        fi
+        list_args+=(-scheme "${{ inputs.scheme }}" -showdestinations)
+
+        has_iphone_sim() {
+          xcodebuild "${list_args[@]}" 2>/dev/null \
+            | grep -E 'platform:iOS Simulator' \
+            | grep -q 'name:iPhone'
+        }
+
+        try_xcode() {
+          local app="$1"
+          [[ -d "$app" ]] || return 1
+          echo "Trying $app ..."
+          sudo xcode-select -s "${app}/Contents/Developer"
+          # Warm CoreSimulator before probing (GHA: avoids "Unable to connect to simulator").
+          # https://github.com/actions/runner-images/issues/12862
+          xcrun simctl list >/dev/null 2>&1 || true
+          if has_iphone_sim; then
+            echo "Selected $app (iPhone Simulator destinations available)."
+            xcodebuild -version
+            return 0
+          fi
+          echo "  no iPhone Simulator destinations."
+          return 1
+        }
+
+        echo "Warming CoreSimulator..."
+        xcrun simctl list >/dev/null 2>&1 || true
+
+        if has_iphone_sim; then
+          echo "iOS Simulator destinations already available."
+          exit 0
+        fi
+
+        # Newest installed Xcode first (stable Xcode_* before generic Xcode.app duplicates).
+        while IFS= read -r app; do
+          if try_xcode "$app"; then
+            exit 0
+          fi
+        done < <(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -iE 'beta|preview' | sort -V -r || true)
+
+        while IFS= read -r app; do
+          if try_xcode "$app"; then
+            exit 0
+          fi
+        done < <(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r || true)
+
+        echo "No installed Xcode exposed iPhone Simulator destinations; attempting download..."
+        ok=0
+        for attempt in 1 2 3; do
+          echo "downloadPlatform attempt ${attempt}/3"
+          xcrun simctl list >/dev/null 2>&1 || true
+          if xcodebuild -downloadPlatform iOS -architectureVariant universal; then
+            ok=1
+            break
+          fi
+          echo "downloadPlatform attempt ${attempt} failed; waiting before retry..."
+          sleep 15
+        done
+
+        xcrun simctl list >/dev/null 2>&1 || true
+        if has_iphone_sim; then
+          echo "iOS Simulator destinations available after download."
+          exit 0
+        fi
+
+        if [[ "$ok" -eq 0 ]]; then
+          echo "::warning::Could not obtain iOS Simulator destinations (downloadPlatform flaky on GHA). Package tests may fall back to macOS; sample build needs a Simulator."
+        else
+          echo "::warning::iOS platform download reported success but no iPhone Simulator destinations appeared."
+        fi
+        # Do not fail here — resolve-ios-destination decides (macOS fallback or hard error).
+        exit 0

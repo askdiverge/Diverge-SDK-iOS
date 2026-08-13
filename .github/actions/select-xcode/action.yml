@@ -1,0 +1,49 @@
+name: Select Xcode
+description: Select the newest installed stable Xcode (prefer Xcode_26* over preview builds).
+
+inputs:
+  preferred-version:
+    description: Optional preferred Xcode app name without .app (e.g. Xcode_26.6). When empty, pick newest installed.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        pick_newest() {
+          # Prefer stable Xcode_N* (exclude beta/preview naming if present as separate apps).
+          local candidate
+          candidate="$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -iE 'beta|preview' | sort -V | tail -1 || true)"
+          if [[ -z "$candidate" ]]; then
+            candidate="$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1 || true)"
+          fi
+          echo "$candidate"
+        }
+
+        preferred_input="${{ inputs.preferred-version }}"
+        if [[ -n "$preferred_input" && -d "/Applications/${preferred_input}.app" ]]; then
+          selected="/Applications/${preferred_input}.app"
+          echo "Using preferred Xcode: $selected"
+        else
+          selected="$(pick_newest)"
+          if [[ -z "$selected" ]]; then
+            echo "No Xcode.app found under /Applications" >&2
+            exit 1
+          fi
+          if [[ -n "$preferred_input" ]]; then
+            echo "Preferred ${preferred_input} missing; using newest installed: $selected"
+          else
+            echo "Using newest installed Xcode: $selected"
+          fi
+        fi
+
+        sudo xcode-select -s "$selected/Contents/Developer"
+        # Warm CoreSimulator early (avoids flaky "Unable to connect to simulator").
+        xcrun simctl list >/dev/null 2>&1 || true
+        xcodebuild -version
+        swift --version
