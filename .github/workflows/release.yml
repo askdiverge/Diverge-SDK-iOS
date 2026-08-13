@@ -87,7 +87,7 @@ jobs:
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
           body: |
-            See [CHANGELOG.md](https://github.com/DialogIntelligens/Diverge-SDK-iOS/blob/${{ steps.meta.outputs.tag }}/CHANGELOG.md).
+            See [CHANGELOG.md](https://github.com/mohamedaldahoul/Diverge-SDK-iOS/blob/${{ steps.meta.outputs.tag }}/CHANGELOG.md).
 
             Channel: ${{ steps.meta.outputs.label }}
         env:

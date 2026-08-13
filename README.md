@@ -2,7 +2,7 @@
 
 Open-source ecommerce SDK for **iOS**, distributed via Swift Package Manager.
 
-> Platform SDKs live in separate repositories. Android: [Diverge-SDK-Android](https://github.com/DialogIntelligens/Diverge-SDK-Android). Overview hub: [Diverge-SDK](https://github.com/DialogIntelligens/Diverge-SDK).
+> Platform SDKs live in separate repositories. Android: [Diverge-SDK-Android](https://github.com/mohamedaldahoul/Diverge-SDK-Android). Overview hub: [Diverge-SDK](https://github.com/DialogIntelligens/Diverge-SDK).
 
 Configure with a sandbox or production API key, then use the shared client for environment and version introspection.
 
@@ -18,7 +18,7 @@ Configure with a sandbox or production API key, then use the shared client for e
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/DialogIntelligens/Diverge-SDK-iOS.git", from: "0.1.0")
+    .package(url: "https://github.com/mohamedaldahoul/Diverge-SDK-iOS.git", from: "0.1.0")
 ]
 ```
 
