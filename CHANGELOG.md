@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Accessibility: AA-safe StatusView/sample text colors; headings; clearer VoiceOver/WCAG checklist process (device gesture sign-off still operator-owned)
+
 ## [0.1.0] - 2026-08-13
 
 ### Added

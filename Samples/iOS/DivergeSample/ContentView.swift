@@ -3,6 +3,13 @@ import DivergeSDKUI
 import SwiftUI
 
 struct ContentView: View {
+    /// Sample chrome — matches SDK AA-safe primary (~17:1 on white).
+    private static let primaryText = Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
+    /// Sample secondary — ~8.9:1 on white.
+    private static let secondaryText = Color(red: 74 / 255, green: 74 / 255, blue: 74 / 255)
+    /// Error text on light red wash — ≥ 4.5:1.
+    private static let errorText = Color(red: 139 / 255, green: 0, blue: 0)
+
     @State private var apiKey = "sk_sandbox_demo"
     @State private var client: DivergeClient?
     @State private var errorMessage: String?
@@ -12,12 +19,13 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Diverge Sample")
                     .font(.largeTitle)
-                    .foregroundColor(Color.primary)
+                    .foregroundColor(Self.primaryText)
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityHeading(.h1)
 
                 Text("Enter a sandbox API key, then configure the SDK.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Self.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 TextField("Sandbox API key", text: $apiKey)
@@ -25,6 +33,7 @@ struct ContentView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(.body)
+                    .frame(minHeight: 48)
                     .accessibilityLabel("Sandbox API key")
                     .accessibilityHint("Demo key only. Do not use production secrets.")
 
@@ -39,11 +48,12 @@ struct ContentView: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.body)
-                        .foregroundColor(Color.primary)
+                        .foregroundColor(Self.errorText)
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.red.opacity(0.12))
                         .accessibilityLabel("Error: \(errorMessage)")
+                        .accessibilityAddTraits(.updatesFrequently)
                 }
 
                 DivergeStatusView(client: client)
