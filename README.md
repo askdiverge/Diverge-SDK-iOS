@@ -16,13 +16,18 @@ The OS deployment floor and the Swift toolchain requirement are independent. Ver
 
 ## Installation
 
+In Xcode: **File → Add Package Dependencies…** → paste  
+`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **0.1.0** (Up to Next Major).
+
+Or in `Package.swift`:
+
 ```swift
 dependencies: [
     .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "0.1.0")
 ]
 ```
 
-Add products `DivergeSDK` (required) and `DivergeSDKUI` (optional status UI). Prefer version pins — do not track `main`.
+Add products **`DivergeSDK`** (required) and **`DivergeSDKUI`** (optional status UI). Prefer SemVer pins / the `v0.1.0` GitHub Release — do not track `main`.
 
 ```swift
 import DivergeSDK
