@@ -39,7 +39,7 @@ Applies to `DivergeStatusView` and the iOS sample configure flow only. Full prod
 
 ## Automated coverage (CI)
 
-`DivergeStatusViewAccessibilityContractTests` asserts the accessibility string-dump contract (`swift test` / GitHub Actions `iOS` workflow).
+`DivergeStatusViewA11yTests` asserts the accessibility string-dump contract (`swift test` / GitHub Actions `iOS` workflow).
 
 ## Device sign-off
 

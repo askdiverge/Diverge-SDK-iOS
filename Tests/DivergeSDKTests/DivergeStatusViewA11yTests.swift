@@ -4,7 +4,7 @@ import DivergeSDKUI
 
 /// Accessibility string-dump contract for VoiceOver (not pixel snapshots).
 /// Kept as exact string equality so CI stays stable across OS/simulator versions.
-final class DivergeStatusViewAccessibilityContractTests: XCTestCase {
+final class DivergeStatusViewA11yTests: XCTestCase {
     override func tearDown() {
         Diverge.reset()
         super.tearDown()
