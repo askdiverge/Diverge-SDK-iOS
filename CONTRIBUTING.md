@@ -53,7 +53,7 @@ swiftformat --lint .
 swiftlint lint --strict
 ```
 
-Open `Package.swift` or `Samples/iOS/DivergeSample.xcodeproj` in Xcode for simulator runs (iOS 15+).
+Open `Package.swift` or `Samples/iOS/DivergeSample.xcodeproj` in Xcode for simulator runs (iOS 18+).
 
 ## Branching and PRs
 

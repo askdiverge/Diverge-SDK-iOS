@@ -27,4 +27,4 @@ Host apps upgrading from `vPREV` to `vX.Y.Z` on iOS (SPM).
 
 - [ ] Sample app builds against the new tag
 - [ ] `swift test` / GitHub Actions `iOS` workflow green
-- [ ] Host smoke test on iOS 15+
+- [ ] Host smoke test on iOS 18+

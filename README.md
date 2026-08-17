@@ -8,17 +8,17 @@ Open-source ecommerce SDK for **iOS**, distributed via Swift Package Manager.
 
 | | Minimum | Notes |
 |--|---------|-------|
-| **Host app deployment target** | **iOS 15.0+** | Runtime OS floor for apps that embed the SDK |
+| **Host app deployment target** | **iOS 18.0+** | Runtime OS floor for apps that embed the SDK |
 | **Swift toolchain (to build the package)** | Swift 6 / `swift-tools-version: 6.0` | Language mode used by the package sources |
 | **Contributor / CI Xcode** | Newest stable on `macos-26` (currently Xcode 26+) | Matches GitHub Actions; not a pin to an older Xcode |
 
-Consumers can ship apps that support iOS 15 while building with a Swift 6–capable Xcode. The OS floor and the toolchain requirement are independent.
+The OS deployment floor and the Swift toolchain requirement are independent. Version stays at **0.1.0** until the public API is stable.
 
 ## Installation
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "0.1.1")
+    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "0.1.0")
 ]
 ```
 
@@ -44,7 +44,7 @@ Root [`VERSION`](VERSION). After changing it:
 ./scripts/check-version.sh
 ```
 
-Push a SemVer tag (`v0.1.1`) for a GitHub Release / SPM version.
+Push a SemVer tag (`v0.1.0`) for a GitHub Release / SPM version. Keep `0.1.0` until the API is stable; then bump for breaking or feature releases.
 
 ## License
 

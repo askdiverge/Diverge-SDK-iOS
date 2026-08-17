@@ -5,7 +5,7 @@ SwiftUI app that configures sandbox via `DivergeSDK` and shows status with `Dive
 ## Open and run
 
 1. Open `DivergeSample.xcodeproj` in a Swift 6–capable Xcode (CI uses newest stable / Xcode 26+).
-2. Select an iOS 15+ simulator.
+2. Select an iOS 18+ simulator.
 3. Run **DivergeSample**.
 4. Tap **Configure sandbox** (default key `sk_sandbox_demo`).
 

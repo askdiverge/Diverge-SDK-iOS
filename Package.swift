@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "DivergeSDK",
     platforms: [
-        .iOS(.v15),
+        .iOS(.v18),
         // macOS supports core + tests/DocC without a simulator.
         .macOS(.v13)
     ],
