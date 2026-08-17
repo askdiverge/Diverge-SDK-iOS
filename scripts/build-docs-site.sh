@@ -101,3 +101,15 @@ PY
 echo "Site assembled at $SITE_DIST"
 # Archives remain available locally for inspection:
 echo "DocC archives (local only): $DOCS_OUT"
+
+# Fail if published HTML still points outside site-dist with relative ../ links
+# (those 404 on GitHub Pages). Prefer absolute GitHub or same-directory hrefs.
+bad_links="$(
+  grep -RInE 'href="\.\./' "$SITE_DIST" --include='*.html' || true
+)"
+if [[ -n "$bad_links" ]]; then
+  echo "error: Docs/site HTML contains relative parent links that break on Pages:" >&2
+  echo "$bad_links" >&2
+  exit 1
+fi
+echo "Pages link check: no relative ../ hrefs in site-dist HTML"

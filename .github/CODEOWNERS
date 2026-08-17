@@ -5,7 +5,6 @@
 # Example:
 # * @DialogIntelligens/diverge-sdk-maintainers
 # /Sources/ @DialogIntelligens/diverge-sdk-maintainers
-# /android/ @DialogIntelligens/diverge-sdk-maintainers
 #
 # Handover checklist: decide collaborator invites vs a dedicated Boozt team
 # with write access before turning this on.

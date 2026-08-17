@@ -12,12 +12,12 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Diverge Sample")
                     .font(.largeTitle)
-                    .foregroundStyle(Color.primary)
+                    .foregroundColor(Color.primary)
                     .accessibilityAddTraits(.isHeader)
 
                 Text("Enter a sandbox API key, then configure the SDK.")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 TextField("Sandbox API key", text: $apiKey)
@@ -39,7 +39,7 @@ struct ContentView: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.body)
-                        .foregroundStyle(Color.primary)
+                        .foregroundColor(Color.primary)
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.red.opacity(0.12))
@@ -72,6 +72,8 @@ struct ContentView: View {
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 }

@@ -9,6 +9,6 @@ chmod +x .githooks/pre-commit scripts/ci-local.sh
 git config core.hooksPath .githooks
 
 echo "Installed Git hooks (core.hooksPath=.githooks)."
-echo "Commits run full local CI for touched platforms (same as GitHub iOS/Android workflows)."
-echo "Manual: make ci-local | make ci-local-ios | make ci-local-android"
+echo "Commits run local CI for staged iOS paths (same as GitHub iOS workflow)."
+echo "Manual: make ci-local"
 echo "Skip once: DIVERGE_SKIP_LOCAL_CI=1 git commit ..."

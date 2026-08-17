@@ -9,4 +9,4 @@
 --trimwhitespace always
 --stripunusedargs closure-only
 --header ignore
---exclude .build,.swiftpm,android,Docs
+--exclude .build,.swiftpm,Docs

@@ -26,12 +26,12 @@ public struct DivergeStatusView: View {
                     .accessibilityLabel("Environment \(client.configuration.environment.rawValue)")
                 Text(client.apiBaseURL.absoluteString)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .accessibilityLabel("API base URL \(client.apiBaseURL.absoluteString)")
             } else {
                 Text("Not configured")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .accessibilityLabel("SDK not configured")
             }
         }
@@ -40,7 +40,7 @@ public struct DivergeStatusView: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// Stable, cross-platform dump used by snapshot tests (avoids pixel diffs across OS).
+    /// Stable accessibility string dump used by a11y contract tests (not pixel snapshots).
     public nonisolated static func accessibilityDump(client: DivergeClient?) -> String {
         var lines = [
             "title: Diverge SDK",

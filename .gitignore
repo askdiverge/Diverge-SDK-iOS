@@ -20,21 +20,6 @@ Packages/
 # Package.resolved is committed so DocC / CI plugin versions stay reproducible.
 !default.xcworkspace
 
-# Android / Gradle
-android/.gradle/
-android/build/
-android/**/build/
-android/local.properties
-android/**/captures/
-android/**/.cxx/
-android/**/out/
-android/**/paparazzi/failures/
-*.apk
-*.aab
-*.ap_
-*.dex
-*.class
-
 # macOS
 .DS_Store
 .AppleDouble
@@ -62,9 +47,4 @@ site-dist/
 # Secrets / env
 .env
 .env.*
-*.jks
-*.keystore
 secrets/
-
-Dev-Docs/
-_split/

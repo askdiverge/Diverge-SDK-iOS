@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Local CI mirroring .github/workflows/ios.yml and android.yml.
+# Local CI mirroring .github/workflows/ios.yml.
 # Usage:
-#   ./scripts/ci-local.sh           # version + ios + android
+#   ./scripts/ci-local.sh           # version + ios
 #   ./scripts/ci-local.sh ios       # version + ios
-#   ./scripts/ci-local.sh android   # version + android
 #   ./scripts/ci-local.sh version   # version only
 #
 # Escape hatch: DIVERGE_SKIP_LOCAL_CI=1 skips everything (pre-commit only).
@@ -128,7 +127,7 @@ run_ios() {
     echo "Fix (pick one):" >&2
     echo "  1. Xcode → Settings → Components → download/install iOS" >&2
     echo "  2. xcodebuild -downloadPlatform iOS" >&2
-    echo "Then create/boot a simulator on that runtime and re-run: make ci-local-ios" >&2
+    echo "Then create/boot a simulator on that runtime and re-run: make ci-local" >&2
     if grep -q 'iOS .* is not installed' /tmp/xcode-destinations.txt 2>/dev/null; then
       echo "" >&2
       echo "Xcode hint from showdestinations:" >&2
@@ -147,55 +146,16 @@ run_ios() {
   echo "==> CI local: iOS ok"
 }
 
-run_android() {
-  echo "==> CI local: Android (mirrors .github/workflows/android.yml)"
-
-  if [[ -z "${ANDROID_HOME:-}" && -z "${ANDROID_SDK_ROOT:-}" ]]; then
-    echo "error: ANDROID_HOME (or ANDROID_SDK_ROOT) not set" >&2
-    exit 1
-  fi
-  if ! command -v java >/dev/null 2>&1; then
-    echo "error: java not found (need JDK 17+)" >&2
-    exit 1
-  fi
-
-  (
-    cd android
-    ./gradlew \
-      :diverge-sdk:assemble \
-      :diverge-sdk:test \
-      :diverge-sdk:lint \
-      :diverge-sdk:dokkaHtml \
-      :diverge-sdk:dokkaJavadoc \
-      :sample:assembleDebug \
-      :sample:assembleRelease \
-      :sample:verifyR8PublicApiKeeps \
-      :sample:testDebugUnitTest \
-      --stacktrace
-  )
-
-  echo "==> CI local: Android ok"
-}
-
 case "$MODE" in
   version)
     run_version
     ;;
-  ios)
+  ios|all)
     run_version
     run_ios
-    ;;
-  android)
-    run_version
-    run_android
-    ;;
-  all)
-    run_version
-    run_ios
-    run_android
     ;;
   *)
-    echo "usage: $0 [all|ios|android|version]" >&2
+    echo "usage: $0 [all|ios|version]" >&2
     exit 2
     ;;
 esac

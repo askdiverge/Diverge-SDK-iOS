@@ -2,8 +2,9 @@ import XCTest
 @_spi(Testing) import DivergeSDK
 import DivergeSDKUI
 
-/// Accessibility dump contract for VoiceOver — kept as exact string equality.
-final class DivergeStatusViewSnapshotTests: XCTestCase {
+/// Accessibility string-dump contract for VoiceOver (not pixel snapshots).
+/// Kept as exact string equality so CI stays stable across OS/simulator versions.
+final class DivergeStatusViewAccessibilityContractTests: XCTestCase {
     override func tearDown() {
         Diverge.reset()
         super.tearDown()
@@ -21,7 +22,7 @@ final class DivergeStatusViewSnapshotTests: XCTestCase {
 
     func testStatusViewConfiguredSandboxDump() throws {
         let client = try Diverge.configure(
-            Configuration(apiKey: "sk_test_snapshot", environment: .sandbox)
+            Configuration(apiKey: "sk_test_a11y", environment: .sandbox)
         )
         let dump = DivergeStatusView.accessibilityDump(client: client)
         let expected = [
@@ -31,7 +32,7 @@ final class DivergeStatusViewSnapshotTests: XCTestCase {
             "apiBaseURL: https://sandbox.api.askdiverge.ai"
         ].joined(separator: "\n")
         XCTAssertEqual(dump, expected)
-        XCTAssertFalse(dump.contains("sk_test_snapshot"), "API key must not appear in a11y dump")
+        XCTAssertFalse(dump.contains("sk_test_a11y"), "API key must not appear in a11y dump")
     }
 
     func testStatusViewAccessibilityLabelsArePresentInViewHierarchy() {

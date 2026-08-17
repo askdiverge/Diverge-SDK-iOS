@@ -1,10 +1,10 @@
-# Contributing to Diverge SDK
+# Contributing to Diverge SDK (iOS)
 
-Thanks for contributing. This guide covers the scaffold-era workflow; expand it as the SDK API stabilizes.
+Thanks for contributing. This repository is **iOS-only** (Swift Package Manager). Android lives in [Diverge-SDK-Android](https://github.com/askdiverge/Diverge-SDK-Android).
 
 ## Development setup
 
-Install local Git hooks once (runs **full local CI** on every `git commit` for touched platforms):
+Install local Git hooks once (runs local CI on `git commit` when iOS paths are staged):
 
 ```bash
 make install-hooks
@@ -14,91 +14,78 @@ make install-hooks
 The pre-commit hook mirrors GitHub Actions:
 
 - Always: `./scripts/check-version.sh`
-- iOS paths staged → same as `.github/workflows/ios.yml` (SwiftLint, SwiftFormat, `xcodebuild test` on `DivergeSDK-Package`, sample build)
-- Android paths staged → same as `.github/workflows/android.yml` (assemble, test, lint, Dokka, release minify, R8 keeps)
+- iOS paths staged → same as `.github/workflows/ios.yml` (SwiftLint, SwiftFormat, package tests, sample build)
 
 Run without committing:
 
 ```bash
-make ci-local          # both platforms
-make ci-local-ios
-make ci-local-android
+make ci-local
 ```
 
 Skip once: `DIVERGE_SKIP_LOCAL_CI=1 git commit -m "..."`.
 
-Common commands (also see `make help`):
+Common commands:
 
 ```bash
 make sync-version
 make check-version
 make ios-test
-make android-test
+make ios-lint
+make docs-docc
 ```
 
 Keep the root `VERSION` file as the single source of truth:
 
 ```bash
-./scripts/sync-version.sh   # updates generated Swift + docs/README placeholders
+./scripts/sync-version.sh   # updates generated Swift + docs placeholders
 ./scripts/check-version.sh  # fails if sources drift
 ```
 
-Android modules read `VERSION` at Gradle configure time (no sync step required for Kotlin).
+### Tooling
 
-### iOS
-
-1. Install Xcode 26+ and Command Line Tools.
+1. Install Xcode 26+ (CI uses the newest stable Xcode on `macos-26`; do not pin an older default) and Command Line Tools.
 2. Optional: [SwiftLint](https://github.com/realm/SwiftLint) and [SwiftFormat](https://github.com/nicklockwood/SwiftFormat).
 3. From the repo root:
 
 ```bash
 swift test
 swiftformat --lint .
-swiftlint lint
+swiftlint lint --strict
 ```
 
-Open `Package.swift` or `Samples/iOS/DivergeSample.xcodeproj` in Xcode for simulator runs.
-
-### Android
-
-1. Install JDK 17 and Android SDK (`ANDROID_HOME`).
-2. From `android/`:
-
-```bash
-./gradlew :diverge-sdk:assemble :diverge-sdk:test :diverge-sdk:lint :diverge-sdk:dokkaHtml :diverge-sdk:dokkaJavadoc
-./gradlew :sample:assembleDebug
-```
+Open `Package.swift` or `Samples/iOS/DivergeSample.xcodeproj` in Xcode for simulator runs (iOS 15+).
 
 ## Branching and PRs
 
 - Open PRs against `main`.
 - Keep changes focused; include tests when behavior changes.
 - Fill in the PR template when present.
-- **Local:** `make install-hooks` then every `git commit` runs full local CI for touched platforms (`scripts/ci-local.sh`, mirrors GitHub iOS/Android).
-- **Remote:** path-filtered GitHub Actions (`iOS`, `Android`, `DocC`) on push/PR.
+- **Local:** `make install-hooks` then every `git commit` runs local CI for staged iOS paths.
+- **Remote:** path-filtered GitHub Actions (`iOS`, `DocC`, `release`) on push/PR/tags.
 
 ## Releases
 
 1. Bump `VERSION`, run `./scripts/sync-version.sh`, update `CHANGELOG.md` with `## [x.y.z]`.
-2. For breaking changes, add `Docs/integration/vX.Y.Z.md` from [`Dev-Docs/integration/TEMPLATE.md`](Dev-Docs/integration/TEMPLATE.md).
+2. For breaking changes, add `Docs/integration/vX.Y.Z.md` from [`Docs/integration/TEMPLATE.md`](Docs/integration/TEMPLATE.md).
 3. Tag with SemVer: `vMAJOR.MINOR.PATCH`, or `vX.Y.Z-beta.N` / `vX.Y.Z-canary.N`.
 4. Push the tag; `.github/workflows/release.yml` validates SemVer, VERSION, changelog, then creates the GitHub Release.
 
+See also [`Docs/ops/canary-release.md`](Docs/ops/canary-release.md).
+
 ## Code style
 
-- Swift: SwiftFormat + SwiftLint configs at the repo root (`--header ignore`).
-- Kotlin: Android Studio defaults; CI runs lint with `abortOnError`.
+SwiftFormat + SwiftLint configs at the repo root (`--header ignore`).
 
 ## Package.resolved
 
-Committed on purpose — see [`Dev-Docs/PACKAGE_RESOLVED.md`](Dev-Docs/PACKAGE_RESOLVED.md).
+Committed on purpose — see [`Docs/dev/PACKAGE_RESOLVED.md`](Docs/dev/PACKAGE_RESOLVED.md).
 
 ## Products
 
 | Product | Contents |
 |---------|----------|
 | `DivergeSDK` | Core configure/client API (no SwiftUI) |
-| `DivergeSDKUI` | ``DivergeStatusView`` and related SwiftUI helpers |
+| `DivergeSDKUI` | `DivergeStatusView` and related SwiftUI helpers |
 
 ## Strict Concurrency
 

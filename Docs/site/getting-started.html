@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Getting started — Diverge SDK</title>
+  <title>Getting started — Diverge SDK (iOS)</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,11 +11,11 @@
     <p class="brand"><a href="index.html">Diverge SDK</a></p>
   </header>
   <main>
-    <h1>Getting started</h1>
-    <p>Install the SDK, configure a sandbox API key, then read the shared client.</p>
-    <h2>iOS (SPM)</h2>
+    <h1>Getting started (iOS)</h1>
+    <p>Install the SDK via Swift Package Manager, configure a sandbox API key, then read the shared client.</p>
+    <h2>SPM</h2>
     <pre><code>dependencies: [
-    .package(url: "https://github.com/mohamedaldahoul/Diverge-SDK-iOS.git", from: "0.1.0")
+    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "0.1.1")
 ]
 // Products: DivergeSDK (required), DivergeSDKUI (optional status UI)
 
@@ -25,17 +25,9 @@ try Diverge.configure(
     Configuration(apiKey: "sk_sandbox_demo", environment: .sandbox)
 )
 print(try Diverge.shared.apiBaseURL, Diverge.version)</code></pre>
-    <h2>Android</h2>
-    <pre><code>// Maven Central pending — see Dev-Docs/releases/MAVEN_CENTRAL.md
-// Until published: implementation(project(":diverge-sdk"))
-
-Diverge.configure(
-    Configuration(apiKey = "sk_sandbox_demo", environment = Environment.SANDBOX)
-)
-println(Diverge.shared.apiBaseUrl)</code></pre>
-    <p>See the full baseline guide:
-      <a href="https://github.com/DialogIntelligens/Diverge-SDK/blob/main/Docs/integration/v0.1.0.md">Docs/integration/v0.1.0.md</a>.
-    </p>
+    <p>Minimum <strong>app</strong> deployment target: <strong>iOS 15.0+</strong>. Prefer SemVer pins from GitHub Releases — do not track <code>main</code>.</p>
+    <p>See the baseline guide: <a href="https://github.com/askdiverge/Diverge-SDK-iOS/blob/main/Docs/integration/v0.1.0.md">Docs/integration/v0.1.0.md</a>.</p>
+    <p>Android SDK: <a href="https://github.com/askdiverge/Diverge-SDK-Android">Diverge-SDK-Android</a>.</p>
   </main>
 </body>
 </html>

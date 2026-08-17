@@ -29,7 +29,7 @@ For status UI, also link the `DivergeSDKUI` product and use `DivergeStatusView`.
 | ``Environment/sandbox`` | `sandbox` | `https://sandbox.api.askdiverge.ai` |
 | ``Environment/production`` | `production` | `https://api.askdiverge.ai` |
 
-Android mirrors these with `Environment.SANDBOX` / `PRODUCTION` and `wireName`.
+Raw values and base URLs are aligned with the Android SDK (`Environment.SANDBOX` / `PRODUCTION`). See [Diverge-SDK-Android](https://github.com/askdiverge/Diverge-SDK-Android).
 
 ## Topics
 
