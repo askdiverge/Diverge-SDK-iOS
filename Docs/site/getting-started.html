@@ -22,7 +22,7 @@
 import DivergeSDK
 
 try Diverge.configure(
-    Configuration(apiKey: "sk_sandbox_demo", environment: .sandbox)
+    DivergeConfiguration(apiKey: "sk_sandbox_demo", environment: .sandbox)
 )
 print(try Diverge.shared.apiBaseURL, Diverge.version)</code></pre>
     <p>Minimum <strong>app</strong> deployment target: <strong>iOS 18.0+</strong>. Prefer SemVer pins from GitHub Releases — do not track <code>main</code>. Version stays at <strong>0.1.0</strong> until the API is stable.</p>

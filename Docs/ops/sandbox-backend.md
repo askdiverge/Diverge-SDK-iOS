@@ -13,8 +13,8 @@
 
 ## SDK contract today
 
-- `Environment.sandbox` → `https://sandbox.api.askdiverge.ai`
-- `Environment.production` → `https://api.askdiverge.ai`
+- `DivergeEnvironment.sandbox` → `https://sandbox.api.askdiverge.ai`
+- `DivergeEnvironment.production` → `https://api.askdiverge.ai`
 - `configure` does **not** perform network I/O in v0.1.0
 
 When HTTP lands, clients must keep using environment-selected base URLs and never mix sandbox keys with production hosts.

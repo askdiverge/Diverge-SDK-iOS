@@ -34,7 +34,7 @@ import DivergeSDK
 import DivergeSDKUI
 
 try Diverge.configure(
-    Configuration(apiKey: "sk_sandbox_demo", environment: .sandbox)
+    DivergeConfiguration(apiKey: "sk_sandbox_demo", environment: .sandbox)
 )
 let client = try Diverge.shared
 DivergeStatusView(client: client)

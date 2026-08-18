@@ -21,7 +21,7 @@ final class DivergeSDKTests: XCTestCase {
 
     func testConfigureRequiresNonEmptyAPIKey() {
         XCTAssertThrowsError(
-            try Diverge.configure(Configuration(apiKey: "   ", environment: .sandbox))
+            try Diverge.configure(DivergeConfiguration(apiKey: "   ", environment: .sandbox))
         ) { error in
             XCTAssertEqual(error as? DivergeError, .invalidAPIKey)
             XCTAssertEqual(
@@ -34,7 +34,7 @@ final class DivergeSDKTests: XCTestCase {
 
     func testConfigureSandboxClient() throws {
         let client = try Diverge.configure(
-            Configuration(apiKey: "sk_test_123", environment: .sandbox)
+            DivergeConfiguration(apiKey: "sk_test_123", environment: .sandbox)
         )
         XCTAssertTrue(Diverge.isConfigured)
         XCTAssertEqual(client.configuration.environment, .sandbox)
@@ -44,7 +44,7 @@ final class DivergeSDKTests: XCTestCase {
 
     func testConfigureProductionClient() throws {
         let client = try Diverge.configure(
-            Configuration(apiKey: "sk_live_123", environment: .production)
+            DivergeConfiguration(apiKey: "sk_live_123", environment: .production)
         )
         XCTAssertEqual(client.configuration.environment, .production)
         XCTAssertEqual(client.apiBaseURL.absoluteString, "https://api.askdiverge.ai")
@@ -58,17 +58,17 @@ final class DivergeSDKTests: XCTestCase {
 
     func testEnvironmentURLs() {
         XCTAssertEqual(
-            Environment.sandbox.apiBaseURL.absoluteString,
+            DivergeEnvironment.sandbox.apiBaseURL.absoluteString,
             "https://sandbox.api.askdiverge.ai"
         )
         XCTAssertEqual(
-            Environment.production.apiBaseURL.absoluteString,
+            DivergeEnvironment.production.apiBaseURL.absoluteString,
             "https://api.askdiverge.ai"
         )
     }
 
     func testConfigurationDescriptionRedactsAPIKey() {
-        let configuration = Configuration(apiKey: "sk_sandbox_secret_value", environment: .sandbox)
+        let configuration = DivergeConfiguration(apiKey: "sk_sandbox_secret_value", environment: .sandbox)
         let description = String(describing: configuration)
         XCTAssertFalse(description.contains("secret_value"))
         XCTAssertTrue(description.contains("sk_s…alue") || description.contains("…"))
@@ -87,7 +87,7 @@ final class DivergeSDKTests: XCTestCase {
                 defer { group.leave() }
                 do {
                     _ = try Diverge.configure(
-                        Configuration(apiKey: "sk_concurrent_\(index)", environment: .sandbox)
+                        DivergeConfiguration(apiKey: "sk_concurrent_\(index)", environment: .sandbox)
                     )
                     _ = try Diverge.shared
                 } catch {

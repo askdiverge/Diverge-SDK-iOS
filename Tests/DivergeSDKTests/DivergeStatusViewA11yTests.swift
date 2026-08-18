@@ -22,7 +22,7 @@ final class DivergeStatusViewA11yTests: XCTestCase {
 
     func testStatusViewConfiguredSandboxDump() throws {
         let client = try Diverge.configure(
-            Configuration(apiKey: "sk_test_a11y", environment: .sandbox)
+            DivergeConfiguration(apiKey: "sk_test_a11y", environment: .sandbox)
         )
         let dump = DivergeStatusView.accessibilityDump(client: client)
         let expected = [

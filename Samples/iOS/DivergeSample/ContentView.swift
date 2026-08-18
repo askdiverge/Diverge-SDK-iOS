@@ -69,7 +69,7 @@ struct ContentView: View {
     private func configure() {
         do {
             client = try Diverge.configure(
-                Configuration(apiKey: apiKey, environment: .sandbox)
+                DivergeConfiguration(apiKey: apiKey, environment: .sandbox)
             )
             errorMessage = nil
         } catch let error as DivergeError {

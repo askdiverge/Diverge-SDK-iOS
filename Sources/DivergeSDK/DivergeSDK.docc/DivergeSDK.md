@@ -10,7 +10,7 @@ Configure the SDK once at launch with an API key and environment, then use the s
 import DivergeSDK
 
 try Diverge.configure(
-    Configuration(apiKey: "sk_sandbox_...", environment: .sandbox)
+    DivergeConfiguration(apiKey: "sk_sandbox_...", environment: .sandbox)
 )
 let client = try Diverge.shared
 print(client.apiBaseURL)
@@ -26,18 +26,18 @@ For status UI, also link the `DivergeSDKUI` product and use `DivergeStatusView`.
 
 | Case | Raw value | API base URL |
 |------|-----------|--------------|
-| ``Environment/sandbox`` | `sandbox` | `https://sandbox.api.askdiverge.ai` |
-| ``Environment/production`` | `production` | `https://api.askdiverge.ai` |
+| ``DivergeEnvironment/sandbox`` | `sandbox` | `https://sandbox.api.askdiverge.ai` |
+| ``DivergeEnvironment/production`` | `production` | `https://api.askdiverge.ai` |
 
-Raw values and base URLs are aligned with the Android SDK (`Environment.SANDBOX` / `PRODUCTION`). See [Diverge-SDK-Android](https://github.com/askdiverge/Diverge-SDK-Android).
+Raw values and base URLs are aligned with the Android SDK (`DivergeEnvironment.SANDBOX` / `PRODUCTION`). See [Diverge-SDK-Android](https://github.com/askdiverge/Diverge-SDK-Android).
 
 ## Topics
 
 ### Essentials
 
 - ``Diverge``
-- ``Configuration``
-- ``Environment``
+- ``DivergeConfiguration``
+- ``DivergeEnvironment``
 - ``DivergeClient``
 - ``DivergeError``
 

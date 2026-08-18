@@ -2,9 +2,10 @@ import Foundation
 
 /// Deployment environment for the Diverge SDK.
 ///
+/// Named `DivergeEnvironment` to avoid colliding with SwiftUI's `Environment`.
 /// Raw values are lowercase (`sandbox`, `production`) on all platforms. Android
-/// exposes the same wire values via `Environment.wireName`.
-public enum Environment: String, Sendable, CaseIterable, Equatable {
+/// exposes the same wire values via `DivergeEnvironment.wireName`.
+public enum DivergeEnvironment: String, Sendable, CaseIterable, Equatable {
     case sandbox
     case production
 

@@ -40,12 +40,12 @@ public enum Diverge {
     /// - Returns: The new shared ``DivergeClient``.
     /// - Throws: ``DivergeError/invalidAPIKey`` if the key is blank.
     @discardableResult
-    public static func configure(_ configuration: Configuration) throws -> DivergeClient {
+    public static func configure(_ configuration: DivergeConfiguration) throws -> DivergeClient {
         let trimmed = configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw DivergeError.invalidAPIKey
         }
-        let normalized = Configuration(apiKey: trimmed, environment: configuration.environment)
+        let normalized = DivergeConfiguration(apiKey: trimmed, environment: configuration.environment)
         let client = DivergeClient(configuration: normalized)
         lock.lock()
         _shared = client

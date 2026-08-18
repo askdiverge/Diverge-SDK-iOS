@@ -1,24 +1,27 @@
 import Foundation
 
 /// Configuration used to initialize the Diverge SDK.
-public struct Configuration: Sendable, Equatable, CustomStringConvertible {
+///
+/// Named `DivergeConfiguration` to avoid colliding with SwiftUI / Foundation
+/// types named `Configuration`.
+public struct DivergeConfiguration: Sendable, Equatable, CustomStringConvertible {
     /// API key issued for the host application.
     public let apiKey: String
     /// Target backend environment.
-    public let environment: Environment
+    public let environment: DivergeEnvironment
 
     /// Creates a configuration.
     /// - Parameters:
     ///   - apiKey: Non-empty API key.
     ///   - environment: Sandbox or production.
-    public init(apiKey: String, environment: Environment) {
+    public init(apiKey: String, environment: DivergeEnvironment) {
         self.apiKey = apiKey
         self.environment = environment
     }
 
     /// Redacted description — never logs the full API key.
     public var description: String {
-        "Configuration(apiKey: \(Self.redact(apiKey)), environment: \(environment.rawValue))"
+        "DivergeConfiguration(apiKey: \(Self.redact(apiKey)), environment: \(environment.rawValue))"
     }
 
     /// Redacts an API key for logs (keeps a short prefix/suffix when long enough).
