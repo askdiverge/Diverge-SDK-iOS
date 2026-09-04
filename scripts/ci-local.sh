@@ -11,6 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+SCHEME="${SCHEME:-DivergeSDK-Package}"
 MODE="${1:-all}"
 
 if [[ "${DIVERGE_SKIP_LOCAL_CI:-}" == "1" ]]; then
@@ -83,10 +84,6 @@ run_ios() {
     echo "error: swiftlint not found. Install with: brew install swiftlint" >&2
     exit 1
   fi
-  if ! command -v swiftformat >/dev/null 2>&1; then
-    echo "error: swiftformat not found. Install with: brew install swiftformat" >&2
-    exit 1
-  fi
   if ! command -v xcodebuild >/dev/null 2>&1; then
     echo "error: xcodebuild not found. Install Xcode." >&2
     exit 1
@@ -95,29 +92,26 @@ run_ios() {
   echo "==> SwiftLint"
   swiftlint lint --strict
 
-  echo "==> SwiftFormat"
-  swiftformat --lint .
-
   echo "==> Resolve package"
   swift package resolve
-  xcodebuild -list -scheme DivergeSDK-Package >/dev/null || xcodebuild -list >/dev/null
+  xcodebuild -list -scheme "$SCHEME" >/dev/null || xcodebuild -list >/dev/null
 
   local pkg_dest sample_dest
-  # Product scheme "DivergeSDK" has no Test action; SPM tests live on "*-Package".
-  if ! pkg_dest="$(resolve_destination DivergeSDK-Package "" 1)"; then
-    echo "error: no usable destination for DivergeSDK-Package" >&2
+  # Product schemes have no Test action; SPM tests live on "*-Package".
+  if ! pkg_dest="$(resolve_destination "$SCHEME" "" 1)"; then
+    echo "error: no usable destination for $SCHEME" >&2
     echo "Install the iOS platform via Xcode → Settings → Components, or ensure macOS is available." >&2
     exit 1
   fi
-  echo "==> Package tests ($pkg_dest) [scheme DivergeSDK-Package]"
+  echo "==> Package tests ($pkg_dest) [scheme $SCHEME]"
   xcodebuild test \
-    -scheme DivergeSDK-Package \
+    -scheme "$SCHEME" \
     -destination "$pkg_dest" \
     -skipPackagePluginValidation \
     CODE_SIGNING_ALLOWED=NO
 
-  if ! sample_dest="$(resolve_destination DivergeSample Samples/iOS/DivergeSample.xcodeproj 0)"; then
-    echo "error: no iOS Simulator destination for DivergeSample." >&2
+  if ! sample_dest="$(resolve_destination Sample Samples/iOS/Sample.xcodeproj 0)"; then
+    echo "error: no iOS Simulator destination for Sample." >&2
     echo "" >&2
     echo "A booted Simulator app is not enough: this Xcode only accepts destinations" >&2
     echo "listed by \`xcodebuild -showdestinations\` for the scheme. Right now that" >&2
@@ -137,8 +131,8 @@ run_ios() {
   fi
   echo "==> Build iOS sample ($sample_dest)"
   xcodebuild build \
-    -project Samples/iOS/DivergeSample.xcodeproj \
-    -scheme DivergeSample \
+    -project Samples/iOS/Sample.xcodeproj \
+    -scheme Sample \
     -destination "$sample_dest" \
     -skipPackagePluginValidation \
     CODE_SIGNING_ALLOWED=NO

@@ -2,9 +2,29 @@
 
 ## [Unreleased]
 
+### Added
+
+- The conversational chat SDK: `AIChat`, `AIChat.Configuration` and `ConversationFlow` as the entire
+  public surface, with `makeView()` for SwiftUI and `makeViewController()` for UIKit
+- Host-owned hooks for session tokens, conversation reset and data deletion; optional per-message
+  context, in-message link routing, and a choice of conversation layout
+- Localization across 16 languages via a String Catalog
+- Remote font loading, registered from a content-hash-keyed on-disk cache that holds one font
+
 ### Changed
 
-- Accessibility: AA-safe StatusView/sample text colors; headings; clearer VoiceOver/WCAG checklist process (device gesture sign-off still operator-owned)
+- **Breaking:** the previous public API is gone — `Diverge`, `DivergeConfiguration`, `DivergeClient`,
+  `DivergeError`, `Environment`, and the `DivergeSDKUI` product with `DivergeStatusView`
+- Single product `AIConversation`, replacing the core/UI product split. The engine and networking
+  targets are internal
+- No third-party dependencies: DocC is built with `xcodebuild docbuild` instead of `swift-docc-plugin`
+- Swift 6 language mode is set once at package level
+- Minimum macOS raised to **15.0** (iOS floor unchanged at 18.0)
+
+### Removed
+
+- The SwiftFormat gate from CI, the Makefile and local CI
+- `Package.resolved`, which no longer has dependencies to pin
 
 ## [0.1.0] - 2026-08-13
 

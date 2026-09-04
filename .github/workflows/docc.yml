@@ -5,7 +5,6 @@ on:
     paths:
       - "Sources/**"
       - "Package.swift"
-      - "Package.resolved"
       - "Docs/site/**"
       - "scripts/build-docs-site.sh"
       - ".github/workflows/docc.yml"
@@ -14,7 +13,6 @@ on:
     paths:
       - "Sources/**"
       - "Package.swift"
-      - "Package.resolved"
       - "Docs/site/**"
       - "scripts/build-docs-site.sh"
       - ".github/workflows/docc.yml"
@@ -44,7 +42,7 @@ jobs:
       - name: Resolve packages
         run: swift package resolve
 
-      - name: Build docs site (DocC SDK + UI + Docs/site)
+      - name: Build docs site (DocC + Docs/site)
         run: ./scripts/build-docs-site.sh
 
       - name: Upload site artifact

@@ -1,9 +1,0 @@
-{
-  "editor.formatOnSave": false,
-  "files.insertFinalNewline": true,
-  "files.trimTrailingWhitespace": true,
-  "[swift]": {
-    "editor.defaultFormatter": "sswg.swift-lang.swift"
-  },
-  "java.configuration.updateBuildConfiguration": "interactive"
-}

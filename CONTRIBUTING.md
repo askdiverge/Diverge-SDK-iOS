@@ -14,7 +14,7 @@ make install-hooks
 The pre-commit hook mirrors GitHub Actions:
 
 - Always: `./scripts/check-version.sh`
-- iOS paths staged → same as `.github/workflows/ios.yml` (SwiftLint, SwiftFormat, package tests, sample build)
+- iOS paths staged → same as `.github/workflows/ios.yml` (SwiftLint, package tests, sample build)
 
 Run without committing:
 
@@ -44,16 +44,15 @@ Keep the root `VERSION` file as the single source of truth:
 ### Tooling
 
 1. Install Xcode 26+ (CI uses the newest stable Xcode on `macos-26`; do not pin an older default) and Command Line Tools.
-2. Optional: [SwiftLint](https://github.com/realm/SwiftLint) and [SwiftFormat](https://github.com/nicklockwood/SwiftFormat).
+2. Optional: [SwiftLint](https://github.com/realm/SwiftLint).
 3. From the repo root:
 
 ```bash
 swift test
-swiftformat --lint .
 swiftlint lint --strict
 ```
 
-Open `Package.swift` or `Samples/iOS/DivergeSample.xcodeproj` in Xcode for simulator runs (iOS 18+).
+Open `Package.swift` or `Samples/iOS/Sample.xcodeproj` in Xcode for simulator runs (iOS 18+).
 
 ## Branching and PRs
 
@@ -74,22 +73,22 @@ See also [`Docs/ops/canary-release.md`](Docs/ops/canary-release.md).
 
 ## Code style
 
-SwiftFormat + SwiftLint configs at the repo root (`--header ignore`).
-
-## Package.resolved
-
-Committed on purpose — see [`Docs/dev/PACKAGE_RESOLVED.md`](Docs/dev/PACKAGE_RESOLVED.md).
+SwiftLint config at the repo root (`.swiftlint.yml`) is the single source of style truth.
 
 ## Products
 
 | Product | Contents |
 |---------|----------|
-| `DivergeSDK` | Core configure/client API (no SwiftUI) |
-| `DivergeSDKUI` | `DivergeStatusView` and related SwiftUI helpers |
+| `AIConversation` | The chat UI and its public entry point, `AIChat` |
+
+Two internal targets sit behind it: `AIConversationEngine` (conversation state, streaming, parsing)
+and `AIConversationCore` (networking, token storage). Both use `package` access and are deliberately
+absent from the product list — the public surface is `AIChat` alone.
 
 ## Strict Concurrency
 
-The library and tests use Swift 6 language mode. Keep new API `Sendable`-safe; `Diverge.configure` / `shared` use a lock plus `nonisolated(unsafe)` for the shared client slot.
+The library and tests use Swift 6 language mode. Keep new API `Sendable`-safe. `AIChat` is
+`@MainActor`; the conversation state lives in an actor behind it.
 
 ## License
 

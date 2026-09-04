@@ -1,4 +1,4 @@
-name: DivergeSample
+name: Sample
 options:
   bundleIdPrefix: ai.askdiverge
   deploymentTarget:
@@ -11,18 +11,19 @@ packages:
   DivergeSDK:
     path: ../../
 targets:
-  DivergeSample:
+  Sample:
     type: application
     platform: iOS
     sources:
-      - DivergeSample
+      - Sample
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.askdiverge.sample
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_FILE: DivergeSample/Info.plist
+        INFOPLIST_FILE: Sample/Info.plist
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
@@ -30,8 +31,6 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
     dependencies:
       - package: DivergeSDK
-        product: DivergeSDK
-      - package: DivergeSDK
-        product: DivergeSDKUI
+        product: AIConversation
     scheme:
       testTargets: []

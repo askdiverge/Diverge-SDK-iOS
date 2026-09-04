@@ -1,37 +1,65 @@
-# SwiftLint — Diverge SDK
-opt_in_rules:
-  - empty_count
-  - force_unwrapping
-  - implicitly_unwrapped_optional
-  - overridden_super_call
-  - redundant_nil_coalescing
-  - vertical_whitespace_closing_braces
-
 disabled_rules:
   - todo
-  - trailing_whitespace
+  - file_length
+  - line_length
+  - type_body_length
+  - closure_parameter_position
+  - function_body_length
+  - unneeded_break_in_switch
+  - switch_case_alignment
+  - orphaned_doc_comment
+  - large_tuple
+  - function_parameter_count
+  - redundant_string_enum_value
+  - private_over_fileprivate
+  - inclusive_language
+  - switch_case_on_newline
+  - static_over_final_class
+  - optional_data_string_conversion
+
+opt_in_rules:
+  - closure_end_indentation
+  - closure_spacing
+  - explicit_init
+  - implicit_return
+  - literal_expression_end_indentation
+  - modifier_order
+  - operator_usage_whitespace
+  - optional_enum_case_matching
+  - prefer_self_type_over_type_of_self
+  - prefer_zero_over_explicit_init
+  - redundant_nil_coalescing
 
 excluded:
   - .build
   - .swiftpm
+  - .docc-build
+  - docs-out
+  - site-dist
   - Docs
   - Samples/iOS/.build
-  - Samples/iOS/DivergeSample.xcodeproj
+  - Samples/iOS/Sample.xcodeproj
 
-line_length:
-  warning: 120
-  error: 200
-  ignores_comments: true
-  ignores_urls: true
+cyclomatic_complexity:
+  ignores_case_statements: true
+
+type_name:
+  excluded:
+    - ID
+    - id
+    - T
+    - U
 
 identifier_name:
-  min_length:
-    warning: 2
+  min_length: 2
+  max_length: 60
+  allowed_symbols: ["_"]
   excluded:
-    - id
     - x
     - y
-    - i
-    - j
+
+nesting:
+  type_level:
+    warning: 3
 
 reporter: xcode

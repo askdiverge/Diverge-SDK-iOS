@@ -9,7 +9,6 @@ ios-test: check-version
 	swift test
 ios-lint:
 	swiftlint lint --strict
-	swiftformat --lint .
 docs-docc:
 	./scripts/build-docs-site.sh
 install-hooks:

@@ -27,18 +27,75 @@ dependencies: [
 ]
 ```
 
-Add products **`DivergeSDK`** (required) and **`DivergeSDKUI`** (optional status UI). Prefer SemVer pins / the `v0.1.0` GitHub Release — do not track `main`.
+Add the **`AIConversation`** product. Prefer SemVer pins / the `v0.1.0` GitHub Release — do not track `main`.
+
+## Usage
+
+The SDK renders the conversation and nothing else — the host supplies the session token and data
+lifecycle, and owns how the chat is presented and dismissed.
 
 ```swift
-import DivergeSDK
-import DivergeSDKUI
+import AIConversation
 
-try Diverge.configure(
-    DivergeConfiguration(apiKey: "sk_sandbox_demo", environment: .sandbox)
+let chat = AIChat(
+    .init(
+        tokenProvider: { try await myAuth.sessionToken() },
+        resetConversation: { try await myAuth.newSessionToken() },
+        deleteData: { try await myAuth.deleteVisitorData() }
+    )
 )
-let client = try Diverge.shared
-DivergeStatusView(client: client)
+
+// SwiftUI
+chat.makeView()
+
+// UIKit
+present(chat.makeViewController(), animated: true)
 ```
+
+You don't have to store the `AIChat` instance unless you explicitly want the session to outlive the
+presentation lifecycle.
+
+## Configuration
+
+`tokenProvider`, `resetConversation` and `deleteData` are required — the SDK never mints or stores
+credentials, it calls back to the host for them.
+
+**`contextProvider`** — resolved on every send, so the assistant can answer against what the user is
+actually looking at rather than the message alone. Return whatever describes the current screen: the
+product being viewed, the category being browsed, the order being queried.
+
+```swift
+contextProvider: { await currentScreen.assistantContext }  // "PDP · Rieker Men's shoes 13510-00 black"
+```
+
+**`onOpenLink`** — links inside a reply. Left `nil`, the SDK falls back to the system action: the URL
+opens in the browser and the user leaves your app. Set it to keep them in-app and route the URL
+through your own deep-link handling.
+
+```swift
+onOpenLink: { url in deepLinkRouter.handle(url) }
+```
+
+**`conversationFlow`** — how arriving turns are laid out.
+
+| | |
+|--|--|
+| `.topDown` (default) | On send, the user's message lifts to the top of the screen and the reply streams into the space reserved beneath it. |
+| `.bottomUp` | Classic chat: new turns land at the bottom and the list follows the newest message. |
+
+## Shared and per-instance configuration
+
+The two are not exclusive. Register a shared configuration once at launch and mint instances from it
+anywhere:
+
+```swift
+AIChat.configure(.init(tokenProvider: …, resetConversation: …, deleteData: …))
+let chat = AIChat()
+```
+
+A shared configuration suits a single app-wide chat. Passing a configuration directly suits chats
+scoped to one screen, where the context or link routing differs per entry point. Both can coexist in
+the same app.
 
 ## Versioning
 

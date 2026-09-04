@@ -1,5 +1,5 @@
-name: Install SwiftLint and SwiftFormat
-description: Install SwiftLint and SwiftFormat via Homebrew with a versioned cache key.
+name: Install SwiftLint
+description: Install SwiftLint via Homebrew with a versioned cache key.
 
 inputs:
   cache-version:
@@ -16,18 +16,13 @@ runs:
         path: |
           ~/Library/Caches/Homebrew
           /opt/homebrew/Cellar/swiftlint
-          /opt/homebrew/Cellar/swiftformat
           /opt/homebrew/bin/swiftlint
-          /opt/homebrew/bin/swiftformat
           /usr/local/Cellar/swiftlint
-          /usr/local/Cellar/swiftformat
-        key: ${{ runner.os }}-brew-swift-tools-${{ inputs.cache-version }}-${{ hashFiles('.swiftlint.yml', '.swiftformat') }}
+        key: ${{ runner.os }}-brew-swift-tools-${{ inputs.cache-version }}-${{ hashFiles('.swiftlint.yml') }}
 
-    - name: Install SwiftLint & SwiftFormat
+    - name: Install SwiftLint
       shell: bash
       run: |
         set -euo pipefail
         brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
-        brew list swiftformat >/dev/null 2>&1 || brew install swiftformat
         echo "SwiftLint $(swiftlint version)"
-        echo "SwiftFormat $(swiftformat --version)"

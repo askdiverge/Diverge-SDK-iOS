@@ -12,19 +12,26 @@
   </header>
   <main>
     <h1>Getting started (iOS)</h1>
-    <p>Install the SDK via Swift Package Manager, configure a sandbox API key, then read the shared client.</p>
+    <p>Install the SDK via Swift Package Manager, supply the session-token and data hooks, then present the chat.</p>
     <h2>SPM</h2>
     <pre><code>dependencies: [
     .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "0.1.0")
 ]
-// Products: DivergeSDK (required), DivergeSDKUI (optional status UI)
+// Product: AIConversation
 
-import DivergeSDK
+import AIConversation
 
-try Diverge.configure(
-    DivergeConfiguration(apiKey: "sk_sandbox_demo", environment: .sandbox)
+let chat = AIChat(
+    .init(
+        tokenProvider: { try await myAuth.sessionToken() },
+        resetConversation: { try await myAuth.newSessionToken() },
+        deleteData: { try await myAuth.deleteVisitorData() }
+    )
 )
-print(try Diverge.shared.apiBaseURL, Diverge.version)</code></pre>
+
+chat.makeView()                                    // SwiftUI
+present(chat.makeViewController(), animated: true) // UIKit</code></pre>
+    <p>The SDK renders the conversation only; the host owns presentation and dismissal.</p>
     <p>Minimum <strong>app</strong> deployment target: <strong>iOS 18.0+</strong>. Prefer SemVer pins from GitHub Releases — do not track <code>main</code>. Version stays at <strong>0.1.0</strong> until the API is stable.</p>
     <p>See the baseline guide: <a href="https://github.com/askdiverge/Diverge-SDK-iOS/blob/main/Docs/integration/v0.1.0.md">Docs/integration/v0.1.0.md</a>.</p>
     <p>Android SDK: <a href="https://github.com/askdiverge/Diverge-SDK-Android">Diverge-SDK-Android</a>.</p>
