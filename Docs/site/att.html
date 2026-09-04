@@ -45,9 +45,9 @@
           <td>Add only if the <em>host</em> tracks users</td>
         </tr>
         <tr>
-          <td>Stores API key / environment in SDK memory</td>
+          <td>Holds a host-supplied session token in memory</td>
           <td>Yes</td>
-          <td>In-process after <code>configure</code>; not tracking</td>
+          <td>In-process, obtained via <code>tokenProvider</code>; not persisted, not tracking</td>
         </tr>
       </tbody>
     </table>

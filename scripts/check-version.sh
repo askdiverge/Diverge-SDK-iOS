@@ -8,8 +8,8 @@ check_contains() {
   [[ -f "$file" ]] || { echo "Missing $file"; fail=1; return; }
   grep -qE "$pattern" "$file" || { echo "Mismatch $file"; fail=1; }
 }
-check_contains "$ROOT/Sources/DivergeSDK/Version.swift" "static let current = \"$VERSION\""
+check_contains "$ROOT/Sources/AIConversation/Version.swift" "static let current = \"$VERSION\""
 check_contains "$ROOT/README.md" "from: \"${VERSION}\""
-check_contains "$ROOT/Samples/iOS/DivergeSample.xcodeproj/project.pbxproj" "MARKETING_VERSION = ${VERSION};"
+check_contains "$ROOT/Samples/iOS/Sample.xcodeproj/project.pbxproj" "MARKETING_VERSION = ${VERSION};"
 [[ "$fail" -eq 0 ]] || { echo "Run ./scripts/sync-version.sh"; exit 1; }
 echo "Version check passed ($VERSION)"

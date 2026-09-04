@@ -17,7 +17,6 @@ playground.xcworkspace
 .build/
 .swiftpm/
 Packages/
-# Package.resolved is committed so DocC / CI plugin versions stay reproducible.
 !default.xcworkspace
 
 # macOS
@@ -32,9 +31,7 @@ Icon?
 # IDEs
 .idea/
 *.iml
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+.vscode/
 *.swp
 *~
 

@@ -3,53 +3,45 @@ import PackageDescription
 
 let package = Package(
     name: "DivergeSDK",
+    defaultLocalization: "en",
     platforms: [
         .iOS(.v18),
         // macOS supports core + tests/DocC without a simulator.
-        .macOS(.v13)
+        .macOS(.v15)
     ],
     products: [
         .library(
-            name: "DivergeSDK",
-            targets: ["DivergeSDK"]
-        ),
-        .library(
-            name: "DivergeSDKUI",
-            targets: ["DivergeSDKUI"]
+            name: "AIConversation",
+            targets: ["AIConversation"]
         )
-    ],
-    dependencies: [
-        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.3.0")
     ],
     targets: [
+        .target(name: "AIConversationCore"),
         .target(
-            name: "DivergeSDK",
-            path: "Sources/DivergeSDK",
-            resources: [
-                .copy("PrivacyInfo.xcprivacy")
-            ],
-            swiftSettings: [
-                .swiftLanguageMode(.v6)
-            ]
+            name: "AIConversationEngine",
+            dependencies: ["AIConversationCore"]
         ),
         .target(
-            name: "DivergeSDKUI",
-            dependencies: ["DivergeSDK"],
-            path: "Sources/DivergeSDKUI",
-            swiftSettings: [
-                .swiftLanguageMode(.v6)
+            name: "AIConversation",
+            dependencies: ["AIConversationEngine"],
+            resources: [
+                .process("Resources"),
+                .copy("PrivacyInfo.xcprivacy")
             ]
+        ),
+        .executableTarget(
+            name: "Harness",
+            dependencies: ["AIConversation"],
+            path: "Samples/macOS"
         ),
         .testTarget(
-            name: "DivergeSDKTests",
+            name: "AIConversationTests",
             dependencies: [
-                "DivergeSDK",
-                "DivergeSDKUI"
-            ],
-            path: "Tests/DivergeSDKTests",
-            swiftSettings: [
-                .swiftLanguageMode(.v6)
+                "AIConversation",
+                "AIConversationCore",
+                "AIConversationEngine"
             ]
         )
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )

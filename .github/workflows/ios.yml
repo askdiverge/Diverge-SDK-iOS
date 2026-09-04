@@ -6,10 +6,8 @@ on:
       - "Sources/**"
       - "Tests/**"
       - "Package.swift"
-      - "Package.resolved"
-      - "Samples/iOS/**"
+      - "Samples/**"
       - ".swiftlint.yml"
-      - ".swiftformat"
       - ".github/workflows/ios.yml"
       - ".github/actions/**"
       - "VERSION"
@@ -19,10 +17,8 @@ on:
       - "Sources/**"
       - "Tests/**"
       - "Package.swift"
-      - "Package.resolved"
-      - "Samples/iOS/**"
+      - "Samples/**"
       - ".swiftlint.yml"
-      - ".swiftformat"
       - ".github/workflows/ios.yml"
       - ".github/actions/**"
       - "VERSION"
@@ -36,6 +32,9 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  SCHEME: DivergeSDK-Package
 
 jobs:
   build-test:
@@ -51,38 +50,35 @@ jobs:
       - name: Check version sync
         run: ./scripts/check-version.sh
 
-      - name: Install SwiftLint & SwiftFormat
+      - name: Install SwiftLint
         uses: ./.github/actions/install-swift-tools
 
       - name: SwiftLint
         run: swiftlint lint --strict --reporter github-actions-logging
 
-      - name: SwiftFormat (lint)
-        run: swiftformat --lint .
-
       - name: Resolve package
         run: |
           swift package resolve
-          xcodebuild -list -scheme DivergeSDK-Package || xcodebuild -list
+          xcodebuild -list -scheme "$SCHEME" || xcodebuild -list
 
       # Prefer an Xcode that already has Simulator destinations; download is a last resort.
       # Package tests can fall back to macOS; the sample build needs a real Simulator.
       - name: Ensure iOS Simulator platform
         uses: ./.github/actions/ensure-ios-platform
         with:
-          scheme: DivergeSDK-Package
+          scheme: ${{ env.SCHEME }}
 
       - name: Resolve package test destination
         id: pkg-dest
         uses: ./.github/actions/resolve-ios-destination
         with:
-          scheme: DivergeSDK-Package
+          scheme: ${{ env.SCHEME }}
           allow-macos: "true"
 
       - name: Package tests
         run: |
           xcodebuild test \
-            -scheme DivergeSDK-Package \
+            -scheme "$SCHEME" \
             -destination "${{ steps.pkg-dest.outputs.destination }}" \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO
@@ -91,14 +87,14 @@ jobs:
         id: sample-dest
         uses: ./.github/actions/resolve-ios-destination
         with:
-          scheme: DivergeSample
-          project: Samples/iOS/DivergeSample.xcodeproj
+          scheme: Sample
+          project: Samples/iOS/Sample.xcodeproj
 
       - name: Build iOS sample
         run: |
           xcodebuild build \
-            -project Samples/iOS/DivergeSample.xcodeproj \
-            -scheme DivergeSample \
+            -project Samples/iOS/Sample.xcodeproj \
+            -scheme Sample \
             -destination "${{ steps.sample-dest.outputs.destination }}" \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO

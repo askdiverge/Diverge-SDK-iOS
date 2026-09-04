@@ -18,7 +18,7 @@ STAGED="$(git diff --cached --name-only --diff-filter=ACMR || true)"
 needs_ios=0
 
 if printf '%s\n' "$STAGED" | grep -qE \
-  '^(Sources/|Tests/|Package\.swift|Package\.resolved|Samples/iOS/|\.swiftlint\.yml|\.swiftformat|VERSION|scripts/)'; then
+  '^(Sources/|Tests/|Package\.swift|Samples/|\.swiftlint\.yml|VERSION|scripts/)'; then
   needs_ios=1
 fi
 
