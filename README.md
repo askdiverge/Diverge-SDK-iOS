@@ -58,14 +58,34 @@ presentation lifecycle.
 ## Configuration
 
 `tokenProvider`, `resetConversation` and `deleteData` are required — the SDK never mints or stores
-credentials, it calls back to the host for them.
+credentials, it calls back to the host for them. **Download my data** (Privacy & Data) is SDK-owned:
+it calls `GET /api/v1/chat/export` with the visitor bearer and opens the share sheet; it does not
+use a host hook. The JSON is written to one protected temp file and deleted when the visitor
+dismisses Privacy or finishes sharing. Delete remains the host `deleteData` callback
+(typically `DELETE /api/v1/chat`).
 
-**`contextProvider`** — resolved on every send, so the assistant can answer against what the user is
-actually looking at rather than the message alone. Return whatever describes the current screen: the
-product being viewed, the category being browsed, the order being queried.
+**`contextProvider`** — used in three places, from the same hook:
+
+1. **Send-time AI context** — resolved on every send so the assistant can answer against the current
+   screen (SKU, category, screen name).
+2. **Start-prompt matching** — awaited once at each `makeView()` bootstrap and matched as a
+   **literal substring** against dashboard `url_pattern`s. If any pattern matches, only those chips
+   show; otherwise global (null-pattern) prompts remain. A SKU blurb like
+   `"PDP · Rieker Men's shoes 13510-00 black"` will not match `/products`. Include a path or URL
+   when patterned chips should appear.
+3. **In-chat banners** — the same bootstrap page string is sent as `url` on
+   `GET /api/v1/chat/banners`. The server applies schedule, substring match, and `is_default`
+   fallback (same rules as the web widget). Soft-fails if the route is missing (404 / transport).
+   A 401 ends the session (same alert as send / export).
+
+Matching / banner fetch do not re-run while the same `ChatView` stays on screen. Presenting again
+(`makeView()`) bootstraps a new view model and re-filters.
 
 ```swift
-contextProvider: { await currentScreen.assistantContext }  // "PDP · Rieker Men's shoes 13510-00 black"
+contextProvider: {
+    // Path/URL so dashboard url_patterns like "/products" can match.
+    await currentScreen.pageURL  // "https://shop.example.com/products/123" or "/products"
+}
 ```
 
 **`onOpenLink`** — links inside a reply. Left `nil`, the SDK falls back to the system action: the URL
@@ -74,6 +94,66 @@ through your own deep-link handling.
 
 ```swift
 onOpenLink: { url in deepLinkRouter.handle(url) }
+```
+
+**`onAddToCart`** — product-card "Add to cart" taps. The button only appears when this is set,
+`GET /config` reports `product_card.add_to_cart.enabled`, **and** the card carries a sku.
+The callback receives `AIChat.ProductSelection`: `id` is the product identifier (a catalog id
+when the source supplies one, otherwise a parser-derived stand-in), `sku` is the commerce
+SKU from a `{{add_to_cart:SKU}}` marker (or JSON field), plus `title` and `url`. Treat `sku`
+as untrusted input and validate it against your catalog before calling a cart API. The SDK
+does not show "added" feedback — the host owns toasts / cart UI. Absent → no cart button;
+open-product still works via `openURL` / `onOpenLink`.
+
+**`onLivechatSessionChange`** — optional host hook for livechat **status** and active **agent
+name** changes (`AIChat.LivechatSessionInfo`). Typing ticks and new messages do **not** fire it.
+Use the last value for a launcher badge or to decide whether to re-present the sheet. The
+poller still **parks** when `ChatView` disappears (sheet dismissed but `AIChat` retained) **or**
+the app backgrounds — dismissed polling is intentionally not offered; agent join/close while
+dismissed is only observed after re-present catch-up. Absent → no-op.
+
+**`onClose`** — when set, the SDK shows a close button. Conversation close may ask for a 1–5
+rating (`POST /rate`) first; livechat CSAT uses a separate overlay (see Livechat below). If that
+CSAT card is on screen, Close skips it (no POST) then calls `onClose` so the host can tear down.
+
+**`rating`** — `.enabled` (default) presents the conversation rating overlay on close when there is
+a user turn; `.disabled` closes immediately. This flag does **not** gate livechat CSAT. Only
+takes effect when `onClose` is set. `hasRated` is per `AIChat` instance.
+
+**`attachments`** — `.photoLibrary` (default) shows a photo-library picker (up to eight photos per
+message). `/config` `image_enabled: false` hides attach even when this is `.photoLibrary`.
+`.disabled` always wins. Omitted `image_enabled` on older APIs is treated as enabled.
+
+**Livechat** — when the chatbot’s `/config` enables livechat, visitors can request a human from the
+toolbar (if `show_livechat_logo`) or a `request_human_agent` marker. Queue notes, agent turns, and
+typing are SDK-owned. Optional `onLivechatSessionChange` reports last-known status for host
+badges. While waiting, the AI still answers; once an
+agent joins, messages go to the livechat channel. Polling pauses when the chat is off-screen or the
+app is backgrounded. While an agent session is **active**, the composer attach control follows
+`/config` `livechat.attachments_enabled` (host `Configuration.attachments == .disabled` still
+wins). Receiving agent attachments already works. While queued, if `/config.forms` lists a
+`livechat_waiting` form, the SDK shows an “Add details for the agent” card (SDK-owned — no host
+gate). Save PATCHes session values; the visitor stays in the queue. There is no Skip. The card
+shows string fields only (`file` is omitted; PhotosPicker is not used). After the
+session closes, if `GET /livechat/state` reports `feedback.status == pending`, the chat shows the
+same 1–5 overlay and posts `POST /livechat/feedback` (this is **not** `Configuration.rating` — that
+flag only gates conversation `POST /rate`). Scale Skip / backdrop dismiss without POSTing;
+feedback-step Skip still POSTs the score. Chat Close while the overlay is visible skips it then
+calls `onClose`. A new waiting/active session dismisses a leftover overlay without POSTing.
+
+**`appearance`** — which `/config` palette slot the chat paints (`theme` / `dark_theme`). Defaults
+to `.system` (follow the environment color scheme). Pass `.light` or `.dark` to lock the slot.
+`.dark` means “use `dark_theme`”, not “invent a dark look”: when a chatbot has no dark theme the
+server clones light into `dark_theme`, so the chat stays visually light under `.system` in Dark
+Mode and under `.dark`. Keyboard and pickers follow the painted palette (a cloned theme does not
+force a dark keyboard). Captured on the first `makeView()` — mint a new `AIChat` to change it.
+
+```swift
+appearance: .system  // or .light / .dark
+```
+
+```swift
+onAddToCart: { selection in cart.add(sku: selection.sku, productURL: selection.url) }
 ```
 
 **`conversationFlow`** — how arriving turns are laid out.

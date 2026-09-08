@@ -17,6 +17,9 @@ enum PrivacyDataDestination: Identifiable {
 
 /// Owns the privacy sheets' presentation — the exclusive A/B routing, the row actions, the
 /// content-hugging height, and the drag indicator — so the presenting view stays free of it.
+///
+/// The share sheet is nested **on this sheet**, not on `ChatView` (a second `sheet` on ChatView
+/// never surfaces when Sample already presents ChatView in a host sheet).
 struct PrivacyDataSheetModifier: ViewModifier {
 
     @Binding var destination: PrivacyDataDestination?
@@ -24,12 +27,24 @@ struct PrivacyDataSheetModifier: ViewModifier {
     /// Opens the privacy policy, surfaced by the privacy sheet's row.
     let onOpenPrivacy: () -> Void
 
+    /// Fetches the GDPR export and returns a local file URL for the share sheet.
+    let onExportData: () async throws -> URL
+
+    /// Removes the temp export file (PII). Called when Privacy dismisses or share completes.
+    let onDiscardExport: () -> Void
+
     /// The host's delete hook, surfaced by the delete sheet's confirm action.
     let onDeleteData: () async throws -> Void
+
+    /// Fired when export hits a 401 so the chat can show the session-ended alert.
+    let onSessionEnded: () -> Void
 
     /// Shared across both sheets — only one is ever presented, so a single measured height serves.
     @State private var contentHeight: CGFloat?
     @State private var isLoading = false
+    @State private var exportError: String?
+    @State private var shareFile: ShareFile?
+    @State private var exportLifecycle = PrivacyExportLifecycle()
 
     private var detents: Set<PresentationDetent> {
         if let contentHeight = self.contentHeight, contentHeight > 0 {
@@ -50,6 +65,12 @@ struct PrivacyDataSheetModifier: ViewModifier {
                 }
                 .presentationDetents(self.detents)
                 .presentationDragIndicator(.visible)
+                .sheet(item: self.$shareFile) { file in
+                    ActivityShareSheet(items: [file.url], onComplete: self.finishShare)
+                }
+                .onDisappear {
+                    self.abandonExport()
+                }
         }
     }
 
@@ -59,10 +80,12 @@ struct PrivacyDataSheetModifier: ViewModifier {
         case .privacy:
             PrivacyDataView(
                 onPrivacy: self.onOpenPrivacy,
+                onDownload: { self.export() },
                 onDelete: {
-                    // Swap the presented sheet, dismiss privacy, present delete.
+                    self.exportError = nil
                     self.destination = .delete
-                }
+                },
+                exportError: self.exportError
             )
 
         case .delete:
@@ -77,5 +100,38 @@ struct PrivacyDataSheetModifier: ViewModifier {
                 }
             })
         }
+    }
+
+    private func export() {
+        self.exportError = nil
+        self.exportLifecycle.start {
+            self.isLoading = true
+            defer { self.isLoading = false }
+            do {
+                let url = try await self.onExportData()
+                guard let file = self.exportLifecycle.shareFileIfActive(url: url) else { return }
+                self.shareFile = file
+            } catch is ChatView.SessionEnded {
+                guard self.exportLifecycle.isActive else { return }
+                self.destination = nil
+                self.onSessionEnded()
+            } catch {
+                guard self.exportLifecycle.isActive else { return }
+                self.exportError = L10n.privacyDownloadError.string
+            }
+        }
+    }
+
+    private func finishShare() {
+        self.shareFile = nil
+        self.onDiscardExport()
+    }
+
+    private func abandonExport() {
+        self.exportLifecycle.cancel()
+        self.exportError = nil
+        self.shareFile = nil
+        self.isLoading = false
+        self.onDiscardExport()
     }
 }

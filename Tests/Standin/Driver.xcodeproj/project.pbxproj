@@ -1,0 +1,438 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0143959ABC00FDD2A06A5E7E /* UploadPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F25B26FA18560223883016 /* UploadPromptTests.swift */; };
+		09C6E77BBBC3A77755BB5A23 /* LivechatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3825B32C3119E11B6788328E /* LivechatTests.swift */; };
+		237E98FE1B671C9F05D1424C /* UploadPromptDisabledTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD71B562A04DA8B37A36A9A /* UploadPromptDisabledTests.swift */; };
+		2BD56B9EC12BF8BD2CAF1472 /* DownloadDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84FE91D080AF80F1BD593FD /* DownloadDataTests.swift */; };
+		5371159ADACCDD28C4A64A5C /* FormsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82C37F8A049BCCE940BC40C7 /* FormsTests.swift */; };
+		72C5813E2B9542DDA5FF9ACB /* DriveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7FFAD6C0ABEF6A3A959509 /* DriveTests.swift */; };
+		815EA8199BA473B468142B19 /* RatingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D063F873F0915773171B13ED /* RatingTests.swift */; };
+		9B60E98D42582AF0AC0F4239 /* StartPromptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D3AC2A05CA5BEA22D33234 /* StartPromptsTests.swift */; };
+		9D50F8C6ECDC66B19D840CF2 /* DriverApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36CCACEB5AB09CB39726F546 /* DriverApp.swift */; };
+		B670AADA64DF3BA2C20ECB51 /* StandinControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC68CACA737669CEBA2BEB93 /* StandinControl.swift */; };
+		BAB5510368D49601AE7D3F3B /* BannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BACB05725B6CA90E01BA523 /* BannerTests.swift */; };
+		BC8917350499D1DA5272647E /* ProductActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC7271CECC553F30AA97FD0 /* ProductActionsTests.swift */; };
+		C486A900D95CE3429164E678 /* PhotoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A757B1716E56DFEDE2F61ADA /* PhotoTests.swift */; };
+		C6121B76DB064B35CFB9DBB1 /* HistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E4A11F0C32922A35C4C5E40 /* HistoryTests.swift */; };
+		E3DA4694D6F8D992AC03C141 /* DarkAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0965E8503366E7AE6783678 /* DarkAppearanceTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		FE8BAE2D0CACB314B4958B2D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4CC6A741A74EF6CEEDC21118 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F656282811C20E0EFA074AB3;
+			remoteInfo = DriverApp;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		31F25B26FA18560223883016 /* UploadPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadPromptTests.swift; sourceTree = "<group>"; };
+		36CCACEB5AB09CB39726F546 /* DriverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverApp.swift; sourceTree = "<group>"; };
+		3825B32C3119E11B6788328E /* LivechatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivechatTests.swift; sourceTree = "<group>"; };
+		62D3AC2A05CA5BEA22D33234 /* StartPromptsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPromptsTests.swift; sourceTree = "<group>"; };
+		6CC7271CECC553F30AA97FD0 /* ProductActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductActionsTests.swift; sourceTree = "<group>"; };
+		7E4A11F0C32922A35C4C5E40 /* HistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTests.swift; sourceTree = "<group>"; };
+		82C37F8A049BCCE940BC40C7 /* FormsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormsTests.swift; sourceTree = "<group>"; };
+		8FD71B562A04DA8B37A36A9A /* UploadPromptDisabledTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadPromptDisabledTests.swift; sourceTree = "<group>"; };
+		9B0754C2574439557BD40637 /* DriverUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DriverUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9BACB05725B6CA90E01BA523 /* BannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BannerTests.swift; sourceTree = "<group>"; };
+		A447DD5C60E11D8B3C60F595 /* DriverApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DriverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A757B1716E56DFEDE2F61ADA /* PhotoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoTests.swift; sourceTree = "<group>"; };
+		A812667508D4932FBCCE51DC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AE7FFAD6C0ABEF6A3A959509 /* DriveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveTests.swift; sourceTree = "<group>"; };
+		BC68CACA737669CEBA2BEB93 /* StandinControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandinControl.swift; sourceTree = "<group>"; };
+		C84FE91D080AF80F1BD593FD /* DownloadDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadDataTests.swift; sourceTree = "<group>"; };
+		D063F873F0915773171B13ED /* RatingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingTests.swift; sourceTree = "<group>"; };
+		E0965E8503366E7AE6783678 /* DarkAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarkAppearanceTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3A76E3349EA1431367F9E321 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				36CCACEB5AB09CB39726F546 /* DriverApp.swift */,
+				A812667508D4932FBCCE51DC /* Info.plist */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		5BE9B21A9700BC729264A457 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				9BACB05725B6CA90E01BA523 /* BannerTests.swift */,
+				E0965E8503366E7AE6783678 /* DarkAppearanceTests.swift */,
+				C84FE91D080AF80F1BD593FD /* DownloadDataTests.swift */,
+				AE7FFAD6C0ABEF6A3A959509 /* DriveTests.swift */,
+				82C37F8A049BCCE940BC40C7 /* FormsTests.swift */,
+				7E4A11F0C32922A35C4C5E40 /* HistoryTests.swift */,
+				3825B32C3119E11B6788328E /* LivechatTests.swift */,
+				A757B1716E56DFEDE2F61ADA /* PhotoTests.swift */,
+				6CC7271CECC553F30AA97FD0 /* ProductActionsTests.swift */,
+				D063F873F0915773171B13ED /* RatingTests.swift */,
+				BC68CACA737669CEBA2BEB93 /* StandinControl.swift */,
+				62D3AC2A05CA5BEA22D33234 /* StartPromptsTests.swift */,
+				8FD71B562A04DA8B37A36A9A /* UploadPromptDisabledTests.swift */,
+				31F25B26FA18560223883016 /* UploadPromptTests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		833EEB58BAF7F5C40A5E4BE5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A447DD5C60E11D8B3C60F595 /* DriverApp.app */,
+				9B0754C2574439557BD40637 /* DriverUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C0D3E58AFE59DDAEF183A4AF = {
+			isa = PBXGroup;
+			children = (
+				3A76E3349EA1431367F9E321 /* App */,
+				5BE9B21A9700BC729264A457 /* UITests */,
+				833EEB58BAF7F5C40A5E4BE5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A352C3542AC93323D973F502 /* DriverUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 192904F138BE4F9E7AF53039 /* Build configuration list for PBXNativeTarget "DriverUITests" */;
+			buildPhases = (
+				8DD0719196DFA6AE9CBEEBE3 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CE41230705EF1A246BBE4E9C /* PBXTargetDependency */,
+			);
+			name = DriverUITests;
+			packageProductDependencies = (
+			);
+			productName = DriverUITests;
+			productReference = 9B0754C2574439557BD40637 /* DriverUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		F656282811C20E0EFA074AB3 /* DriverApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB5FC366149819C3F1D36542 /* Build configuration list for PBXNativeTarget "DriverApp" */;
+			buildPhases = (
+				388796BB859E0852A5413D60 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DriverApp;
+			packageProductDependencies = (
+			);
+			productName = DriverApp;
+			productReference = A447DD5C60E11D8B3C60F595 /* DriverApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4CC6A741A74EF6CEEDC21118 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					A352C3542AC93323D973F502 = {
+						TestTargetID = F656282811C20E0EFA074AB3;
+					};
+				};
+			};
+			buildConfigurationList = AD1FF9E53C29212666016551 /* Build configuration list for PBXProject "Driver" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = C0D3E58AFE59DDAEF183A4AF;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 833EEB58BAF7F5C40A5E4BE5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F656282811C20E0EFA074AB3 /* DriverApp */,
+				A352C3542AC93323D973F502 /* DriverUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		388796BB859E0852A5413D60 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9D50F8C6ECDC66B19D840CF2 /* DriverApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8DD0719196DFA6AE9CBEEBE3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BAB5510368D49601AE7D3F3B /* BannerTests.swift in Sources */,
+				E3DA4694D6F8D992AC03C141 /* DarkAppearanceTests.swift in Sources */,
+				2BD56B9EC12BF8BD2CAF1472 /* DownloadDataTests.swift in Sources */,
+				72C5813E2B9542DDA5FF9ACB /* DriveTests.swift in Sources */,
+				5371159ADACCDD28C4A64A5C /* FormsTests.swift in Sources */,
+				C6121B76DB064B35CFB9DBB1 /* HistoryTests.swift in Sources */,
+				09C6E77BBBC3A77755BB5A23 /* LivechatTests.swift in Sources */,
+				C486A900D95CE3429164E678 /* PhotoTests.swift in Sources */,
+				BC8917350499D1DA5272647E /* ProductActionsTests.swift in Sources */,
+				815EA8199BA473B468142B19 /* RatingTests.swift in Sources */,
+				B670AADA64DF3BA2C20ECB51 /* StandinControl.swift in Sources */,
+				9B60E98D42582AF0AC0F4239 /* StartPromptsTests.swift in Sources */,
+				237E98FE1B671C9F05D1424C /* UploadPromptDisabledTests.swift in Sources */,
+				0143959ABC00FDD2A06A5E7E /* UploadPromptTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CE41230705EF1A246BBE4E9C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F656282811C20E0EFA074AB3 /* DriverApp */;
+			targetProxy = FE8BAE2D0CACB314B4958B2D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		00125B06AB2CA5B7E730F53B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = local.driver.DriverApp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		59842FE6C03625A130125092 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		98342D234AC98302BBCBB95F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AE56F956EE8C6F76E0D5D209 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = local.driver.DriverApp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AF8F261DA00A29CB45194190 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = local.driver.DriverUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DriverApp;
+			};
+			name = Release;
+		};
+		B1655ECAE0FBD6B87E4D6A7F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = local.driver.DriverUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DriverApp;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		192904F138BE4F9E7AF53039 /* Build configuration list for PBXNativeTarget "DriverUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1655ECAE0FBD6B87E4D6A7F /* Debug */,
+				AF8F261DA00A29CB45194190 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AD1FF9E53C29212666016551 /* Build configuration list for PBXProject "Driver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				59842FE6C03625A130125092 /* Debug */,
+				98342D234AC98302BBCBB95F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BB5FC366149819C3F1D36542 /* Build configuration list for PBXNativeTarget "DriverApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				00125B06AB2CA5B7E730F53B /* Debug */,
+				AE56F956EE8C6F76E0D5D209 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4CC6A741A74EF6CEEDC21118 /* Project object */;
+}

@@ -14,6 +14,74 @@ package struct ChatConfig: Decodable, Sendable, Equatable {
 
     package let display: Display
     package let theme: Theme
+    /// Fully resolved dark-scheme palette. Equals ``theme`` when absent (older deployments)
+    /// or when the chatbot has no dark theme configured — matching the server's clone.
+    package let darkTheme: Theme
+    /// Starter chips shown before the first user turn. Empty when absent (older deployments).
+    package let startPrompts: [StartPrompt]
+    /// Product CTA label and add-to-cart gate. Defaults when absent (older deployments).
+    package let productCard: ProductCardSettings
+    /// Livechat handover settings. Defaults disabled when absent (older deployments).
+    package let livechat: LivechatSettings
+    /// Dynamic form references (`session_start` / `livechat_waiting` / `llm`). Empty when absent.
+    package let forms: [ChatFormReference]
+    /// Whether this chatbot's image-analysis flow is on. Omitted on older APIs → `true`, so the
+    /// host attachments setting stays the only switch.
+    package let imageEnabled: Bool
+
+    package init(
+        display: Display,
+        theme: Theme,
+        darkTheme: Theme? = nil,
+        startPrompts: [StartPrompt] = [],
+        productCard: ProductCardSettings = ProductCardSettings(),
+        livechat: LivechatSettings = LivechatSettings(),
+        forms: [ChatFormReference] = [],
+        imageEnabled: Bool = true
+    ) {
+        self.display = display
+        self.theme = theme
+        self.darkTheme = darkTheme ?? theme
+        self.startPrompts = startPrompts.filter {
+            !$0.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        self.productCard = productCard
+        self.livechat = livechat
+        self.forms = forms
+        self.imageEnabled = imageEnabled
+    }
+
+    package init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.display = try container.decode(Display.self, forKey: .display)
+        self.theme = try container.decode(Theme.self, forKey: .theme)
+        self.darkTheme = try container.decodeIfPresent(Theme.self, forKey: .darkTheme) ?? self.theme
+        let decoded =
+            try container.decodeIfPresent(LossyArray<StartPrompt>.self, forKey: .startPrompts)?
+            .elements ?? []
+        self.startPrompts = decoded.filter {
+            !$0.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        self.productCard =
+            try container.decodeIfPresent(ProductCardSettings.self, forKey: .productCard)
+            ?? ProductCardSettings()
+        self.livechat =
+            try container.decodeIfPresent(LivechatSettings.self, forKey: .livechat)
+            ?? LivechatSettings()
+        self.forms =
+            try container.decodeIfPresent(LossyArray<ChatFormReference>.self, forKey: .forms)?
+            .elements ?? []
+        self.imageEnabled = try container.decodeIfPresent(Bool.self, forKey: .imageEnabled) ?? true
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case display, theme, darkTheme, startPrompts, productCard, livechat, forms, imageEnabled
+    }
+
+    /// First configured waiting-room form id, if any.
+    package var livechatWaitingFormId: String? {
+        self.forms.first { $0.trigger == .livechatWaiting }?.formId
+    }
 }
 
 extension ChatConfig {
@@ -88,11 +156,12 @@ extension ChatConfig.Theme {
         package let button: Button
 
         package struct Logo: Decodable, Sendable, Equatable {
-            package let url: URL
+            /// Null when the chatbot has no header logo — matches `/config` `theme.header.logo.url`.
+            package let url: URL?
         }
 
         package struct Button: Decodable, Sendable, Equatable {
-            package let backgroundColor: ChatConfig.Hex
+            package let backgroundColor: ChatConfig.Hex?
             package let iconColor: ChatConfig.Hex
         }
     }
@@ -130,6 +199,13 @@ extension ChatConfig.Theme {
 
     package struct ProductCard: Decodable, Sendable, Equatable {
         package let discountPriceColor: ChatConfig.Hex
+        /// Optional — older fixtures and deployments may omit the nested button block.
+        package let button: Button?
+
+        package struct Button: Decodable, Sendable, Equatable {
+            package let backgroundColor: ChatConfig.Hex
+            package let bold: Bool
+        }
     }
 }
 
@@ -148,7 +224,8 @@ extension ChatConfig.Theme.Font {
     /// [API ref](https://docs.dialoge.ai/api#model/chatbot-native-font)
     package struct Native: Decodable, Sendable, Equatable {
         package let assetUrl: URL
-        package let sha256: String
+        /// Null when the chatbot uses the platform default font (no custom iOS face).
+        package let sha256: String?
         package let format: String
     }
 }

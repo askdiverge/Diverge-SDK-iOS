@@ -39,6 +39,7 @@ excluded:
   - Docs
   - Samples/iOS/.build
   - Samples/iOS/Sample.xcodeproj
+  - Tests/Standin
 
 cyclomatic_complexity:
   ignores_case_statements: true

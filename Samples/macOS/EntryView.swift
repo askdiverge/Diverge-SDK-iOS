@@ -45,7 +45,8 @@ struct EntryView: View {
                                 try await Task.sleep(for: .seconds(2))
                                 print("finish delete data")
                             },
-                            onOpenLink: { print("open link:", $0) }
+                            onOpenLink: { print("open link:", $0) },
+                            onClose: { self.isChatPresented = false }
                         )
                     )
                     self.isChatPresented = true

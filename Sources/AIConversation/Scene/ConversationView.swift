@@ -9,7 +9,7 @@ import SwiftUI
 import AIConversationEngine
 
 /// Lays out a conversation Leading/Trailing
-struct ConversationView<Content: View, Header: View>: View {
+struct ConversationView<Content: View, Header: View, Footer: View>: View {
 
     @Environment(\.appearance) private var appearance
 
@@ -19,20 +19,23 @@ struct ConversationView<Content: View, Header: View>: View {
     /// reply shouldn't leave the reader up in history, and it pins the latest message above the keyboard.
     let isInputFocused: Bool
 
-    // TODO: - Hook up reverse pagination
-    /// Ready to consume: pagination is fully wired behind this hook. It is deliberately left
-    /// untriggered — `LazyVStack` cannot hold the reader's scroll position across a top prepend, as
-    /// the turns above the viewport are unmeasured, so every offset / id / anchor restore fails.
-    /// Plugging it in needs an alternative container (eager `VStack` + manual offset
-    /// management, inverted list reder through .scaleEffect(y: -1), or `UICollectionView` + `UIHostingConfiguration`)
-    /// or a future SwiftUI API not currently available.
-    let onLoadOlder: () async -> Void
+    /// Measured height of the overlaid composer; a trailing clearance row keeps the last turn above it.
+    let composerClearance: CGFloat
+
+    /// Loads the next older page when the reader scrolls near the top and reports how it went; the
+    /// list keeps the reader in place when turns land above them and offers an inline retry when
+    /// the load failed. See ``HistoryPagination``.
+    let onLoadOlder: () async -> HistoryLoadOutcome
 
     @ViewBuilder let content: (Identified<ConversationSnapshot.Turn>) -> Content
     @ViewBuilder let header: () -> Header
+    @ViewBuilder let footer: () -> Footer
+    /// When false the footer is not inserted, so hiding chips does not leave a spacer.
+    let showsFooter: Bool
 
     @State private var isScrolledAway = false
     @State private var scrollTask = ScrollTaskBox()
+    @State private var history = HistoryPaginator(anchoring: .exact)
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -47,6 +50,11 @@ struct ConversationView<Content: View, Header: View>: View {
                 }
                 .onChange(of: self.isInputFocused) { _, focused in
                     if focused {
+                        self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy)
+                    }
+                }
+                .onChange(of: self.composerClearance) { _, height in
+                    if height > 0, self.isInputFocused || !self.isScrolledAway {
                         self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy)
                     }
                 }
@@ -69,8 +77,13 @@ private extension ConversationView {
                         self.content(turn)
                             .frame(maxWidth: .infinity, alignment: turn.model.alignment)
                             .transition(.opacity)
+                            .historyRow(turn.id, in: self.history)
                             .id(turn.id)
                     }
+                    if self.showsFooter {
+                        self.footer()
+                    }
+                    ConversationComposerClearanceRow(composerHeight: self.composerClearance)
                 } header: {
                     self.header()
                 }
@@ -82,6 +95,13 @@ private extension ConversationView {
             let atBottom = self.snapshot.turns.last.map { visibleIDs.contains($0.id) } ?? true
             if self.isScrolledAway == atBottom { self.isScrolledAway = !atBottom }
         }
+        .modifier(HistoryPagination(
+            paginator: self.history,
+            snapshot: self.snapshot,
+            proxy: proxy,
+            scrollTask: self.scrollTask,
+            onLoadOlder: self.onLoadOlder
+        ))
     }
 
     /// Jump-to-bottom control, surfaced only once the reader has scrolled away. Wears the thinking
@@ -107,14 +127,14 @@ private extension ConversationView {
     /// before we target it, and eases the jump so it interpolates instead of tearing the offset out from
     /// under an active pan gesture.
     func scrollToNewest(_ lastID: UUID?, proxy: ScrollViewProxy) {
-        guard let lastID else { return }
+        guard lastID != nil else { return }
         // Coalesce rapid requests (streaming, keyboard, geometry): cancel the pending scroll so a burst
         // of events resolves to a single scroll instead of flooding MainActor with stacked tasks.
         self.scrollTask.replace(with: Task { @MainActor in
             await Task.yield()
             if Task.isCancelled { return }
             withAnimation(.easeOut(duration: 0.25)) {
-                proxy.scrollTo(lastID, anchor: .bottom)
+                proxy.scrollTo(ConversationComposerClearance.id, anchor: .bottom)
             }
         })
     }
@@ -125,7 +145,8 @@ private extension ConversationView {
 private extension ConversationSnapshot.Turn {
     var alignment: Alignment {
         switch self {
-        case .bot: .leading
+        case .bot, .agent, .note: .leading
+        case .system: .center
         case .user: .trailing
         }
     }
@@ -134,6 +155,9 @@ private extension ConversationSnapshot.Turn {
 // MARK: - Equatable
 extension ConversationView: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.snapshot == rhs.snapshot && lhs.isInputFocused == rhs.isInputFocused
+        lhs.snapshot == rhs.snapshot
+            && lhs.isInputFocused == rhs.isInputFocused
+            && lhs.composerClearance == rhs.composerClearance
+            && lhs.showsFooter == rhs.showsFooter
     }
 }

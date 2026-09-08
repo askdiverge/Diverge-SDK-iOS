@@ -66,6 +66,13 @@ actor ImageLoader {
         return try await task.value
     }
 
+    /// Seeds the cache with an image the caller already holds, so a later `image(for:)` on `url`
+    /// is served without a fetch or decode. Used for the composer's own uploads: the echo renders
+    /// from a `data:` URL whose bitmap the encoder just produced.
+    func store(_ image: Image, for url: URL) {
+        self.cache.setObject(Entry(image), forKey: url as NSURL)
+    }
+
     private func persist(_ task: Task<Image, Error>, for url: URL) async {
         defer { self.inFlight[url] = nil }
         guard let image = try? await task.value else { return }

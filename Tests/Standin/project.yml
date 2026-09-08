@@ -1,0 +1,25 @@
+name: Driver
+options:
+  bundleIdPrefix: local.driver
+  deploymentTarget:
+    iOS: "18.0"
+targets:
+  DriverApp:
+    type: application
+    platform: iOS
+    sources: [App]
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+    scheme:
+      testTargets:
+        - DriverUITests
+  DriverUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    settings:
+      GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: DriverApp

@@ -10,6 +10,22 @@ import SwiftUI
 
 extension Color {
 
+    /// Parses a CSS colour — `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb()`, or `rgba()`.
+    /// Integers and `%` components are accepted for the functional forms. Returns `nil` for
+    /// any other shape so the caller supplies its own fallback.
+    init?(css: String) {
+        let trimmed = css.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("#") || trimmed.range(of: #"^[0-9A-Fa-f]+$"#, options: .regularExpression) != nil {
+            self.init(hex: trimmed)
+            return
+        }
+        if let functional = Self.parseFunctionalCSS(trimmed) {
+            self = functional
+            return
+        }
+        return nil
+    }
+
     /// Parses a CSS hex colour — `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (alpha last). Returns
     /// `nil` for any other shape, so the caller supplies its own fallback rather than
     /// rendering a guess.
@@ -37,5 +53,47 @@ extension Color {
             blue: Double(blue) / 255,
             opacity: Double(alpha) / 255
         )
+    }
+
+    private static func parseFunctionalCSS(_ value: String) -> Color? {
+        let lower = value.lowercased()
+        let hasAlpha = lower.hasPrefix("rgba(")
+        guard lower.hasPrefix("rgb(") || hasAlpha else { return nil }
+        guard lower.hasSuffix(")") else { return nil }
+
+        let openParen = lower.firstIndex(of: "(")!
+        let inner = String(lower[lower.index(after: openParen)..<lower.index(before: lower.endIndex)])
+        let parts = inner.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let expected = hasAlpha ? 4 : 3
+        guard parts.count == expected else { return nil }
+
+        guard
+            let red = Self.parseCSSComponent(parts[0]),
+            let green = Self.parseCSSComponent(parts[1]),
+            let blue = Self.parseCSSComponent(parts[2])
+        else { return nil }
+
+        let alpha: Double
+        if hasAlpha {
+            guard let parsed = Self.parseCSSComponent(parts[3]) else { return nil }
+            alpha = parsed
+        } else {
+            alpha = 1
+        }
+
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+    }
+
+    private static func parseCSSComponent(_ raw: String) -> Double? {
+        if raw.hasSuffix("%") {
+            let digits = raw.dropLast().trimmingCharacters(in: .whitespaces)
+            guard let value = Double(digits) else { return nil }
+            return min(max(value / 100, 0), 1)
+        }
+        guard let value = Double(raw) else { return nil }
+        if value > 1 {
+            return min(max(value / 255, 0), 1)
+        }
+        return min(max(value, 0), 1)
     }
 }

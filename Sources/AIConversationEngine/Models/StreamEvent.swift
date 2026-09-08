@@ -22,7 +22,9 @@ package enum StreamEvent: Decodable, Sendable, Equatable {
     /// A finalized part. Replaces any locally accumulated deltas for the same `part_id`.
     case part(Part)
     /// Terminal — the complete assistant message as persisted. Source of truth.
-    case done(Message)
+    /// `visitorToken` is a refreshed JWT bound to the conversation just written; present when the
+    /// request token was not yet bound. `ChatService` adopts it so later turns stay on the thread.
+    case done(Message, visitorToken: String?)
     /// Terminal — the stream failed. Disconnect after receiving.
     case error(Failure)
     /// Unrecognised SSE event name — skipped by the consumer.
@@ -56,6 +58,11 @@ package enum StreamEvent: Decodable, Sendable, Equatable {
 
     private struct DoneEvent: Decodable {
         let message: Message
+        let visitorToken: String?
+
+        var event: StreamEvent {
+            .done(self.message, visitorToken: self.visitorToken)
+        }
     }
 
     package init(from decoder: any Decoder) throws {
@@ -64,7 +71,7 @@ package enum StreamEvent: Decodable, Sendable, Equatable {
         case .status: .status(try container.decode(Status.self, forKey: .data))
         case .partDelta: try container.decode(DeltaEvent.self, forKey: .data).event
         case .part: .part(try container.decode(PartEvent.self, forKey: .data).part)
-        case .done: .done(try container.decode(DoneEvent.self, forKey: .data).message)
+        case .done: try container.decode(DoneEvent.self, forKey: .data).event
         case .error: .error(try container.decode(Failure.self, forKey: .data))
         case .none: .unknown
         }

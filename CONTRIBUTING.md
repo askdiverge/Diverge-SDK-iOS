@@ -14,7 +14,7 @@ make install-hooks
 The pre-commit hook mirrors GitHub Actions:
 
 - Always: `./scripts/check-version.sh`
-- iOS paths staged → same as `.github/workflows/ios.yml` (SwiftLint, package tests, sample build)
+- iOS paths staged → SwiftLint, package tests, sample build (`./scripts/ci-local.sh`). The GitHub `uitest` job is not in the hook — run `make uitest` locally when you touch Sample / stand-in suites.
 
 Run without committing:
 
@@ -32,6 +32,7 @@ make check-version
 make ios-test
 make ios-lint
 make docs-docc
+make uitest            # stand-in XCUITests (needs an iOS Simulator; not in pre-commit)
 ```
 
 Keep the root `VERSION` file as the single source of truth:
@@ -53,6 +54,8 @@ swiftlint lint --strict
 ```
 
 Open `Package.swift` or `Samples/iOS/Sample.xcodeproj` in Xcode for simulator runs (iOS 18+).
+Stand-in XCUITests: `make uitest` (see [`Tests/Standin/README.md`](Tests/Standin/README.md)).
+CI runs them after package tests (job `uitest`); they are not in the pre-commit hook.
 
 ## Branching and PRs
 
@@ -74,6 +77,19 @@ See also [`Docs/ops/canary-release.md`](Docs/ops/canary-release.md).
 ## Code style
 
 SwiftLint config at the repo root (`.swiftlint.yml`) is the single source of style truth.
+
+### Localization catalog
+
+`Sources/AIConversation/Resources/Localizable.xcstrings` must stay in Xcode's serialization
+(sorted keys, two-space indent, `"key" : value`). Any other serializer rewrites every line, the
+diff becomes unreviewable, and Xcode flips it back on the next edit. Either edit the catalog in
+Xcode, or after a hand / scripted edit run:
+
+```bash
+./scripts/format-xcstrings.py Sources/AIConversation/Resources/Localizable.xcstrings
+```
+
+A PR touching the catalog should show only the added or changed keys. New keys need all 16 locales.
 
 ## Products
 

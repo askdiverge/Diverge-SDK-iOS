@@ -20,11 +20,25 @@
 
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>
-		<!-- The user's typed messages (and the optional page-context string) are transmitted to
-		     the assistant backend to generate replies. -->
+		<!-- The user's typed messages, the optional page-context string, and close-rating
+		     free-text feedback are transmitted to the assistant backend. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Photos the visitor attaches in the composer are transmitted to the assistant
+		     backend as part of the chat message. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>

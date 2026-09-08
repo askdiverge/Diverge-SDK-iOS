@@ -98,3 +98,33 @@ jobs:
             -destination "${{ steps.sample-dest.outputs.destination }}" \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO
+
+  uitest:
+    name: Stand-in UITests
+    needs: build-test
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Select Xcode
+        uses: ./.github/actions/select-xcode
+
+      - name: Ensure iOS Simulator platform
+        uses: ./.github/actions/ensure-ios-platform
+        with:
+          scheme: Sample
+          project: Samples/iOS/Sample.xcodeproj
+
+      - name: Resolve UITest destination
+        id: dest
+        uses: ./.github/actions/resolve-ios-destination
+        with:
+          scheme: DriverApp
+          project: Tests/Standin/Driver.xcodeproj
+
+      - name: Run stand-in UITests
+        env:
+          DESTINATION: ${{ steps.dest.outputs.destination }}
+        run: ./Tests/Standin/run-uitests.sh

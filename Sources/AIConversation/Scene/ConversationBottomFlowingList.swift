@@ -10,7 +10,7 @@ import AIConversationEngine
 
 /// Lays out a conversation Leading/Trailing. Classic chat flow: new turns land at the bottom and the list
 /// follows the newest turn (unless the reader has scrolled away).
-struct ConversationBottomFlowingList<Content: View, Header: View>: View {
+struct ConversationBottomFlowingList<Content: View, Header: View, Footer: View>: View {
 
     @Environment(\.appearance) private var appearance
 
@@ -20,19 +20,25 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
     /// reply shouldn't leave the reader up in history, and it pins the latest message above the keyboard.
     let isInputFocused: Bool
 
-    // TODO: - Hook up reverse pagination
-    /// Ready to consume: pagination is fully wired behind this hook. It is deliberately left
-    /// untriggered — `List` cannot hold the reader's scroll position across a top prepend,
-    /// pinning to id after prepend is possible, but achiving a smooth continous scroll not.
-    /// deliberatly left unimplemented for now.
-    let onLoadOlder: () async -> Void
+    /// Measured height of the overlaid composer; a trailing clearance row keeps the last turn above it.
+    let composerClearance: CGFloat
+
+    /// Loads the next older page when the reader scrolls near the top and reports how it went; the
+    /// list keeps the reader in place when turns land above them and offers an inline retry when
+    /// the load failed. See ``HistoryPagination``.
+    let onLoadOlder: () async -> HistoryLoadOutcome
 
     @ViewBuilder let content: (Identified<ConversationSnapshot.Turn>) -> Content
     @ViewBuilder let header: () -> Header
+    @ViewBuilder let footer: () -> Footer
+    /// When false the footer is not inserted as a `List` row, so hiding chips does not leave
+    /// `listRowSpacing` from an `EmptyView`.
+    let showsFooter: Bool
 
     @State private var isScrolledAway = false
     @State private var isInitialLoad = true
     @State private var scrollTask = ScrollTaskBox()
+    @State private var history = HistoryPaginator()
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -47,6 +53,11 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
                 }
                 .onChange(of: self.isInputFocused) { _, focused in
                     if focused {
+                        self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy, animated: true)
+                    }
+                }
+                .onChange(of: self.composerClearance) { _, height in
+                    if height > 0, self.isInputFocused || !self.isScrolledAway {
                         self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy, animated: true)
                     }
                 }
@@ -68,8 +79,15 @@ private extension ConversationBottomFlowingList {
                 ForEach(self.snapshot.turns) { turn in
                     self.content(turn)
                         .frame(maxWidth: .infinity, alignment: self.alignment(turn.model))
+                        .historyRow(turn.id, in: self.history)
                         .id(turn.id)
                 }
+
+                if self.showsFooter {
+                    self.footer()
+                }
+
+                ConversationComposerClearanceRow(composerHeight: self.composerClearance)
             }
             .listRowInsets(
                 .init(
@@ -85,6 +103,9 @@ private extension ConversationBottomFlowingList {
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 0)
         .scrollContentBackground(.hidden)
+        // Paint the theme behind clear rows — otherwise a light palette in a dark
+        // environment (unconfigured `dark_theme`) leaves system chrome showing through.
+        .background(self.appearance.theme.background)
 #if os(iOS)
         .listRowSpacing(self.appearance.spacing.units(6))
 #endif
@@ -93,6 +114,13 @@ private extension ConversationBottomFlowingList {
         } action: { _, away in
             if self.isScrolledAway != away { self.isScrolledAway = away }
         }
+        .modifier(HistoryPagination(
+            paginator: self.history,
+            snapshot: self.snapshot,
+            proxy: proxy,
+            scrollTask: self.scrollTask,
+            onLoadOlder: self.onLoadOlder
+        ))
     }
 
     /// Jump-to-bottom control, surfaced only once the reader has scrolled away. Wears the thinking
@@ -117,7 +145,7 @@ private extension ConversationBottomFlowingList {
     /// Lands on the newest turn. Callers pass `nil` to suppress the scroll (the reader has scrolled away).
     /// programmatic jump interpolates instead of tearing the offset out from under an active gesture.
     func scrollToNewest(_ lastID: UUID?, proxy: ScrollViewProxy, animated: Bool = false) {
-        guard let lastID else { return }
+        guard lastID != nil else { return }
         // Coalesce rapid requests (streaming, keyboard, geometry): cancel the pending scroll so a burst
         // of events resolves to a single scroll instead of flooding MainActor with stacked tasks.
         self.scrollTask.replace(with: Task { @MainActor in
@@ -125,17 +153,18 @@ private extension ConversationBottomFlowingList {
             if Task.isCancelled { return }
             if animated {
                 withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo(lastID, anchor: .bottom)
+                    proxy.scrollTo(ConversationComposerClearance.id, anchor: .bottom)
                 }
             } else {
-                proxy.scrollTo(lastID, anchor: .bottom)
+                proxy.scrollTo(ConversationComposerClearance.id, anchor: .bottom)
             }
         })
     }
 
     func alignment(_ turn: ConversationSnapshot.Turn) -> Alignment {
         switch turn {
-        case .bot: .leading
+        case .bot, .agent, .note: .leading
+        case .system: .center
         case .user: .trailing
         }
     }
@@ -145,6 +174,9 @@ private extension ConversationBottomFlowingList {
 
 extension ConversationBottomFlowingList: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.snapshot == rhs.snapshot && lhs.isInputFocused == rhs.isInputFocused
+        lhs.snapshot == rhs.snapshot
+            && lhs.isInputFocused == rhs.isInputFocused
+            && lhs.composerClearance == rhs.composerClearance
+            && lhs.showsFooter == rhs.showsFooter
     }
 }

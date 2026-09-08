@@ -77,24 +77,8 @@ struct TableView: View {
         case .image(let image):
             // Cached + coalesced loader: the streaming re-renders resolve from cache instead of
             // restarting the download.
-            Color.clear
+            ClippedRemoteImage(url: image.url)
                 .frame(height: self.imageHeight)
-                .overlay {
-                    RemoteImageView(url: image.url) { result in
-                        switch result {
-                        case .success(let loaded):
-                            loaded.resizable().scaledToFill()
-                        case .failure:
-                            // TODO: replace with a real image-failure view
-                            EmptyView()
-                        }
-                    } placeholder: {
-                        ProgressView()
-                            .tint(self.appearance.theme.accent)
-                    }
-                }
-                .background(self.appearance.theme.botSurface)
-                .clipped()
         }
     }
 }
