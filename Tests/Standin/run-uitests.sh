@@ -9,7 +9,9 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 STANDIN="$(cd "$(dirname "$0")" && pwd)"
 SERVERS="$STANDIN/servers"
 PORT="${PORT:-3000}"
-SCHEME="${SCHEME:-DriverApp}"
+# Not `SCHEME`: that name is generic enough for a wrapper or CI env to set it
+# for a different project, which would point xcodebuild at a missing scheme.
+SCHEME="${UITEST_SCHEME:-DriverApp}"
 PROJECT="$STANDIN/Driver.xcodeproj"
 SAMPLE_PROJECT="$ROOT/Samples/iOS/Sample.xcodeproj"
 DERIVED="${DERIVED_DATA_PATH:-$ROOT/.build/uitest-derived}"
