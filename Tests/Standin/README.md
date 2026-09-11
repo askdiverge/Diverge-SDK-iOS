@@ -22,6 +22,9 @@ On **`iOS_Product_Recommendation`**, this harness covers product recommendation,
 1. iOS 18+ Simulator.
 2. Sample built and installed with the **Local** configuration (`http://127.0.0.1:3000`).
 3. Python 3 on `PATH`.
+4. A photo in the simulator's library for the picker suites — `run-uitests.sh` seeds one with
+   `simctl addmedia` after installing Sample, which also pre-builds a fresh simulator's Photos
+   library so the picker does not sit on "Loading…" during the pick.
 
 ## Run
 

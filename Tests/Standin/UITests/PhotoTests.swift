@@ -29,8 +29,7 @@ final class PhotoTests: XCTestCase {
         sleep(3)
         shot(app, "11-picker")
 
-        // PhotosPicker is a remote view; its grid is bridged into the host's a11y tree.
-        pickFirstPhoto(app)
+        app.pickFirstPhoto()
         sleep(2)
 
         // Chip: one combined element with the generic image label + "Remove photo".
@@ -85,27 +84,6 @@ final class PhotoTests: XCTestCase {
     }
 
     // MARK: - Helpers
-
-    private func pickFirstPhoto(_ app: XCUIApplication) {
-        // Try the picker's own process first, then the bridged tree.
-        let picker = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
-        let candidates: [XCUIElementQuery] = [
-            picker.scrollViews.images, picker.images, picker.cells,
-            app.scrollViews.images, app.cells, app.images
-        ]
-        for query in candidates {
-            let first = query.firstMatch
-            if first.waitForExistence(timeout: 4) {
-                let all = query.allElementsBoundByIndex
-                // Skip the SDK's own images (avatar/logo) by preferring elements in the lower 80%.
-                let target = all.first { $0.frame.minY > app.frame.height * 0.2 && $0.isHittable } ?? first
-                print("EVIDENCE picking photo element: \(target.debugDescription.prefix(200))")
-                target.tap()
-                return
-            }
-        }
-        XCTFail("no photo cell found in the picker")
-    }
 
     private func shot(_ app: XCUIApplication, _ name: String) {
         let data = XCUIScreen.main.screenshot().pngRepresentation

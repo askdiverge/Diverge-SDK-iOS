@@ -44,4 +44,36 @@ extension XCUIApplication {
         print("EVIDENCE send button: \(send.frame) enabled=\(send.isEnabled)")
         send.tap()
     }
+
+    /// Taps the first photo in the system `PhotosPicker`. The picker is a remote view: its grid
+    /// may be bridged into this app's tree or only reachable through the Photos process, so
+    /// both are polled. The first open on a fresh simulator builds the photo library behind a
+    /// "Loading…" spinner for tens of seconds on a CI runner, so the poll is generous — and
+    /// only picker-process matches may fall back to the first element, since the host tree's
+    /// `images` also match the SDK's own avatar and logo while the grid is still loading.
+    func pickFirstPhoto(timeout: TimeInterval = 90, file: StaticString = #filePath, line: UInt = #line) {
+        let picker = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
+        let inPicker: [XCUIElementQuery] = [picker.scrollViews.images, picker.images, picker.cells]
+        let bridged: [XCUIElementQuery] = [self.scrollViews.images, self.cells, self.images]
+        let belowChrome = self.frame.height * 0.2
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            for (queries, allowFirst) in [(inPicker, true), (bridged, false)] {
+                // Resolving a query against a process that is not running is a hard test
+                // failure, not an empty result — skip Photos while it is not hosting the grid.
+                if allowFirst && picker.state == .notRunning { continue }
+                for query in queries {
+                    let all = query.allElementsBoundByIndex
+                    let lower = all.first { $0.frame.minY > belowChrome && $0.isHittable }
+                    guard let target = lower ?? (allowFirst ? all.first : nil) else { continue }
+                    print("EVIDENCE picking photo element: \(target.debugDescription.prefix(200))")
+                    target.tap()
+                    return
+                }
+            }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        XCTFail("no photo cell found in the picker within \(Int(timeout))s", file: file, line: line)
+    }
 }

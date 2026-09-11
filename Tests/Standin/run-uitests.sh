@@ -161,6 +161,21 @@ install_sample() {
   xcrun simctl boot "$udid" >/dev/null 2>&1 || true
   xcrun simctl bootstatus "$udid" -b
   xcrun simctl install "$udid" "$app"
+  seed_photo_library "$udid"
+}
+
+# The photo suites pick from the system PhotosPicker. A simulator that has never
+# opened Photos builds its library on first use — behind a "Loading…" spinner
+# that outlasts the pick on a CI runner. Importing one image forces that build
+# now, and guarantees the grid has something to pick.
+seed_photo_library() {
+  local udid="$1"
+  local seed=/tmp/diverge-standin/seed-photo.png
+  mkdir -p /tmp/diverge-standin
+  python3 -c "import sys; sys.path.insert(0, sys.argv[1]); from photo_server import png; sys.stdout.buffer.write(png(640, 480, (79, 70, 229)))" \
+    "$SERVERS" >"$seed"
+  echo "==> Seed photo library on $udid"
+  xcrun simctl addmedia "$udid" "$seed"
 }
 
 run_one() {

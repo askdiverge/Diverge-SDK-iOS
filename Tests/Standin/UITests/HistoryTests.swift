@@ -121,6 +121,10 @@ final class HistoryTests: XCTestCase {
             // further up after the cooldown — both paths must land the page.
             var retried = false
             let retryStartsBefore = historyStarts()
+            // Sampled here, not at the wait below: the UI queries between the trigger and that
+            // wait can outlast the server's DELAY on a slow runner, and a baseline taken after
+            // the retry has already landed waits for a completion that never comes.
+            let retryCompletionsBefore = historyCallCount()
             if flow == "topDown" {
                 retryButton.tap()
                 retried = waitForHistoryStarts(above: retryStartsBefore, timeout: 2)
@@ -141,7 +145,7 @@ final class HistoryTests: XCTestCase {
             usleep(700_000)
             let (labelRetry, beforeRetry) = topmostVisibleRow(app)
             let spinnerDuringRetry = spinner(app).exists
-            XCTAssertTrue(waitForHistoryCompletions(above: historyCallCount(), timeout: 15), "\(tag): the retry never completed")
+            XCTAssertTrue(waitForHistoryCompletions(above: retryCompletionsBefore, timeout: 15), "\(tag): the retry never completed")
             sleep(1)
             status = lastHistoryStatus()
             (labelAfter, after) = frame(of: labelRetry, in: app)
