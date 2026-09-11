@@ -8,7 +8,8 @@ visible. Nothing here is the real API — it mirrors specs/chatbot-api.tsp shape
 """
 import json, os, struct, sys, time, zlib
 from datetime import datetime, timezone, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from standin_http import serve
 from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORT", "3000"))
@@ -209,5 +210,4 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print(f"stand-in chatbot API on {BASE}  (attachment TTL {TTL}s)", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    serve(Handler, PORT, f"stand-in chatbot API on {BASE}  (attachment TTL {TTL}s)")

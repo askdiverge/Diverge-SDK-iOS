@@ -7,7 +7,8 @@ import UIKit
 ///
 /// Simulator appearance flips go through `POST /__control` (`sim_appearance`) because
 /// the UITest bundle is an iOS target and cannot spawn `Process` / `xcrun`.
-/// `sim_udid` is `SIM_UDID` or `"booted"` — never a hardcoded device id.
+/// `sim_udid` is `SIM_UDID` (the runner forwards the destination's udid as
+/// `TEST_RUNNER_SIM_UDID`) or `"booted"` — never a hardcoded device id.
 final class DarkAppearanceTests: XCTestCase {
 
     private let shots = "/tmp/diverge-standin/shots-dark-appearance"

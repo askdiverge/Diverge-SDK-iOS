@@ -7,7 +7,8 @@ Sample onOpenLink / SAMPLE_STANDIN can record it.
 """
 import json, os, struct, sys, time, zlib, uuid
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from standin_http import serve
 from urllib.parse import parse_qs, urlparse
 
 PORT = int(os.environ.get("PORT", "3000"))
@@ -269,5 +270,4 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     seed()
-    print(f"banners_server listening on {BASE}", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    serve(Handler, PORT, f"banners_server listening on {BASE}")

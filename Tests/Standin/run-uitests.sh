@@ -86,25 +86,53 @@ destination_udid() {
   echo "$1" | sed -n 's/.*id=\([^,]*\).*/\1/p'
 }
 
-kill_port() {
-  local pids
-  pids="$(lsof -ti tcp:"$PORT" 2>/dev/null || true)"
-  if [[ -n "$pids" ]]; then
-    # shellcheck disable=SC2086
-    kill $pids 2>/dev/null || true
-    sleep 0.4
-  fi
+listeners() {
+  # `-sTCP:LISTEN` so client sockets are left alone — the Sample app under test
+  # holds one to :$PORT, and killing that takes down the run.
+  lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null || true
 }
 
-wait_for_port() {
-  local i
-  for i in $(seq 1 50); do
-    if lsof -ti tcp:"$PORT" >/dev/null 2>&1; then
+# Leave :$PORT with nothing listening. Returning while the previous stand-in
+# still holds it makes the next one exit on bind, and the readiness probe would
+# then answer from the dying server.
+kill_port() {
+  local pids i
+  for i in $(seq 1 40); do
+    pids="$(listeners)"
+    if [[ -z "$pids" ]]; then
       return 0
     fi
-    sleep 0.1
+    if [[ $i -gt 10 ]]; then
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+    else
+      # shellcheck disable=SC2086
+      kill $pids 2>/dev/null || true
+    fi
+    sleep 0.25
   done
-  echo "error: stand-in did not bind :$PORT" >&2
+  echo "error: :$PORT still has a listener after 10s" >&2
+  return 1
+}
+
+# A bound socket is not a served request: `lsof` also matches a listener that is
+# not accepting yet, and the app's bootstrap then times out instead of failing
+# fast. Probe over HTTP — any status proves the handler ran. `/__ready` is
+# unrouted everywhere, so it 404s without touching the seeded state tests assert on.
+wait_for_server() {
+  local pid="$1" i code
+  for i in $(seq 1 300); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "error: stand-in exited before serving — see /tmp/diverge-standin/*.server.log" >&2
+      return 1
+    fi
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:$PORT/__ready" 2>/dev/null || true)"
+    if [[ -n "$code" && "$code" != "000" ]]; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  echo "error: stand-in did not answer on :$PORT within 60s" >&2
   return 1
 }
 
@@ -144,15 +172,22 @@ run_one() {
   extra="$(suite_env "$suite")"
 
   echo "==> $suite  ($server ${extra})"
-  kill_port
+  kill_port || return 1
   mkdir -p /tmp/diverge-standin
 
   # shellcheck disable=SC2086
   env PORT="$PORT" $extra python3 -u "$SERVERS/$server" >"/tmp/diverge-standin/${suite}.server.log" 2>&1 &
   local pid=$!
-  wait_for_port
+  if ! wait_for_server "$pid"; then
+    kill "$pid" 2>/dev/null || true
+    return 1
+  fi
 
   local status=0
+  # xcodebuild forwards TEST_RUNNER_-prefixed variables to the runner with the
+  # prefix stripped; the appearance suite needs the destination's udid, and
+  # `simctl`'s "booted" alias is ambiguous once a second simulator is up.
+  TEST_RUNNER_SIM_UDID="$(destination_udid "$dest")" \
   xcodebuild test \
     -project "$PROJECT" \
     -scheme "$SCHEME" \

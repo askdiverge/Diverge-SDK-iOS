@@ -5,7 +5,8 @@ POST /__control can omit dark_theme so XCUITests cover the unconfigured clone pa
 """
 import json, os, struct, sys, time, zlib, uuid
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from standin_http import serve
 from urllib.parse import urlparse
 
 PORT = int(os.environ.get("PORT", "3000"))
@@ -232,5 +233,4 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     seed()
-    print(f"dark theme stand-in on {BASE}", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    serve(Handler, PORT, f"dark theme stand-in on {BASE}")

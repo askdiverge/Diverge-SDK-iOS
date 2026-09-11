@@ -56,6 +56,8 @@ Each suite needs its own server. Do not leave a previous stand-in (or docker com
 
 Sample launch env the suites set: `SAMPLE_AUTO_TOKEN`, `SAMPLE_FLOW`, `SAMPLE_STANDIN=1`, plus `SAMPLE_PAGE` / `SAMPLE_APPEARANCE` / `SAMPLE_ATTACHMENTS` where needed.
 
+The runner forwards the destination's udid to the test bundle as `TEST_RUNNER_SIM_UDID`, so `DarkAppearanceTests` flips the appearance of the simulator under test rather than whichever one `simctl`'s `booted` alias picks.
+
 ## Regenerating the Xcode project
 
 ```bash

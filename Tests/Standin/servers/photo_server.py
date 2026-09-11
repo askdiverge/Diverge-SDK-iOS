@@ -10,7 +10,8 @@ reply proves the bytes were received. Nothing here is the real API.
 """
 import base64, json, os, struct, sys, time, zlib
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from standin_http import serve
 from urllib.parse import urlparse
 
 PORT = int(os.environ.get("PORT", "3000"))
@@ -204,5 +205,4 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     open(EVIDENCE, "w").close()
-    print(f"stand-in chatbot API (send-photo) on {BASE}; evidence -> {EVIDENCE}", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    serve(Handler, PORT, f"stand-in chatbot API (send-photo) on {BASE}; evidence -> {EVIDENCE}")

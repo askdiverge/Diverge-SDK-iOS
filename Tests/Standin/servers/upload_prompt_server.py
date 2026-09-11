@@ -8,7 +8,8 @@ to end. Nothing here is the real API.
 """
 import base64, json, os, struct, sys, time, zlib
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from standin_http import serve
 from urllib.parse import urlparse
 
 PORT = int(os.environ.get("PORT", "3000"))
@@ -235,5 +236,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     with open(EVIDENCE, "w") as f:
         f.write(json.dumps({"seed": "request_image_upload"}) + "\n")
-    print(f"stand-in chatbot API (upload prompt) on http://127.0.0.1:{PORT}; evidence -> {EVIDENCE}", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    serve(Handler, PORT,
+          f"stand-in chatbot API (upload prompt) on http://127.0.0.1:{PORT}; evidence -> {EVIDENCE}")

@@ -22,7 +22,8 @@ Nothing here is the real API.
 """
 import json, os, sys, time
 from datetime import datetime, timedelta, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from standin_http import serve
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -190,6 +191,6 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     reset_state()
-    print(f"stand-in chatbot API (history) on http://127.0.0.1:{PORT}; TOTAL={TOTAL} PAGE={PAGE} DELAY={DELAY} "
-          f"FAIL_ONCE={FAIL_ONCE} SHAPE={SHAPE}; evidence -> {EVIDENCE}", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    serve(Handler, PORT,
+          f"stand-in chatbot API (history) on http://127.0.0.1:{PORT}; TOTAL={TOTAL} PAGE={PAGE} DELAY={DELAY} "
+          f"FAIL_ONCE={FAIL_ONCE} SHAPE={SHAPE}; evidence -> {EVIDENCE}")

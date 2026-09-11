@@ -129,3 +129,14 @@ jobs:
         env:
           DESTINATION: ${{ steps.dest.outputs.destination }}
         run: ./Tests/Standin/run-uitests.sh
+
+      # The suites write their stand-in server logs, screenshots and evidence
+      # JSONL here; without them a failure only shows the assertion that tripped.
+      - name: Upload stand-in UITest evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: standin-uitest-evidence
+          path: /tmp/diverge-standin
+          if-no-files-found: ignore
+          retention-days: 7
