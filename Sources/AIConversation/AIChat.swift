@@ -12,6 +12,13 @@ import AIConversationEngine
 import UIKit
 #endif
 
+/// Chatbot API host constants. ``AIChat/Configuration`` defaults to ``productionBaseURL``.
+/// Development and local hosts belong in the host/sample build config — not the public SDK surface.
+public enum DivergeAPI {
+    /// Live production API. Single source of truth shared with the engine facade.
+    public static let productionBaseURL = ChatService.productionBaseURL
+}
+
 /// Public entry point for the conversational-search chat SDK.
 ///
 /// Configure it with a ``Configuration`` of host-provided hooks.
@@ -52,7 +59,10 @@ public final class AIChat {
         self.service = ChatService(
             tokenProvider: configuration.tokenProvider,
             onResetConversation: configuration.resetConversation,
-            onDeleteData: configuration.deleteData
+            onDeleteData: configuration.deleteData,
+            baseURL: configuration.apiBaseURL,
+            sdkVersion: VersionInfo.current,
+            clientProfile: .productRecommendation
         )
     }
 
@@ -126,6 +136,8 @@ public extension AIChat {
         let contextProvider: (@Sendable () async -> String?)?
         let onOpenLink: ((URL) -> Void)?
         let conversationFlow: ConversationFlow
+        /// Chatbot API host. Defaults to ``DivergeAPI/productionBaseURL``.
+        let apiBaseURL: URL
 
 #if os(macOS)
         /// - Parameters:
@@ -138,12 +150,14 @@ public extension AIChat {
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
         ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
         ///     → default OS open.
+        ///   - apiBaseURL: Chatbot API host. Defaults to production.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
-            onOpenLink: ((URL) -> Void)? = nil
+            onOpenLink: ((URL) -> Void)? = nil,
+            apiBaseURL: URL = DivergeAPI.productionBaseURL
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
@@ -151,6 +165,7 @@ public extension AIChat {
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
             self.conversationFlow = .bottomUp
+            self.apiBaseURL = apiBaseURL
         }
 #else
         /// - Parameters:
@@ -164,13 +179,15 @@ public extension AIChat {
         ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
         ///     → default OS open.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
+        ///   - apiBaseURL: Chatbot API host. Defaults to production.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
-            conversationFlow: ConversationFlow = .topDown
+            conversationFlow: ConversationFlow = .topDown,
+            apiBaseURL: URL = DivergeAPI.productionBaseURL
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
@@ -178,6 +195,7 @@ public extension AIChat {
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
             self.conversationFlow = conversationFlow
+            self.apiBaseURL = apiBaseURL
         }
 #endif
     }
