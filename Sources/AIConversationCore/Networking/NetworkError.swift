@@ -14,8 +14,12 @@ package enum NetworkError: Error {
     case http(HTTPStatusError)
     case unknown(any Error)
 
-    package enum HTTPStatusError: Error {
+    package enum HTTPStatusError: Error, Equatable {
         case unauthorized
+        /// HTTP 409 — the request conflicts with server state.
+        case conflict
+        /// HTTP 422 (or another status) with a decoded `ApiError` envelope and field params.
+        case validation(status: Int, message: String, params: [ValidationError])
         case unhandled(status: Int)
     }
 

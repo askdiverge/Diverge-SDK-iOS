@@ -2,7 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>DivergeAPIEnvironment</key>
+	<string>$(DIVERGE_API_ENVIRONMENT)</string>
+	<key>DivergeAPIBaseURL</key>
+	<string>$(DIVERGE_API_BASE_URL)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

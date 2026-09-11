@@ -13,7 +13,10 @@ struct PrivacyDataView: View {
     @Environment(\.appearance) private var appearance
 
     let onPrivacy: () -> Void
+    let onDownload: () -> Void
     let onDelete: () -> Void
+    /// Non-nil after a failed export attempt — cleared when the sheet dismisses.
+    var exportError: String?
 
     private var theme: ChatAppearance.Theme {
         self.appearance.theme
@@ -32,7 +35,14 @@ struct PrivacyDataView: View {
                 .frame(maxWidth: .infinity, minHeight: self.spacing.units(11))
                 .padding(.horizontal, self.spacing.units(2))
                 .padding(.top, self.spacing.units(6))
+            if let exportError {
+                NoticeBar(icon: ChatAppearance.Symbol.notice, message: exportError)
+                    .padding(.horizontal, self.spacing.units(4))
+                    .padding(.bottom, self.spacing.units(2))
+                    .accessibilityIdentifier("privacy.downloadError")
+            }
             self.privacyRow
+            self.downloadRow
             self.deleteRow
         }
         .frame(maxWidth: .infinity)
@@ -47,6 +57,17 @@ struct PrivacyDataView: View {
             accessory: ChatAppearance.Symbol.externalLink,
             action: self.onPrivacy
         )
+    }
+
+    private var downloadRow: some View {
+        self.row(
+            icon: ChatAppearance.Symbol.download,
+            title: L10n.privacyDownloadEntry.string,
+            tint: self.theme.primaryText,
+            accessory: ChatAppearance.Symbol.share,
+            action: self.onDownload
+        )
+        .accessibilityIdentifier("privacy.download")
     }
 
     private var deleteRow: some View {

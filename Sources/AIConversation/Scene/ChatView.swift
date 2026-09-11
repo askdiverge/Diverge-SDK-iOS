@@ -6,22 +6,56 @@
 //
 
 import SwiftUI
+import PhotosUI
 import AIConversationEngine
 
 /// The SDK's main screen — the chat UI returned by `AIChat.makeView()`.
+///
+/// Layout lives in sibling extension files: `+Window` (navigation chrome, notices, composer),
+/// `+Conversation` (the flow-specific list and header) and `+Turns` (per-response rendering).
+/// View state is declared here and is internal so those extensions can read and bind it.
 struct ChatView: View {
 
-    private let viewModel: ViewModel
+    let viewModel: ViewModel
 
-    @Environment(\.openURL) private var openURL
-    @FocusState private var inputFocused: Bool
+    @Environment(\.openURL) var openURL
+    @Environment(\.colorScheme) var colorScheme
+    @FocusState var inputFocused: Bool
 
-    @State private var showSessionEndedAlert = false
-    @State private var privacyDestination: PrivacyDataDestination?
-    @State private var isLoading = false
+    @State var showSessionEndedAlert = false
+    @State var privacyDestination: PrivacyDataDestination?
+    @State var isLoading = false
+    @State var photoPickerItem: PhotosPickerItem?
+    @State var isPhotoPickerPresented = false
+    /// Where the *next* pick lands. Set before presenting and deliberately **not** cleared on
+    /// dismissal: the picker updates `selection` and flips `isPresented` in the same gesture and
+    /// SwiftUI does not promise the order, so routing state must outlive presentation state.
+    @State var photoDestination: PhotoDestination = .composer
+    /// Measured height of the overlaid composer so the list can keep the last turn above it.
+    @State var composerHeight: CGFloat = 0
 
-    private var appearance: ChatAppearance {
-        self.viewModel.appearance ?? .default
+    /// Where a photo pick should land — composer chip or an upload-prompt card.
+    enum PhotoDestination: Equatable {
+        case composer
+        case imageUpload(RequestImageUpload)
+    }
+
+    var appearance: ChatAppearance {
+        let base = self.viewModel.appearance ?? .default
+        return base.with(colorScheme: self.viewModel.resolvedScheme(environment: self.colorScheme))
+    }
+
+    /// Keyboard / pickers match the painted palette. Unset until ready so loading stays
+    /// on the environment (no forced-light flash, no forced-dark chrome on a cloned theme).
+    private var preferredChrome: ColorScheme? {
+        guard self.viewModel.phase == .ready else { return nil }
+        return self.viewModel.preferredColorScheme(for: self.appearance)
+    }
+
+    /// The one way to open the picker: fix the route, then present.
+    func pickPhoto(for destination: PhotoDestination) {
+        self.photoDestination = destination
+        self.isPhotoPickerPresented = true
     }
 
     init(viewModel: ViewModel) {
@@ -34,6 +68,18 @@ struct ChatView: View {
             .task { await self.viewModel.start() }
             .environment(\.appearance, self.appearance)
             .environment(\.imageLoader, self.viewModel.imageLoader)
+            .preferredColorScheme(self.preferredChrome)
+            .photosPicker(
+                isPresented: self.$isPhotoPickerPresented,
+                selection: self.$photoPickerItem,
+                matching: .images
+            )
+            .onChange(of: self.photoPickerItem) { _, item in
+                guard let item else { return }
+                self.photoPickerItem = nil
+                let destination = self.photoDestination
+                Task { await self.ingest(item, destination: destination) }
+            }
     }
 }
 
@@ -52,7 +98,9 @@ private extension ChatView {
 
     var loadingView: some View {
         ProgressView()
-            .tint(self.appearance.theme.accent)
+            .tint(.primary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.background)
     }
 
     var readyView: some View {
@@ -65,7 +113,10 @@ private extension ChatView {
                             self.openURL(url)
                         }
                     },
-                    onDeleteData: { try await self.viewModel.delete() }
+                    onExportData: { try await self.viewModel.exportMyData() },
+                    onDiscardExport: { self.viewModel.discardExportFile() },
+                    onDeleteData: { try await self.viewModel.delete() },
+                    onSessionEnded: { self.showSessionEndedAlert = true }
                 )
             )
             .alert(L10n.sessionEndedTitle.string, isPresented: self.$showSessionEndedAlert) {
@@ -84,285 +135,52 @@ private extension ChatView {
     }
 }
 
-// MARK: - Chat window
+// MARK: - Session-bound actions
 
-private extension ChatView {
-
-    var chatWindow: some View {
-        NavigationStack {
-            Group {
-                if let snapshot = self.viewModel.snapshot {
-                    self.chat(from: snapshot)
-                }
-            }
-            .navigationTitle(self.viewModel.name)
-            .toolbarTitleDisplayMode(.inline)
-            .toolbar { self.resetToolbarItem }
-            .safeAreaInset(edge: .bottom) { self.inputBar }
-        }
-        .safeAreaInset(edge: .top) { self.topNotice }
-        .background(self.appearance.theme.background)
-        .animation(.default, value: self.viewModel.notice)
-        .onChange(of: self.inputFocused) { _, focused in
-            if focused, self.viewModel.notice?.edge == .bottom {
-                self.viewModel.dismissNotice()
-            }
-        }
-    }
-
-    var resetToolbarItem: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                self.reset()
-            } label: {
-                ChatAppearance.Symbol.reset
-            }
-            .disabled(self.viewModel.snapshot?.streamingTurnID != nil)
-        }
-    }
-
-    func reset() {
-        Task {
-            self.isLoading = true
-            await self.viewModel.reset()
-            self.isLoading = false
-        }
-    }
-
-    var inputBar: some View {
-        self.chatInput
-            .background(alignment: .top) {
-                // A permanent wrapper ensures the alignment guide is never dropped
-                VStack {
-                    self.bottomNotice
-                }
-                // Align the bottom of VStack to the top of the chatInput
-                .alignmentGuide(.top) { $0[.bottom] }
-            }
-    }
-
-    @ViewBuilder
-    var bottomNotice: some View {
-        if let notice = self.viewModel.notice, notice.edge == .bottom {
-            self.noticeBar(notice.message)
-                .padding(.bottom, self.appearance.spacing.units(2))
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-        }
-    }
-
-    @ViewBuilder
-    var topNotice: some View {
-        if let notice = self.viewModel.notice, notice.edge == .top {
-            self.noticeBar(notice.message)
-                .transition(.move(edge: .top))
-        }
-    }
-
-    func noticeBar(_ message: String) -> some View {
-        NoticeBar(
-            icon: ChatAppearance.Symbol.notice,
-            message: message
-        )
-        .padding(.horizontal, self.appearance.spacing.units(4))
-    }
-}
-
-// MARK: - Conversation
-
-private extension ChatView {
-
-    func chat(from snapshot: ConversationSnapshot) -> some View {
-        self.conversationList(from: snapshot)
-            .modifier(
-                DismissKeyboardOnTap(
-                    isActive: self.inputFocused,
-                    onDismiss: {
-                        self.inputFocused = false
-                        self.viewModel.dismissNotice()
-                    })
-            )
-    }
-
-    /// layout whichever flow is configured.
-    @ViewBuilder
-    func conversationList(from snapshot: ConversationSnapshot) -> some View {
-        /// The `List`-backed flows don't perform on macOS, so the Mac stays on the `ScrollView`-backed
-#if os(macOS)
-        ConversationView(
-            snapshot: snapshot,
-            isInputFocused: self.inputFocused,
-            onLoadOlder: self.loadOlder,
-            content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
-            header: { self.chatHeader }
-        )
-        .equatable()
-#else
-        switch self.viewModel.conversationFlow {
-        case .topDown:
-            ConversationTopFlowingList(
-                snapshot: snapshot,
-                isInputFocused: self.inputFocused,
-                onLoadOlder: self.loadOlder,
-                content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
-                header: { self.chatHeader }
-            )
-            .equatable()
-
-        case .bottomUp:
-            ConversationBottomFlowingList(
-                snapshot: snapshot,
-                isInputFocused: self.inputFocused,
-                onLoadOlder: self.loadOlder,
-                content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
-                header: { self.chatHeader }
-            )
-            .equatable()
-        }
-#endif
-    }
-
-    @ViewBuilder
-    func turnView(for turn: Identified<ConversationSnapshot.Turn>, streamingTurnID: UUID?) -> some View {
-        switch turn.model {
-        case .bot(let responses):
-            self.botTurn(responses, isStreaming: turn.id == streamingTurnID)
-
-        case .user(let bubbles):
-            self.userTurn(bubbles)
-        }
-    }
-
-    var chatHeader: some View {
-        VStack(alignment: .leading, spacing: self.appearance.spacing.units(6)) {
-            if let logo = self.viewModel.logo {
-                logo.image
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: self.appearance.spacing.units(10))
-                    .frame(maxWidth: .infinity, alignment: logo.alignment)
-            }
-
-            if let subtitle = self.viewModel.subtitle {
-                ChatHeader(subtitle: subtitle)
-            }
-        }
-    }
-
-    /// Requests the next older page; a failure means the session is gone, so surface the ended alert.
-    func loadOlder() async {
-        do {
-            try await self.viewModel.loadOlder()
-        } catch {
-            self.showSessionEndedAlert = true
-        }
-    }
-}
-
-// MARK: - Turn rendering
-
-private extension ChatView {
-
-    func botTurn(_ responses: [ChatResponse], isStreaming: Bool) -> some View {
-        VStack(alignment: .leading, spacing: self.appearance.spacing.units(2)) {
-            ForEach(Array(responses.enumerated()), id: \.offset) { index, response in
-                self.botResponse(
-                    response,
-                    // Only the last bubble is the one being generated, animate border/typewrite just that.
-                    isStreaming: isStreaming && index == responses.count - 1,
-                    isFirstResponse: index == 0,
-                    isLastResponse: index == responses.count - 1 && !isStreaming
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    func botResponse(
-        _ response: ChatResponse,
-        isStreaming: Bool,
-        isFirstResponse: Bool,
-        isLastResponse: Bool
-    ) -> some View {
-        switch response {
-        case .text(let text):
-            self.textResponse(text, isStreaming: isStreaming)
-                .modifier(RelativeWidth(0.70, alignment: .leading))
-                .modifier(AvatarImage(image: self.viewModel.avatar, edge: .leading))
-
-        case .placeholder(let text):
-            self.placeholderTextResponse(text, isStreaming: isStreaming)
-                .modifier(RelativeWidth(0.70, alignment: .leading))
-                .modifier(AvatarImage(image: self.viewModel.avatar, edge: .leading))
-
-        case .products(let cards):
-            ProductGridView(cards: cards)
-                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
-                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
-
-        case .table(let content):
-            TableView(content: content)
-                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
-                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
-        }
-    }
-
-    func placeholderTextResponse(_ text: AttributedString, isStreaming: Bool) -> some View {
-        BotBubble(text: text)
-            .modifier(WaveEffect())
-            .modifier(ThinkingBorderEffect(isActive: isStreaming, shape: Rectangle()))
-    }
-
-    func textResponse(_ text: AttributedString, isStreaming: Bool) -> some View {
-        BotBubble(text: text)
-            .modifier(TypewriterEffect(text: text, isActive: isStreaming))
-            .modifier(ThinkingBorderEffect(isActive: isStreaming, shape: Rectangle()))
-    }
-
-    func userTurn(_ bubbles: [AttributedString]) -> some View {
-        VStack(alignment: .trailing, spacing: self.appearance.spacing.units(2)) {
-            ForEach(Array(bubbles.enumerated()), id: \.offset) { _, text in
-                UserBubble(text: text)
-                    .modifier(RelativeWidth(0.70, alignment: .trailing))
-            }
-        }
-    }
-}
-
-// MARK: - Input
-
-private extension ChatView {
-
-    var chatInput: some View {
-        ChatInput(
-            currentMessage: .init(
-                get: { self.viewModel.currentMessage },
-                set: { self.viewModel.currentMessage = $0 }
-            ),
-            placeholder: L10n.inputPlaceholder.string,
-            leadingIcon: ChatAppearance.Symbol.privacy,
-            onLeadingTap: { self.privacyDestination = .privacy },
-            onSend: self.send,
-            inputFocus: self.$inputFocused
-        )
-        .padding(.horizontal, self.appearance.spacing.units(4))
-        .padding([.bottom, .top], self.appearance.spacing.units(3))
-        .background {
-            self.appearance.theme.background
-                .ignoresSafeArea(.container, edges: .bottom)
-        }
-        .contentShape(.rect)
-        .geometryGroup()
-    }
+extension ChatView {
 
     /// Dismisses the keyboard and sends the current message; a failure means the session is gone.
     func send() {
         self.inputFocused = false
-        Task {
-            do {
-                try await self.viewModel.send()
-            } catch {
-                self.showSessionEndedAlert = true
-            }
+        Task { await self.withSessionAlert { try await self.viewModel.send() } }
+    }
+
+    /// Dismisses the keyboard and sends a suggestion-card or start-prompt chip's text; a failure
+    /// means the session is gone.
+    func send(prompt: String) {
+        self.inputFocused = false
+        Task { await self.withSessionAlert { try await self.viewModel.send(prompt: prompt) } }
+    }
+
+    /// Requests the next older page and reports how it went. A throw means the session is gone,
+    /// so surface the ended alert — nothing was prepended, and there is nothing left to retry.
+    func loadOlder() async -> HistoryLoadOutcome {
+        var outcome = HistoryLoadOutcome.nothing
+        await self.withSessionAlert { outcome = try await self.viewModel.loadOlder() }
+        return outcome
+    }
+
+    /// Runs a session-bound action; surfaces the ended alert when the session is gone.
+    func withSessionAlert(_ body: () async throws -> Void) async {
+        do {
+            try await body()
+        } catch {
+            self.showSessionEndedAlert = true
+        }
+    }
+
+    /// Loads the picked photo bytes and routes them to the composer or an upload prompt.
+    func ingest(_ item: PhotosPickerItem, destination: PhotoDestination) async {
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            self.viewModel.presentAttachmentFailure()
+            return
+        }
+        switch destination {
+        case .composer:
+            await self.viewModel.ingestPickedPhoto(data)
+
+        case .imageUpload(let marker):
+            await self.viewModel.ingestPromptPhoto(data, marker: marker)
         }
     }
 }

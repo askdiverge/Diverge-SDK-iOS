@@ -107,6 +107,57 @@ struct TokenStoreTests {
         #expect(await hooks.providerCalls == 2)
     }
 
+    // MARK: - Server-issued rotation
+
+    @Test("adopt caches a server-issued token — the next call uses it without asking the host")
+    func adoptReplacesCurrentToken() async throws {
+        let (sut, hooks) = makeSUT()
+
+        let before = try await sut.retrieve(onAuthFailure: .retryOnce) { $0 }
+        await sut.adopt("bound-token")
+        let after = try await sut.retrieve(onAuthFailure: .retryOnce) { $0 }
+
+        #expect(before == "token-1")
+        #expect(after == "bound-token")
+        #expect(await hooks.providerCalls == 1)
+    }
+
+    @Test("adopt before any fetch primes the cache — the host provider is never consulted")
+    func adoptPrimesEmptyCache() async throws {
+        let (sut, hooks) = makeSUT()
+
+        await sut.adopt("bound-token")
+        let token = try await sut.retrieve(onAuthFailure: .retryOnce) { $0 }
+
+        #expect(token == "bound-token")
+        #expect(await hooks.providerCalls == 0)
+    }
+
+    @Test("a rejected adopted token falls back to the host provider on 401")
+    func adoptedTokenRejectedFallsBackToProvider() async throws {
+        let (sut, hooks) = makeSUT()
+        await sut.adopt("bound-token")
+
+        let result = try await sut.retrieve(onAuthFailure: .retryOnce) { token in
+            if token == "bound-token" { throw NetworkError.http(.unauthorized) }
+            return token
+        }
+
+        #expect(result == "token-1")
+        #expect(await hooks.providerCalls == 1)
+    }
+
+    @Test("reset discards an adopted token and takes the reset hook's fresh-session token")
+    func resetDiscardsAdoptedToken() async throws {
+        let (sut, _) = makeSUT()
+        await sut.adopt("bound-token")
+
+        try await sut.reset()
+        let token = try await sut.retrieve(onAuthFailure: .retryOnce) { $0 }
+
+        #expect(token == "reset-1")
+    }
+
     // MARK: - Lifecycle
 
     @Test("reset invalidates the held token and adopts the reset hook's token")

@@ -11,22 +11,36 @@ import AIConversationCore
 /// Concrete SDK facade over the Dialoge chat API.
 package final class ChatService: Sendable {
 
+    package static let productionBaseURL = URL(string: "https://api.dialogintelligens.dk")!
+
+    /// Header carrying the SDK release on every authenticated API call, so the backend can log
+    /// and gate wire-contract changes per SDK version.
+    package static let sdkVersionHeader = "X-Diverge-SDK-Version"
+
     private let network: NetworkManager
     private let tokenStore: TokenStore
+    private let baseURL: URL
+    private let sdkVersion: String?
 
+    /// - Parameter sdkVersion: SemVer of the embedding SDK release, sent as
+    ///   ``sdkVersionHeader``. `nil` omits the header (engine used standalone / tests).
     package init(
         tokenProvider: @escaping @Sendable () async throws -> String,
         onResetConversation: @escaping @Sendable () async throws -> String,
         onDeleteData: @escaping @Sendable () async throws -> Void,
-        session: URLSession = ChatService.makeSession()
+        baseURL: URL = ChatService.productionBaseURL,
+        session: URLSession = ChatService.makeSession(),
+        sdkVersion: String? = nil
     ) {
+        self.baseURL = baseURL
+        self.sdkVersion = sdkVersion
         self.tokenStore = TokenStore(
             tokenProvider: tokenProvider,
             onResetConversation: onResetConversation,
             onDeleteData: onDeleteData
         )
         self.network = NetworkManager(
-            decoder: Self.decoder,
+            decoder: Self.decoder(baseURL: baseURL),
             encoder: Self.encoder,
             session: session
         )
@@ -40,17 +54,23 @@ extension ChatService {
         try await self.mappingErrors {
             try await self.tokenStore.retrieve(onAuthFailure: .retryOnce) { token in
                 try await self.network.get(
-                    url: Endpoint.config.url,
-                    headers: Self.headers(token: token)
+                    url: self.url(for: .config),
+                    headers: self.headers(token: token)
                 )
             }
         }
     }
 
     package func fetchData(_ url: URL) async throws(ChatServiceError) -> Data {
+        // Inline data URLs (visitor uploads echoed by the API) decode without a network hop.
+        if url.scheme?.lowercased() == "data" {
+            return try await self.mappingErrors {
+                try Data(contentsOf: url)
+            }
+        }
         // Unauthenticated — no bearer token is attached.
-        try await self.mappingErrors {
-            try await self.network.data(from: url)
+        return try await self.mappingErrors {
+            try await self.network.data(from: url, headers: nil)
         }
     }
 }
@@ -60,35 +80,44 @@ extension ChatService: ChatServicing {
     package func fetchHistory(cursor: String?) async throws(ChatServiceError) -> MessagePage {
         var queryItems = [URLQueryItem(name: "limit", value: String(Self.historyPageLimit))]
         if let cursor { queryItems.append(URLQueryItem(name: "cursor", value: cursor)) }
-        let url = Endpoint.messages.url.appending(queryItems: queryItems)
+        let url = self.url(for: .messages).appending(queryItems: queryItems)
         // Session bound — a 401 means the conversation expired, surface it.
         return try await self.mappingErrors {
             try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(url: url, headers: Self.headers(token: token))
+                try await self.network.get(url: url, headers: self.headers(token: token))
             }
         }
     }
 
     package func sendMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page: String?
     ) -> AsyncThrowingStream<StreamEvent, any Error> {
-        let payload = SendMessageRequest(
-            message: .init(parts: [.text(text)]),
-            context: page.map { .init(page: $0) }
-        )
+        let parts = SendMessageRequest.Part.make(text: text, attachments: attachments)
 
         let (stream, continuation) = AsyncThrowingStream<StreamEvent, any Error>.makeStream()
+
+        guard !parts.isEmpty else {
+            assertionFailure("sendMessage called with neither text nor attachments")
+            continuation.finish(throwing: ChatServiceError.invalidRequest("Send requires text or an attachment"))
+            return stream
+        }
+
+        let payload = SendMessageRequest(
+            message: .init(parts: parts),
+            context: page.map { .init(page: $0) }
+        )
 
         let task = Task {
             do {
                 // Session bound — a 401 means the conversation expired, surface it.
                 try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                    var headers = Self.headers(token: token)
+                    var headers = self.headers(token: token)
                     headers["Accept"] = "text/event-stream"
 
                     let events: AsyncThrowingStream<StreamEvent, any Error> = self.network.stream(
-                        url: Endpoint.messages.url,
+                        url: self.url(for: .messages),
                         payload: payload,
                         headers: headers
                     )
@@ -98,8 +127,13 @@ extension ChatService: ChatServicing {
                         if case .error(let failure) = event {
                             throw ChatServiceError.stream(failure)
                         }
+                        // `.done` is terminal per the SSE contract. Adopt the conversation-bound
+                        // token it may carry *before* yielding, so the consumer's very next
+                        // send already goes out on the same thread.
+                        if case .done(_, let visitorToken?) = event {
+                            await self.tokenStore.adopt(visitorToken)
+                        }
                         continuation.yield(event)
-                        // `.done` is terminal per the SSE contract, deliver it and close stream.
                         if case .done = event { return }
                     }
                 }
@@ -128,6 +162,44 @@ extension ChatService: ChatServicing {
             try await self.tokenStore.delete()
         }
     }
+
+    package func exportMyData() async throws(ChatServiceError) -> Data {
+        // Session bound — a 401 means the conversation expired, surface it.
+        // Unlike delete, success leaves the bearer in place so the visitor can keep chatting.
+        try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                try await self.network.data(
+                    from: self.url(for: .export),
+                    headers: self.headers(token: token)
+                )
+            }
+        }
+    }
+
+    /// In-chat promo banners for the current page. Session-bound; a 401 surfaces as
+    /// ``ChatServiceError/sessionExpired``. Pass the same page string ``contextProvider``
+    /// returns for start-prompt matching. Callers soft-fail on transport / missing-route
+    /// errors so an older API without this route does not brick bootstrap — they must
+    /// still surface ``sessionExpired``.
+    package func fetchBanners(url: String?) async throws(ChatServiceError) -> [ChatBanner] {
+        var queryItems: [URLQueryItem] = []
+        if let url, !url.isEmpty {
+            queryItems.append(URLQueryItem(name: "url", value: url))
+        }
+        let endpoint = self.url(for: .banners)
+        let requestURL = queryItems.isEmpty
+            ? endpoint
+            : endpoint.appending(queryItems: queryItems)
+        return try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                let list: ChatBannerList = try await self.network.get(
+                    url: requestURL,
+                    headers: self.headers(token: token)
+                )
+                return list.banners
+            }
+        }
+    }
 }
 
 private extension ChatService {
@@ -135,8 +207,14 @@ private extension ChatService {
     /// Messages per history page
     private static let historyPageLimit = 100
 
-    static func headers(token: String) -> [String: String] {
-        ["Authorization": "Bearer \(token)"]
+    /// Bearer auth plus the SDK version tag for every API endpoint. Attachment / font fetches
+    /// (`fetchData`) stay header-less — they may target third-party hosts.
+    func headers(token: String) -> [String: String] {
+        var headers = ["Authorization": "Bearer \(token)"]
+        if let sdkVersion = self.sdkVersion {
+            headers[Self.sdkVersionHeader] = sdkVersion
+        }
+        return headers
     }
 
     /// RAM-only by design: no disk cache, cookies, or credential storage
@@ -157,9 +235,11 @@ private extension ChatService {
         return URLSession(configuration: configuration)
     }
 
-    static var decoder: JSONDecoder {
+    /// `baseURL` is what host-less attachment paths resolve against — see `AttachmentURL`.
+    static func decoder(baseURL: URL) -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.userInfo[AttachmentURL.baseURLKey] = baseURL
         return decoder
     }
 
@@ -172,18 +252,16 @@ private extension ChatService {
 
 private extension ChatService {
 
-    /// Dialoge API endpoints. The base URL and every path the facade talks to
-    /// live here — concrete methods reference `Endpoint.<case>.url` only.
+    /// Dialoge API endpoints. Paths live here — the host may override `baseURL`.
     enum Endpoint: String {
-
-        private static let baseURL = URL(string: "https://api.dialogintelligens.dk")!
-
         case config = "api/v1/chat/config"
         case messages = "api/v1/chat/messages"
+        case export = "api/v1/chat/export"
+        case banners = "api/v1/chat/banners"
+    }
 
-        var url: URL {
-            Self.baseURL.appending(path: self.rawValue)
-        }
+    func url(for endpoint: Endpoint) -> URL {
+        self.baseURL.appending(path: endpoint.rawValue)
     }
 }
 

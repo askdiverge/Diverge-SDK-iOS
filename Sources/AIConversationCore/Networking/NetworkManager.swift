@@ -37,11 +37,14 @@ package final class NetworkManager: NetworkService, Sendable {
         return try await self.send(request)
     }
 
-    package func data(from url: URL) async throws(NetworkError) -> Data {
+    package func data(
+        from url: URL,
+        headers: [String: String]? = nil
+    ) async throws(NetworkError) -> Data {
         try await self.mappingErrors {
-            let request = URLRequest(url: url, method: .get, headers: nil)
+            let request = URLRequest(url: url, method: .get, headers: headers)
             let (data, response) = try await self.session.data(for: request)
-            try response.mapError()
+            try response.mapError(body: data)
             return data
         }
     }
@@ -58,6 +61,40 @@ package final class NetworkManager: NetworkService, Sendable {
             headers: headers
         )
 
+        return try await self.send(request)
+    }
+
+    package func post<Response: Decodable & Sendable>(
+        url: URL,
+        body: Data,
+        headers: [String: String]?
+    ) async throws(NetworkError) -> Response {
+        var request = URLRequest(url: url, method: .post, headers: headers)
+        request.httpBody = body
+        return try await self.send(request)
+    }
+
+    package func post(
+        url: URL,
+        payload: some Encodable & Sendable,
+        headers: [String: String]?
+    ) async throws(NetworkError) {
+        let request = try self.makeRequest(
+            url: url,
+            method: .post,
+            payload: payload,
+            headers: headers
+        )
+        try await self.sendVoid(request)
+    }
+
+    package func patch<Response: Decodable & Sendable>(
+        url: URL,
+        body: Data,
+        headers: [String: String]?
+    ) async throws(NetworkError) -> Response {
+        var request = URLRequest(url: url, method: .patch, headers: headers)
+        request.httpBody = body
         return try await self.send(request)
     }
 
@@ -116,15 +153,15 @@ private extension NetworkManager {
     ) async throws(NetworkError) -> Response {
         try await self.mappingErrors {
             let (data, response) = try await self.session.data(for: request)
-            try response.mapError()
+            try response.mapError(body: data)
             return try self.decoder.decode(Response.self, from: data)
         }
     }
 
     func sendVoid(_ request: URLRequest) async throws(NetworkError) {
         try await self.mappingErrors {
-            let (_, response) = try await self.session.data(for: request)
-            try response.mapError()
+            let (data, response) = try await self.session.data(for: request)
+            try response.mapError(body: data)
         }
     }
 

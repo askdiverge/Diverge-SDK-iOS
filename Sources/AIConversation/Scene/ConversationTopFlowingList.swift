@@ -9,7 +9,7 @@ import SwiftUI
 import AIConversationEngine
 
 /// Lifts each new user turn to the top and lets the bot answer flow into a buffer beneath it.
-struct ConversationTopFlowingList<Content: View, Header: View>: View {
+struct ConversationTopFlowingList<Content: View, Header: View, Footer: View>: View {
 
     /// A reference held in `@State` for a stable identity, whose writes don't invalidate the view.
     final class Box<Value> {
@@ -21,10 +21,21 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
 
     let snapshot: ConversationSnapshot
     let isInputFocused: Bool
-    let onLoadOlder: () async -> Void
+    /// Measured height of the overlaid composer; a trailing clearance row keeps the last turn above it.
+    let composerClearance: CGFloat
+    /// Loads the next older page when the reader scrolls near the top and reports how it went; the
+    /// list keeps the reader in place when turns land above them and offers an inline retry when
+    /// the load failed. See ``HistoryPagination``.
+    /// A prepend only touches `.first` ids, so the exchange / buffer / reclaim machinery — which
+    /// keys off `.last` — is undisturbed.
+    let onLoadOlder: () async -> HistoryLoadOutcome
 
     @ViewBuilder let content: (Identified<ConversationSnapshot.Turn>) -> Content
     @ViewBuilder let header: () -> Header
+    @ViewBuilder let footer: () -> Footer
+    /// When false the footer is not inserted as a `List` row, so hiding chips does not leave
+    /// `listRowSpacing` from an `EmptyView`.
+    let showsFooter: Bool
 
     /// The live user turn lifted on the last send and the bot answer flowing beneath it. `nil`
     /// before the first send - loaded history gets no buffer.
@@ -39,6 +50,7 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
     // Written from scroll callbacks, never read in `body` — boxed so their churn triggers no renders.
     @State private var isUserScrolling = Box(false)
     @State private var scrollTask = ScrollTaskBox()
+    @State private var history = HistoryPaginator()
 
     private var rowSpacing: CGFloat { self.appearance.spacing.units(11) }
 
@@ -54,9 +66,19 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                     self.scrollToNewest(proxy)
                     self.isInitialLoad = false
                 }
-                .onChange(of: self.snapshot.user.last?.id) { _, userID in self.userTurnChanged(userID, proxy: proxy) }
-                .onChange(of: self.snapshot.incoming.last?.id) { self.answerArrived(proxy) }
+                .onChange(of: self.snapshot.lastSentUserTurnID) { _, userID in self.arm(userID, proxy: proxy) }
+                .onChange(of: self.snapshot.lastUserTurnID) { _, _ in
+                    if self.exchange != nil, !self.isArmed {
+                        self.retire(proxy)
+                    }
+                }
+                .onChange(of: self.snapshot.lastBotTurnID) { self.answerArrived(proxy) }
                 .onChange(of: self.isInputFocused) { _, focused in if focused { self.scrollToNewest(proxy, animated: true) } }
+                .onChange(of: self.composerClearance) { _, height in
+                    if height > 0, self.isInputFocused || !self.isScrolledAway {
+                        self.scrollToNewest(proxy, animated: true)
+                    }
+                }
         }
     }
 }
@@ -67,30 +89,37 @@ private extension ConversationTopFlowingList {
 
     struct Exchange {
         let userID: UUID
-        var userHeight: CGFloat = 0
-        /// Keyed by id so a fresh answer reads as unmeasured rather than the previous answer's height.
-        var bot: (id: UUID, height: CGFloat)?
+        /// Measured heights of the turns from the lifted user turn down, keyed by id so a turn that has just
+        /// arrived reads as unmeasured rather than inheriting a previous turn's height.
+        var heights: [UUID: CGFloat] = [:]
+    }
+
+    /// The turns the exchange spans — the lifted user turn and everything beneath it — or empty when nothing
+    /// is armed or the user turn has left the snapshot. Any number of turns may follow the user turn (one
+    /// streamed answer today; system turns too), so the buffer sizes against all of
+    /// them rather than a single "the answer".
+    var exchangeTurns: ArraySlice<Identified<ConversationSnapshot.Turn>> {
+        guard
+            let exchange,
+            let index = self.snapshot.turns.lastIndex(where: { $0.id == exchange.userID })
+        else { return [] }
+        return self.snapshot.turns[index...]
     }
 
     /// Whether the armed exchange's user turn is still present in the snapshot.
-    var isArmed: Bool {
-        guard let exchange else { return false }
-        return self.snapshot.user.contains { $0.id == exchange.userID }
-    }
+    var isArmed: Bool { !self.exchangeTurns.isEmpty }
 
     /// The buffer height that makes the exchange fill exactly one screen: the viewport minus the height the
-    /// exchange already uses (the user turn, the answer, and the row gaps between them).
+    /// exchange already uses (every turn from the lifted user turn down, plus the row gap under each).
     ///
-    /// A just-arrived answer hasn't been measured yet, so it's treated as 0 — the buffer comes out a little
-    /// too tall and settles once the answer measures. Erring tall keeps the user turn up top, erring short
-    /// would let it spring back down.
+    /// A just-arrived turn hasn't been measured yet, so it counts as 0 — the buffer comes out a little too
+    /// tall and settles once the turn measures. Erring tall keeps the user turn up top, erring short would
+    /// let it spring back down.
     var reserve: CGFloat {
-        guard let exchange, self.isArmed else { return 0 }
-        let botTurnIsLast = self.snapshot.user.count <= self.snapshot.incoming.count
-        var botHeight: CGFloat { exchange.bot.map { $0.id == self.snapshot.incoming.last?.id ? $0.height : 0 } ?? 0 }
-        let occupied = botTurnIsLast
-        ? exchange.userHeight + self.rowSpacing + botHeight + self.rowSpacing
-        : exchange.userHeight + self.rowSpacing
+        guard let exchange else { return 0 }
+        let turns = self.exchangeTurns
+        guard !turns.isEmpty else { return 0 }
+        let occupied = turns.reduce(CGFloat(turns.count) * self.rowSpacing) { $0 + (exchange.heights[$1.id] ?? 0) }
         return max(0, self.viewportHeight - occupied)
     }
 }
@@ -108,8 +137,15 @@ private extension ConversationTopFlowingList {
                     self.content(turn)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.measure(turn, height: $0) }
                         .frame(maxWidth: .infinity, alignment: self.alignment(turn.model))
+                        .historyRow(turn.id, in: self.history)
                         .id(turn.id)
                 }
+
+                if self.showsFooter {
+                    self.footer()
+                }
+
+                ConversationComposerClearanceRow(composerHeight: self.composerClearance)
 
                 self.buffer
             }
@@ -127,6 +163,9 @@ private extension ConversationTopFlowingList {
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 0)
         .scrollContentBackground(.hidden)
+        // Paint the theme behind clear rows — otherwise a light palette in a dark
+        // environment (unconfigured `dark_theme`) leaves system chrome showing through.
+        .background(self.appearance.theme.background)
 #if os(iOS)
         .listRowSpacing(self.rowSpacing)
 #endif
@@ -140,6 +179,13 @@ private extension ConversationTopFlowingList {
         .onScrollPhaseChange { _, phase, _ in
             self.isUserScrolling.value = phase == .interacting || phase == .decelerating
         }
+        .modifier(HistoryPagination(
+            paginator: self.history,
+            snapshot: self.snapshot,
+            proxy: proxy,
+            scrollTask: self.scrollTask,
+            onLoadOlder: self.onLoadOlder
+        ))
     }
 
     /// The buffer below the exchange, a trailing row, separate from the answer, so a focus scroll lands the
@@ -168,6 +214,7 @@ private extension ConversationTopFlowingList {
     func alignment(_ turn: ConversationSnapshot.Turn) -> Alignment {
         switch turn {
         case .bot: .topLeading
+        case .system: .top
         case .user: .topTrailing
         }
     }
@@ -176,16 +223,6 @@ private extension ConversationTopFlowingList {
 // MARK: - Reactions
 
 private extension ConversationTopFlowingList {
-
-    /// The newest user turn changed: a turn that arrived arms an exchange, one that left retires the
-    /// exchange it belonged to rather than arming the turn it uncovers.
-    func userTurnChanged(_ userID: UUID?, proxy: ScrollViewProxy) {
-        if self.exchange != nil, !self.isArmed {
-            self.retire(proxy)
-        } else {
-            self.arm(userID, proxy: proxy)
-        }
-    }
 
     /// Drops the exchange and returns to the newest turn. The buffer belongs to an exchange in flight,
     /// so it collapses with the exchange rather than waiting to be reclaimed.
@@ -205,16 +242,22 @@ private extension ConversationTopFlowingList {
     }
 
     /// The answer arriving relays out under the lift and can leave the user turn short, re-assert it, unless
-    /// nothing is armed or the reader has taken over. Both panes can lose their last turn in the same
-    /// snapshot, so this checks `isArmed` rather than leaning on the order the two handlers run in.
+    /// nothing is armed or the reader has taken over. The last user and last bot turn can both change in the
+    /// same snapshot (a failed send drops both), so this checks `isArmed` rather than leaning on the order the
+    /// two handlers run in.
     func answerArrived(_ proxy: ScrollViewProxy) {
         guard let exchange, self.isArmed, self.reclaimed == 0, !self.isUserScrolling.value else { return }
         self.pinToTop(exchange.userID, proxy: proxy)
     }
 
+    /// Records a turn's height only while it belongs to the exchange — rows outside it are laid out
+    /// constantly as the reader scrolls, and their heights play no part in the buffer.
     func measure(_ turn: Identified<ConversationSnapshot.Turn>, height: CGFloat) {
-        if turn.id == self.exchange?.userID { self.exchange?.userHeight = height }
-        if turn.id == self.snapshot.incoming.last?.id { self.exchange?.bot = (turn.id, height) }
+        guard
+            self.exchange?.heights[turn.id] != height,
+            self.exchangeTurns.contains(where: { $0.id == turn.id })
+        else { return }
+        self.exchange?.heights[turn.id] = height
     }
 
     /// Reclaim the buffer as the reader drags up or as the focus scroll travels, so the keyboard consumes
@@ -247,7 +290,8 @@ private extension ConversationTopFlowingList {
 private extension ConversationTopFlowingList {
 
     func scrollToNewest(_ proxy: ScrollViewProxy, animated: Bool = false) {
-        self.scroll(to: self.snapshot.turns.last?.id, anchor: .bottom, animated: animated, proxy: proxy)
+        guard self.snapshot.turns.last != nil else { return }
+        self.scroll(to: ConversationComposerClearance.id, anchor: .bottom, animated: animated, proxy: proxy)
     }
 
     func pinToTop(_ id: UUID, proxy: ScrollViewProxy) {
@@ -274,6 +318,9 @@ private extension ConversationTopFlowingList {
 
 extension ConversationTopFlowingList: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.snapshot == rhs.snapshot && lhs.isInputFocused == rhs.isInputFocused
+        lhs.snapshot == rhs.snapshot
+            && lhs.isInputFocused == rhs.isInputFocused
+            && lhs.composerClearance == rhs.composerClearance
+            && lhs.showsFooter == rhs.showsFooter
     }
 }

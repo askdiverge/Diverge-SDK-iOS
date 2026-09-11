@@ -13,5 +13,9 @@
 
 ## iOS SDK
 
-The SDK calls `https://api.dialogintelligens.dk` and authenticates with a session token supplied by
-the host through `tokenProvider`.
+The SDK defaults to `https://api.dialogintelligens.dk` (`DivergeAPI.productionBaseURL`) and
+authenticates with a session token supplied by the host through `tokenProvider`. Override the host
+with `AIChat.Configuration.apiBaseURL` — pass any absolute URL from the host or sample build
+settings (for example `https://dev.api.dialogintelligens.dk` or `http://127.0.0.1:3000`). Development
+and local hosts are not published as SDK constants; the Sample app keeps them in
+`Samples/iOS/Config/*.xcconfig` / `SampleConfig`.

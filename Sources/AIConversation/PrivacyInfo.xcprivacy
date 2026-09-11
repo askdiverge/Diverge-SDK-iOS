@@ -5,10 +5,12 @@
 	<key>NSPrivacyTracking</key>
 	<false/>
 
-	<!-- The SDK talks only to its own assistant backend (DI) to
-	     provide the chat service, not to link data with third parties for advertising.
-	     TODO(vendor): confirm the endpoint host does not qualify as a tracking domain; if it
-	     does, add it here. -->
+	<!-- The SDK talks only to the Diverge chat API (`api.dialogintelligens.dk`, or the host's
+	     override) to provide the chat service. That host is first-party to the service, receives
+	     no advertising identifiers, and is not used to link data across apps or companies, so it
+	     is not a tracking domain under App Store rules and the list is deliberately empty. If the
+	     SDK ever contacts an analytics or advertising host, add it here and flip
+	     NSPrivacyTracking to true. -->
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
 
@@ -20,11 +22,25 @@
 
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>
-		<!-- The user's typed messages (and the optional page-context string) are transmitted to
-		     the assistant backend to generate replies. -->
+		<!-- The user's typed messages and the optional page-context string are transmitted to
+		     the assistant backend. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Photos the visitor attaches in the composer are transmitted to the assistant
+		     backend as part of the chat message. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>

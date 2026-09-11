@@ -12,4 +12,6 @@ extension ChatView {
     /// View presents  one-shot session-ended alert and  next send starts a fresh session.
     struct SessionEnded: Error {}
     struct DeletionFailed: Error {}
+    /// Non-401 failure while fetching or writing the GDPR export file.
+    struct ExportFailed: Error {}
 }

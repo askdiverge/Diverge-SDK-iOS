@@ -96,12 +96,9 @@ struct NetworkManagerStreamTests {
     // MARK: - SUT
 
     private func makeSUT(sseBody: String, statusCode: Int = 200) -> NetworkManager {
-        MockURLProtocol.responseBody = Data(sseBody.utf8)
-        MockURLProtocol.statusCode = statusCode
-
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: configuration)
+        let (_, session) = ScriptedURLProtocol.make(responses: [
+            .init(status: statusCode, body: Data(sseBody.utf8), contentType: "text/event-stream")
+        ])
 
         return NetworkManager(
             decoder: JSONDecoder(),
@@ -135,32 +132,3 @@ private struct Frame: Decodable, Sendable, Equatable {
 }
 
 private struct EmptyPayload: Encodable, Sendable {}
-
-private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
-
-    nonisolated(unsafe) static var responseBody: Data = .init()
-    nonisolated(unsafe) static var statusCode: Int = 200
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        guard let url = request.url else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
-            return
-        }
-
-        let response = HTTPURLResponse(
-            url: url,
-            statusCode: Self.statusCode,
-            httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "text/event-stream"]
-        )!
-
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.responseBody)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
-}

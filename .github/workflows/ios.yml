@@ -33,13 +33,14 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  SCHEME: DivergeSDK-Package
-
 jobs:
   build-test:
     name: Build & Test
     runs-on: macos-26
+    # Job-scoped: a workflow-level SCHEME would also reach the uitest job, where
+    # run-uitests.sh reads it as an override and loses its own DriverApp default.
+    env:
+      SCHEME: DivergeSDK-Package
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -98,3 +99,44 @@ jobs:
             -destination "${{ steps.sample-dest.outputs.destination }}" \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO
+
+  uitest:
+    name: Stand-in UITests
+    needs: build-test
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Select Xcode
+        uses: ./.github/actions/select-xcode
+
+      - name: Ensure iOS Simulator platform
+        uses: ./.github/actions/ensure-ios-platform
+        with:
+          scheme: Sample
+          project: Samples/iOS/Sample.xcodeproj
+
+      - name: Resolve UITest destination
+        id: dest
+        uses: ./.github/actions/resolve-ios-destination
+        with:
+          scheme: DriverApp
+          project: Tests/Standin/Driver.xcodeproj
+
+      - name: Run stand-in UITests
+        env:
+          DESTINATION: ${{ steps.dest.outputs.destination }}
+        run: ./Tests/Standin/run-uitests.sh
+
+      # The suites write their stand-in server logs, screenshots and evidence
+      # JSONL here; without them a failure only shows the assertion that tripped.
+      - name: Upload stand-in UITest evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: standin-uitest-evidence
+          path: /tmp/diverge-standin
+          if-no-files-found: ignore
+          retention-days: 7

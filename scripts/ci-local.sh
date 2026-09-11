@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Local CI mirroring .github/workflows/ios.yml.
 # Usage:
-#   ./scripts/ci-local.sh           # version + ios
+#   ./scripts/ci-local.sh           # version + ios (package tests + sample build)
 #   ./scripts/ci-local.sh ios       # version + ios
 #   ./scripts/ci-local.sh version   # version only
+#   ./scripts/ci-local.sh uitest   # stand-in XCUITests (long; needs a Simulator)
 #
 # Escape hatch: DIVERGE_SKIP_LOCAL_CI=1 skips everything (pre-commit only).
 set -euo pipefail
@@ -140,6 +141,11 @@ run_ios() {
   echo "==> CI local: iOS ok"
 }
 
+run_uitest() {
+  echo "==> Stand-in UITests"
+  ./Tests/Standin/run-uitests.sh
+}
+
 case "$MODE" in
   version)
     run_version
@@ -148,8 +154,11 @@ case "$MODE" in
     run_version
     run_ios
     ;;
+  uitest)
+    run_uitest
+    ;;
   *)
-    echo "usage: $0 [all|ios|version]" >&2
+    echo "usage: $0 [all|ios|version|uitest]" >&2
     exit 2
     ;;
 esac

@@ -16,6 +16,7 @@ playground.xcworkspace
 # Swift Package Manager
 .build/
 .swiftpm/
+.build/uitest-derived/
 Packages/
 !default.xcworkspace
 
@@ -45,3 +46,4 @@ site-dist/
 .env
 .env.*
 secrets/
+Samples/iOS/Config/Secrets.xcconfig

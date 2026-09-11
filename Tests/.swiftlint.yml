@@ -1,0 +1,10 @@
+# Nested configuration for test targets — inherits the root rules, relaxes the size limits.
+# A suite may carry more fixtures than a production type; split by feature when it passes 400.
+file_length:
+  warning: 400
+  error: 600
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 350
+  error: 500

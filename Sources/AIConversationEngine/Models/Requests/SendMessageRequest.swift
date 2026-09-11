@@ -62,5 +62,25 @@ extension SendMessageRequest {
                 try data.encode(to: encoder)
             }
         }
+
+        /// Builds outgoing `message.parts` for `POST /messages`.
+        static func make(text: String, attachments: [OutgoingAttachment]) -> [Part] {
+            var parts: [Part] = []
+            if !text.isEmpty {
+                parts.append(.text(text))
+            }
+            for attachment in attachments {
+                let input = SendMessageRequest.Input(
+                    data: attachment.data,
+                    mime: attachment.mime,
+                    filename: attachment.filename
+                )
+                switch attachment.kind {
+                case .image: parts.append(.image(input))
+                case .file: parts.append(.file(input))
+                }
+            }
+            return parts
+        }
     }
 }

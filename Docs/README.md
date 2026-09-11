@@ -8,6 +8,7 @@
 | [`accessibility/`](accessibility/) | VoiceOver / WCAG checklists |
 | [`ops/`](ops/) | Operator runbooks (DNS, canary, sandbox backend) |
 | [`releases/`](releases/) | Release notes template |
+| [`analysis/`](analysis/) | Engineering trackers (consumer backlog). Not published on `docs.askdiverge.ai`. |
 
 > Note: macOS default volumes are case-insensitive, so a separate top-level `docs/` folder is not used alongside `Docs/`. Public pages live under `Docs/site/`.
 

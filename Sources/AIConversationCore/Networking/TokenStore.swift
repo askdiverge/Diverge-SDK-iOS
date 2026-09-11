@@ -66,6 +66,14 @@ package actor TokenStore {
         _ = try await self.fetch(using: self.onResetConversation)
     }
 
+    /// Server-issued rotation: the API hands back a token bound to the conversation it just
+    /// wrote (`done.visitor_token`) so later turns stay on that thread. Caches it as the live
+    /// token without consulting the host. If it is later rejected with 401, `refresh` sees the
+    /// cache still holding it and falls back to the host's provider as usual.
+    package func adopt(_ token: String) {
+        self.current = token
+    }
+
     /// Full data wipe via the host's delete hook. State is dropped only on success —
     /// a failed deletion leaves the live session (and its token) intact. No
     /// replacement token is fetched, deletion deliberately ends the session.

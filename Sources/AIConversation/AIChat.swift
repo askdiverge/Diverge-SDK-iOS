@@ -12,6 +12,13 @@ import AIConversationEngine
 import UIKit
 #endif
 
+/// Chatbot API host constants. ``AIChat/Configuration`` defaults to ``productionBaseURL``.
+/// Development and local hosts belong in the host/sample build config — not the public SDK surface.
+public enum DivergeAPI {
+    /// Live production API. Single source of truth shared with the engine facade.
+    public static let productionBaseURL = ChatService.productionBaseURL
+}
+
 /// Public entry point for the conversational-search chat SDK.
 ///
 /// Configure it with a ``Configuration`` of host-provided hooks.
@@ -38,6 +45,8 @@ public final class AIChat {
 
     private let configuration: Configuration
     private let service: ChatService
+    /// Reused across `makeView()` calls so SwiftUI body re-evals do not re-bootstrap mid-presentation.
+    private var hostedViewModel: ChatView.ViewModel?
 
     /// Registers shared configuration for the no-argument ``init()``. Stores the config
     /// only — it neither returns nor retains an instance. Call once, typically at launch.
@@ -52,7 +61,9 @@ public final class AIChat {
         self.service = ChatService(
             tokenProvider: configuration.tokenProvider,
             onResetConversation: configuration.resetConversation,
-            onDeleteData: configuration.deleteData
+            onDeleteData: configuration.deleteData,
+            baseURL: configuration.apiBaseURL,
+            sdkVersion: VersionInfo.current
         )
     }
 
@@ -68,17 +79,29 @@ public final class AIChat {
 
 public extension AIChat {
 
-    /// The chat UI as a SwiftUI view. The session is tied to this instance
+    /// The chat UI as a SwiftUI view. The session is tied to this instance;
     /// presentation (sheet, cover, push) is the caller's responsibility.
+    ///
+    /// ``Configuration/appearance`` and ``Configuration/attachments``
+    /// are captured on the first call. Mint a new ``AIChat`` to change them.
     func makeView() -> some View {
-        ChatView(
-            viewModel: .init(
+        let viewModel: ChatView.ViewModel
+        if let hostedViewModel {
+            viewModel = hostedViewModel
+        } else {
+            viewModel = ChatView.ViewModel(
                 service: self.service,
                 contextProvider: self.configuration.contextProvider,
-                conversationFlow: self.configuration.conversationFlow
+                conversationFlow: self.configuration.conversationFlow,
+                attachments: self.configuration.attachments,
+                appearancePreference: self.configuration.appearance,
+                onClose: self.configuration.onClose,
+                onAddToCart: self.configuration.onAddToCart
             )
-        )
-        .environment(\.openURL, self.openURL)
+            self.hostedViewModel = viewModel
+        }
+        return ChatView(viewModel: viewModel)
+            .environment(\.openURL, self.openURL)
     }
 
 #if canImport(UIKit)
@@ -110,6 +133,60 @@ public extension AIChat {
         case bottomUp
     }
 
+    /// Which attachment sources the composer offers the visitor.
+    ///
+    /// Photo attach also requires `/config` `image_enabled` (omitted on older APIs is treated as
+    /// enabled). ``disabled`` always wins — use it to hide attach even when the chatbot allows
+    /// images.
+    enum Attachments: Sendable {
+        /// No attach control — text only.
+        case disabled
+        /// A photo-library picker (`PhotosPicker`, out-of-process — no photo permission prompt).
+        /// Up to eight photos per message; each is downsampled and re-encoded as JPEG,
+        /// which also drops the photo's metadata (GPS location, capture time, device make / model —
+        /// only pixel dimensions remain). Chip thumbnails are a separate ~170 px downsample.
+        case photoLibrary
+    }
+
+    /// Which `/config` palette slot the chat paints.
+    ///
+    /// `.dark` means “use the `dark_theme` slot”, not “invent a dark look”. When a chatbot
+    /// has no dark theme the server clones light into `dark_theme`, so the chat stays
+    /// visually light under `.system` (in Dark Mode) and under `.dark`. System chrome
+    /// (keyboard, pickers) follows the **painted** palette, not this lock alone.
+    ///
+    /// Captured on the first ``AIChat/makeView()``. Mint a new ``AIChat`` to change it
+    /// (same as ``Attachments``). There is no in-chat theme toggle.
+    enum Appearance: Sendable {
+        /// Follow the environment color scheme (default).
+        case system
+        /// Always the config's light `theme`.
+        case light
+        /// Always the config's `dark_theme` slot (light when that slot is a clone).
+        case dark
+    }
+
+    /// Identity of a product the visitor wants to add to their cart.
+    ///
+    /// Handed to ``Configuration/onAddToCart``. `id` is the product identifier — a catalog id
+    /// when the source supplies one, otherwise a parser-derived stand-in (URL slug or
+    /// `url:title`). `sku` is the commerce SKU from a `{{add_to_cart:SKU}}` marker (or JSON
+    /// field); treat it as untrusted input and validate it against your catalog before calling a
+    /// cart API. The SDK does not show "added" feedback — the host owns toasts / cart UI.
+    struct ProductSelection: Sendable, Equatable {
+        public let id: String
+        public let sku: String
+        public let title: String
+        public let url: URL
+
+        public init(id: String, sku: String, title: String, url: URL) {
+            self.id = id
+            self.sku = sku
+            self.title = title
+            self.url = url
+        }
+    }
+
     /// The host-provided hooks the SDK is configured with. This is the single injection
     /// surface,  both ``AIChat/configure(_:)`` and ``AIChat/init(_:)`` take it.
     ///
@@ -117,7 +194,8 @@ public extension AIChat {
     /// the SDK is not correctly configured without them (Control Plane: Identity, Minting, Invalidation).
     /// SDK is pure (Data plane) to avoid split Token Ownership, Distributed State with Async Reconciliation and Structural Inversion.
     ///
-    /// The two enhancement hooks (`contextProvider`, `onOpenLink`) are optional and degrade gracefully when omitted.
+    /// The enhancement hooks (`contextProvider`, `onOpenLink`, `onClose`, `onAddToCart`)
+    /// are optional and degrade gracefully when omitted.
     struct Configuration {
 
         let tokenProvider: @Sendable () async throws -> String
@@ -125,59 +203,127 @@ public extension AIChat {
         let deleteData: @Sendable () async throws -> Void
         let contextProvider: (@Sendable () async -> String?)?
         let onOpenLink: ((URL) -> Void)?
+        /// When non-`nil`, the SDK shows a close button that invokes this so the
+        /// host can dismiss. Absent → no close button (host owns dismissal exclusively).
+        let onClose: (() -> Void)?
+        /// Receives an add-to-cart tap on a product card. The cart button only appears when this
+        /// is set, `/config` reports `product_card.add_to_cart.enabled`, **and** the card carries
+        /// a sku. Absent → no cart button. Invoked on the main actor; the SDK does not show
+        /// add-to-cart feedback (toast / "Added" is host-owned).
+        let onAddToCart: (@MainActor (ProductSelection) -> Void)?
         let conversationFlow: ConversationFlow
+        /// Chatbot API host. Defaults to ``DivergeAPI/productionBaseURL``.
+        /// Pass a non-production URL from the host or sample build settings while integrating.
+        let apiBaseURL: URL
+        /// Attachment sources offered in the composer. Defaults to ``Attachments/photoLibrary``.
+        let attachments: Attachments
+        /// Which `/config` palette slot to paint. Defaults to ``Appearance/system``.
+        /// Captured on the first ``AIChat/makeView()`` — mint a new ``AIChat`` to change it.
+        let appearance: Appearance
 
 #if os(macOS)
         /// - Parameters:
         ///   - tokenProvider: Supplies a JWT on demand from the host.
         ///   - resetConversation: Ends the conversation and demand fresh-session token from host.
         ///   - deleteData: Ends the session and request that host wipes visitor data.
-        ///   - contextProvider: Per-message page/screen context, resolved at send time.
-        ///     `nil` → no context sent. Intended for non-identifying context (SKU, category, screen
-        ///     name); it is forwarded verbatim to the backend, so the host must not pass PII through
+        ///   - contextProvider: Per-message page/screen context, resolved at send time **and**
+        ///     once at `makeView()` bootstrap for start-prompt `url_pattern` matching (literal
+        ///     substring) **and** `GET /api/v1/chat/banners?url=` (server schedule + match).
+        ///     Include a path or URL (e.g. `"/products"` or
+        ///     `"https://shop.example.com/products/123"`) if patterned chips or banners should
+        ///     appear; a SKU blurb alone will only match if it contains the dashboard pattern.
+        ///     `nil` / empty falls back to global (null-pattern) prompts / all-page + default
+        ///     banners. Intended for non-identifying context;
+        ///     it is forwarded verbatim to the backend, so the host must not pass PII through
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
         ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
         ///     → default OS open.
-        public init(
-            tokenProvider: @escaping @Sendable () async throws -> String,
-            resetConversation: @escaping @Sendable () async throws -> String,
-            deleteData: @escaping @Sendable () async throws -> Void,
-            contextProvider: (@Sendable () async -> String?)? = nil,
-            onOpenLink: ((URL) -> Void)? = nil
-        ) {
-            self.tokenProvider = tokenProvider
-            self.resetConversation = resetConversation
-            self.deleteData = deleteData
-            self.contextProvider = contextProvider
-            self.onOpenLink = onOpenLink
-            self.conversationFlow = .bottomUp
-        }
-#else
-        /// - Parameters:
-        ///   - tokenProvider: Supplies a JWT on demand from the host.
-        ///   - resetConversation: Ends the conversation and demand fresh-session token from host.
-        ///   - deleteData: Ends the session and request that host wipes visitor data.
-        ///   - contextProvider: Per-message page/screen context, resolved at send time.
-        ///     `nil` → no context sent. Intended for non-identifying context (SKU, category, screen
-        ///     name); it is forwarded verbatim to the backend, so the host must not pass PII through
-        ///     it and owns the privacy declaration for anything identifying it chooses to send.
-        ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
-        ///     → default OS open.
-        ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
+        ///   - onClose: Receives the visitor's close action. Absent → no SDK close button.
+        ///   - onAddToCart: Receives an add-to-cart tap (main actor). Absent → no cart button
+        ///     even when `/config` enables add-to-cart. The button is per-card: only cards
+        ///     that carry a sku show it. The SDK does not show "added" feedback.
+        ///   - apiBaseURL: Chatbot API host. Defaults to production.
+        ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
+        ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
+        ///   - appearance: Palette slot. Defaults to ``Appearance/system``. `.dark` uses
+        ///     `/config`'s `dark_theme` (visually light when that slot is a clone). Mint a
+        ///     new ``AIChat`` to change this after the first ``AIChat/makeView()``.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
-            conversationFlow: ConversationFlow = .topDown
+            onClose: (() -> Void)? = nil,
+            onAddToCart: (@MainActor (ProductSelection) -> Void)? = nil,
+            apiBaseURL: URL = DivergeAPI.productionBaseURL,
+            attachments: Attachments = .photoLibrary,
+            appearance: Appearance = .system
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
             self.deleteData = deleteData
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
+            self.onClose = onClose
+            self.onAddToCart = onAddToCart
+            self.conversationFlow = .bottomUp
+            self.apiBaseURL = apiBaseURL
+            self.attachments = attachments
+            self.appearance = appearance
+        }
+#else
+        /// - Parameters:
+        ///   - tokenProvider: Supplies a JWT on demand from the host.
+        ///   - resetConversation: Ends the conversation and demand fresh-session token from host.
+        ///   - deleteData: Ends the session and request that host wipes visitor data.
+        ///   - contextProvider: Per-message page/screen context, resolved at send time **and**
+        ///     once at `makeView()` bootstrap for start-prompt `url_pattern` matching (literal
+        ///     substring) **and** `GET /api/v1/chat/banners?url=` (server schedule + match).
+        ///     Include a path or URL (e.g. `"/products"` or
+        ///     `"https://shop.example.com/products/123"`) if patterned chips or banners should
+        ///     appear; a SKU blurb alone will only match if it contains the dashboard pattern.
+        ///     `nil` / empty falls back to global (null-pattern) prompts / all-page + default
+        ///     banners. Intended for non-identifying context;
+        ///     it is forwarded verbatim to the backend, so the host must not pass PII through
+        ///     it and owns the privacy declaration for anything identifying it chooses to send.
+        ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
+        ///     → default OS open.
+        ///   - onClose: Receives the visitor's close action. Absent → no SDK close button.
+        ///   - onAddToCart: Receives an add-to-cart tap (main actor). Absent → no cart button
+        ///     even when `/config` enables add-to-cart. The button is per-card: only cards
+        ///     that carry a sku show it. The SDK does not show "added" feedback.
+        ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
+        ///   - apiBaseURL: Chatbot API host. Defaults to production.
+        ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
+        ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
+        ///   - appearance: Palette slot. Defaults to ``Appearance/system``. `.dark` uses
+        ///     `/config`'s `dark_theme` (visually light when that slot is a clone). Mint a
+        ///     new ``AIChat`` to change this after the first ``AIChat/makeView()``.
+        public init(
+            tokenProvider: @escaping @Sendable () async throws -> String,
+            resetConversation: @escaping @Sendable () async throws -> String,
+            deleteData: @escaping @Sendable () async throws -> Void,
+            contextProvider: (@Sendable () async -> String?)? = nil,
+            onOpenLink: ((URL) -> Void)? = nil,
+            onClose: (() -> Void)? = nil,
+            onAddToCart: (@MainActor (ProductSelection) -> Void)? = nil,
+            conversationFlow: ConversationFlow = .topDown,
+            apiBaseURL: URL = DivergeAPI.productionBaseURL,
+            attachments: Attachments = .photoLibrary,
+            appearance: Appearance = .system
+        ) {
+            self.tokenProvider = tokenProvider
+            self.resetConversation = resetConversation
+            self.deleteData = deleteData
+            self.contextProvider = contextProvider
+            self.onOpenLink = onOpenLink
+            self.onClose = onClose
+            self.onAddToCart = onAddToCart
             self.conversationFlow = conversationFlow
+            self.apiBaseURL = apiBaseURL
+            self.attachments = attachments
+            self.appearance = appearance
         }
 #endif
     }

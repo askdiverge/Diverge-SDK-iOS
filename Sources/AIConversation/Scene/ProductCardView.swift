@@ -17,45 +17,46 @@ struct ProductCardView: View {
     @Environment(\.appearance) private var appearance
 
     let card: Products.Card
+    /// Resolved open-product CTA label — the grid applies the L10n fallback.
+    var openLabel: String
+    /// Image width ÷ height. The grid decides this once for all its cards so rows stay aligned.
+    var imageAspectRatio: CGFloat = ProductGridView.defaultImageAspectRatio
+    /// When false, the open capsule is omitted so the grid can lay it out beside add-to-cart.
+    var showsOpenCTA = true
 
     private var isDiscounted: Bool {
         self.card.originalPrice != nil
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: self.appearance.spacing.units(2)) {
-            Color.clear
-                .aspectRatio(0.7, contentMode: .fit)
-                .overlay {
-                    RemoteImageView(url: self.card.imageUrl) { result in
-                        switch result {
-                        case .success(let loaded):
-                            loaded.resizable().scaledToFill()
-                        case .failure:
-                            // TODO: replace with a real image-failure view
-                            EmptyView()
-                        }
-                    } placeholder: {
-                        ProgressView()
-                            .tint(self.appearance.theme.accent)
-                    }
-                }
-                .background(self.appearance.theme.botSurface)
-                .clipped()
-
-            Text(self.card.title)
-                .font(self.appearance.font(size: 13, weight: .bold))
-                .foregroundStyle(self.appearance.theme.primaryText)
-
-            if let description = self.card.description {
-                Text(description)
-                    .font(self.appearance.font(size: 12))
-                    .foregroundStyle(self.appearance.theme.secondaryText)
+        MediaCardBody(
+            imageURL: self.card.imageUrl,
+            aspectRatio: self.imageAspectRatio,
+            title: self.card.title,
+            description: self.card.description
+        ) {
+            if let splash = self.card.splash?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !splash.isEmpty {
+                Text(splash)
+                    .font(self.appearance.font(size: 11, weight: .bold))
+                    .foregroundStyle(self.appearance.theme.accentForeground)
+                    .padding(.horizontal, self.appearance.spacing.units(2))
+                    .padding(.vertical, self.appearance.spacing.units(1))
+                    .background(self.appearance.theme.accent, in: Capsule())
+                    .padding(self.appearance.spacing.units(2))
+                    .accessibilityHidden(true)
             }
-
+        } footer: {
             self.priceRow
 
-            Spacer(minLength: 0)
+            if self.showsOpenCTA {
+                AccentCapsuleLabel(
+                    title: self.openLabel,
+                    fillsWidth: true,
+                    background: self.appearance.theme.productButtonBackground,
+                    bold: self.appearance.theme.productButtonBold
+                )
+            }
         }
     }
 

@@ -12,6 +12,8 @@ extension ChatProvider {
     package enum SendFailure: Error, Sendable, Equatable {
         /// The session ended (401) — conversation cleared, the in-flight message discarded.
         case sessionExpired
+        /// HTTP 409 — request conflicts with server state. `popped` is the user text to restore.
+        case conflict(popped: String)
         /// Recoverable — the user's text is popped back to the input for retry.
         /// `body` carries a server-supplied message when there is one; `nil` means the presenter
         /// substitutes generic copy.

@@ -14,7 +14,7 @@ make install-hooks
 The pre-commit hook mirrors GitHub Actions:
 
 - Always: `./scripts/check-version.sh`
-- iOS paths staged → same as `.github/workflows/ios.yml` (SwiftLint, package tests, sample build)
+- iOS paths staged → SwiftLint, package tests, sample build (`./scripts/ci-local.sh`). The GitHub `uitest` job is not in the hook — run `make uitest` locally when you touch Sample / stand-in suites.
 
 Run without committing:
 
@@ -32,6 +32,7 @@ make check-version
 make ios-test
 make ios-lint
 make docs-docc
+make uitest            # stand-in XCUITests (needs an iOS Simulator; not in pre-commit)
 ```
 
 Keep the root `VERSION` file as the single source of truth:
@@ -53,6 +54,8 @@ swiftlint lint --strict
 ```
 
 Open `Package.swift` or `Samples/iOS/Sample.xcodeproj` in Xcode for simulator runs (iOS 18+).
+Stand-in XCUITests: `make uitest` (see [`Tests/Standin/README.md`](Tests/Standin/README.md)).
+CI runs them after package tests (job `uitest`); they are not in the pre-commit hook.
 
 ## Branching and PRs
 
@@ -74,6 +77,40 @@ See also [`Docs/ops/canary-release.md`](Docs/ops/canary-release.md).
 ## Code style
 
 SwiftLint config at the repo root (`.swiftlint.yml`) is the single source of style truth.
+
+### File and type size
+
+One type, or one concern of a type, per file. SwiftLint enforces it and CI lints `--strict`, so
+the warning threshold is the effective limit (counts exclude comment-only and blank lines):
+
+| Scope                     | `file_length`        | `type_body_length`   | `function_body_length` |
+| ------------------------- | -------------------- | -------------------- | ---------------------- |
+| `Sources/`, `Samples/`    | warn 250 / error 400 | warn 200 / error 350 | warn 60 / error 100    |
+| `Tests/` (nested config)  | warn 400 / error 600 | warn 350 / error 500 | warn 60 / error 100    |
+
+When a file approaches the limit, split by concern rather than trimming comments:
+
+- Behaviour of a type → `extension` files named `Type+Concern.swift`
+  (`ChatView+ViewModel+Send.swift`, `ChatProvider+Mapping.swift`).
+- Layout → a sub-view or `ViewModifier` in its own file (`ChatView+Turns.swift`).
+- Test suites → one `@Suite` per feature, fixtures in a shared protocol extension
+  (`ChatProviderTestHelpers`, `HistoryPaginationFixtures`).
+
+Stored state that sibling extensions mutate is module-internal rather than `private(set)`; keep
+the declaration in the primary file with a `// MARK: State` header so the surface stays obvious.
+
+### Localization catalog
+
+`Sources/AIConversation/Resources/Localizable.xcstrings` must stay in Xcode's serialization
+(sorted keys, two-space indent, `"key" : value`). Any other serializer rewrites every line, the
+diff becomes unreviewable, and Xcode flips it back on the next edit. Either edit the catalog in
+Xcode, or after a hand / scripted edit run:
+
+```bash
+./scripts/format-xcstrings.py Sources/AIConversation/Resources/Localizable.xcstrings
+```
+
+A PR touching the catalog should show only the added or changed keys. New keys need all 16 locales.
 
 ## Products
 
