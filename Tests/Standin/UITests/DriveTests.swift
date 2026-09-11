@@ -13,7 +13,7 @@ final class DriveTests: XCTestCase {
         app.launchEnvironment["SAMPLE_STANDIN"] = "1"
         app.launch()
 
-        let field = composer(app)
+        let field = app.composer()
         XCTAssertTrue(field.waitForExistence(timeout: 20), "composer not found")
         sleep(2)
         shot(app, "05-open")
@@ -21,7 +21,7 @@ final class DriveTests: XCTestCase {
         // Turn 1 — unbound host token; done carries visitor_token.
         field.tap()
         field.typeText("Send me the photo")
-        tapSend(app)
+        app.tapSend()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Reply #1'")).firstMatch
             .waitForExistence(timeout: 25), "reply #1 did not render")
         sleep(3)
@@ -30,7 +30,7 @@ final class DriveTests: XCTestCase {
         // Turn 2 — must go out with the adopted bound token.
         field.tap()
         field.typeText("And the PDF")
-        tapSend(app)
+        app.tapSend()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Reply #2'")).firstMatch
             .waitForExistence(timeout: 25), "reply #2 did not render")
         sleep(3)
@@ -58,26 +58,6 @@ final class DriveTests: XCTestCase {
     }
 
     // MARK: - Helpers
-
-    private func composer(_ app: XCUIApplication) -> XCUIElement {
-        let byPlaceholder = app.textViews.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if byPlaceholder.waitForExistence(timeout: 15) { return byPlaceholder }
-        let asField = app.textFields.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if asField.exists { return asField }
-        return app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
-    }
-
-    /// The send button is the enabled button nearest the bottom-right corner.
-    private func tapSend(_ app: XCUIApplication) {
-        let screen = app.frame
-        let candidates = app.buttons.allElementsBoundByIndex.filter {
-            $0.isEnabled && $0.frame.midY > screen.height * 0.8 && $0.frame.midX > screen.width * 0.7
-        }
-        guard let send = candidates.max(by: { $0.frame.midX < $1.frame.midX }) else {
-            XCTFail("send button not found"); return
-        }
-        send.tap()
-    }
 
     private func shot(_ app: XCUIApplication, _ name: String) {
         let data = XCUIScreen.main.screenshot().pngRepresentation

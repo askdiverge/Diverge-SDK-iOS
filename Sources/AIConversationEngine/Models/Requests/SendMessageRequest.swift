@@ -63,7 +63,7 @@ extension SendMessageRequest {
             }
         }
 
-        /// Shared by AI send and livechat send — both POST the same `message.parts` shape.
+        /// Builds outgoing `message.parts` for `POST /messages`.
         static func make(text: String, attachments: [OutgoingAttachment]) -> [Part] {
             var parts: [Part] = []
             if !text.isEmpty {

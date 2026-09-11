@@ -11,6 +11,12 @@ import SwiftUI
 struct OutlinedChipFlow: View {
 
     @Environment(\.appearance) private var appearance
+    /// `.plain` buttons do not dim on their own and the chip paints an explicit accent, so a
+    /// `.disabled(...)` chip (streaming) would look identical to a live one without this.
+    @Environment(\.isEnabled) private var isEnabled
+
+    /// Opacity applied to the whole flow while disabled.
+    static let disabledOpacity: Double = 0.45
 
     let labels: [String]
     let accessibilityPrefix: String
@@ -45,6 +51,7 @@ struct OutlinedChipFlow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(self.isEnabled ? 1 : Self.disabledOpacity)
     }
 }
 

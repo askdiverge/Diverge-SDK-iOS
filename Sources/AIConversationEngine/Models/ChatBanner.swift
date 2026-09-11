@@ -72,7 +72,7 @@ package struct ChatBanner: Decodable, Sendable, Equatable, Identifiable {
             self.ctaUrl ?? "",
             self.ctaLabel ?? "",
             self.ctaStyle?.rawValue ?? "",
-            self.dismissible ? "1" : "0",
+            self.dismissible ? "1" : "0"
         ].joined(separator: "|")
     }
 

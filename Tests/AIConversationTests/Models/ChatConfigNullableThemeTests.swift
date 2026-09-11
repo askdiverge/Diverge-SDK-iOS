@@ -10,11 +10,7 @@ import Testing
 @Suite("ChatConfig — nullable logo url and font sha256")
 struct ChatConfigNullableThemeTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("null header logo url and font sha256 decode like the live /config mapper")
     func decodesNullLogoAndFontSha() throws {

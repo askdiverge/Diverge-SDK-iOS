@@ -10,7 +10,7 @@ import Foundation
 /// Shared decode rules for attachment (`image` / `file`) URLs and their signed-URL expiry.
 ///
 /// Attachment URLs are minted by the API and normally absolute, but when the server cannot
-/// resolve its own public host it falls back to a bare path (`/api/v1/chat/livechat/attachments/…`).
+/// resolve its own public host it falls back to a bare path (`/api/v1/chat/…/attachments/…`).
 /// `URL(string:)` accepts that as a host-less relative URL, which neither `ImageLoader` nor
 /// `openURL` can do anything with — so a host-less URL is resolved against the API base the
 /// decoder was configured with, and rejected when no base is available.
@@ -40,7 +40,7 @@ package enum AttachmentURL {
     /// has no host (nothing to resolve against) or the string is not a URL at all.
     ///
     /// `data:` URLs are already absolute and host-less by design — the API re-serves visitor
-    /// uploads that way in normal (non-livechat) chat — so they pass without a base.
+    /// uploads that way — so they pass without a base.
     package static func resolve(_ raw: String, relativeTo base: URL?) -> URL? {
         if Self.isDataURL(raw), let url = URL(string: raw) {
             return url

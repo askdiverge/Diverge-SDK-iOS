@@ -13,18 +13,27 @@ package final class ChatService: Sendable {
 
     package static let productionBaseURL = URL(string: "https://api.dialogintelligens.dk")!
 
+    /// Header carrying the SDK release on every authenticated API call, so the backend can log
+    /// and gate wire-contract changes per SDK version.
+    package static let sdkVersionHeader = "X-Diverge-SDK-Version"
+
     private let network: NetworkManager
     private let tokenStore: TokenStore
     private let baseURL: URL
+    private let sdkVersion: String?
 
+    /// - Parameter sdkVersion: SemVer of the embedding SDK release, sent as
+    ///   ``sdkVersionHeader``. `nil` omits the header (engine used standalone / tests).
     package init(
         tokenProvider: @escaping @Sendable () async throws -> String,
         onResetConversation: @escaping @Sendable () async throws -> String,
         onDeleteData: @escaping @Sendable () async throws -> Void,
         baseURL: URL = ChatService.productionBaseURL,
-        session: URLSession = ChatService.makeSession()
+        session: URLSession = ChatService.makeSession(),
+        sdkVersion: String? = nil
     ) {
         self.baseURL = baseURL
+        self.sdkVersion = sdkVersion
         self.tokenStore = TokenStore(
             tokenProvider: tokenProvider,
             onResetConversation: onResetConversation,
@@ -46,7 +55,7 @@ extension ChatService {
             try await self.tokenStore.retrieve(onAuthFailure: .retryOnce) { token in
                 try await self.network.get(
                     url: self.url(for: .config),
-                    headers: Self.headers(token: token)
+                    headers: self.headers(token: token)
                 )
             }
         }
@@ -75,7 +84,7 @@ extension ChatService: ChatServicing {
         // Session bound — a 401 means the conversation expired, surface it.
         return try await self.mappingErrors {
             try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(url: url, headers: Self.headers(token: token))
+                try await self.network.get(url: url, headers: self.headers(token: token))
             }
         }
     }
@@ -104,7 +113,7 @@ extension ChatService: ChatServicing {
             do {
                 // Session bound — a 401 means the conversation expired, surface it.
                 try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                    var headers = Self.headers(token: token)
+                    var headers = self.headers(token: token)
                     headers["Accept"] = "text/event-stream"
 
                     let events: AsyncThrowingStream<StreamEvent, any Error> = self.network.stream(
@@ -142,209 +151,6 @@ extension ChatService: ChatServicing {
         return stream
     }
 
-    package func submitAction(
-        _ request: SubmitActionRequest
-    ) async throws(ChatServiceError) -> SubmitActionResponse {
-        // Strategy-free encode so dictionary field keys (e.g. `orderNumber`) stay verbatim —
-        // `convertToSnakeCase` would rewrite them and the server would not recognise them.
-        let body: Data
-        do {
-            body = try Self.actionsEncoder.encode(request)
-        } catch {
-            throw ChatServiceError.invalidRequest("Failed to encode action request")
-        }
-        return try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.post(
-                    url: self.url(for: .actions),
-                    body: body,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func rateConversation(
-        _ request: RateConversationRequest
-    ) async throws(ChatServiceError) {
-        try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.post(
-                    url: self.url(for: .rate),
-                    payload: request,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-
-    package func fetchLivechatState() async throws(ChatServiceError) -> LivechatState {
-        try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(
-                    url: self.url(for: .livechatState),
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func requestLivechatHandover(
-        source: String,
-        partId: String?,
-        clientContext: LivechatClientContext?
-    ) async throws(ChatServiceError) {
-        let request = LivechatHandoverRequest(
-            platform: LivechatHandoverRequest.mobileAppPlatform,
-            source: source,
-            partId: partId,
-            clientContext: clientContext
-        )
-        try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.post(
-                    url: self.url(for: .livechatHandover),
-                    payload: request,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func fetchLivechatMessages(
-        after sequenceNumber: Int64?
-    ) async throws(ChatServiceError) -> LivechatMessagePage {
-        var queryItems: [URLQueryItem] = []
-        if let sequenceNumber {
-            queryItems.append(
-                URLQueryItem(name: "after_sequence_number", value: String(sequenceNumber))
-            )
-        }
-        let base = self.url(for: .livechatMessages)
-        let url = queryItems.isEmpty ? base : base.appending(queryItems: queryItems)
-        return try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(
-                    url: url,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func sendLivechatMessage(
-        _ text: String,
-        attachments: [OutgoingAttachment],
-        page: String?
-    ) async throws(ChatServiceError) -> LivechatMessage {
-        let parts = SendMessageRequest.Part.make(text: text, attachments: attachments)
-        guard !parts.isEmpty else {
-            throw ChatServiceError.invalidRequest("Livechat send requires text or an attachment")
-        }
-        let payload = SendMessageRequest(
-            message: .init(parts: parts),
-            context: page.map { .init(page: $0) }
-        )
-        // Response is LivechatVisitorMessageResponse with nested `message`; decode the envelope.
-        let envelope: LivechatVisitorMessageEnvelope = try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.post(
-                    url: self.url(for: .livechatMessages),
-                    payload: payload,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-        return envelope.message
-    }
-
-    package func sendLivechatTyping(isTyping: Bool) async throws(ChatServiceError) {
-        let request = LivechatTypingRequest(isTyping: isTyping)
-        try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.post(
-                    url: self.url(for: .livechatTyping),
-                    payload: request,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func closeLivechat(reason: String?) async throws(ChatServiceError) {
-        let request = LivechatCloseRequest(reason: reason)
-        try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.post(
-                    url: self.url(for: .livechatClose),
-                    payload: request,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func submitLivechatFeedback(
-        _ request: RateConversationRequest
-    ) async throws(ChatServiceError) -> LivechatFeedbackResponse {
-        try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.post(
-                    url: self.url(for: .livechatFeedback),
-                    payload: request,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func fetchForm(id: String) async throws(ChatServiceError) -> ChatFormDefinition {
-        let url = self.url(for: .forms).appending(path: id)
-        return try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(
-                    url: url,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func fetchSession() async throws(ChatServiceError) -> ChatSessionState {
-        try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(
-                    url: self.url(for: .session),
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
-    package func patchFormValues(
-        formId: String,
-        values: [String: String]
-    ) async throws(ChatServiceError) -> ChatSessionState {
-        // Strategy-free encode so dictionary field keys stay verbatim.
-        let body: Data
-        do {
-            body = try Self.actionsEncoder.encode(ChatFormValuesPatchRequest(values: values))
-        } catch {
-            throw ChatServiceError.invalidRequest("Failed to encode form values")
-        }
-        let url = self.url(for: .forms).appending(path: formId).appending(path: "values")
-        return try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.patch(
-                    url: url,
-                    body: body,
-                    headers: Self.headers(token: token)
-                )
-            }
-        }
-    }
-
     package func resetConversation() async throws(ChatServiceError) {
         try await self.mappingErrors {
             try await self.tokenStore.reset()
@@ -364,7 +170,7 @@ extension ChatService: ChatServicing {
             try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
                 try await self.network.data(
                     from: self.url(for: .export),
-                    headers: Self.headers(token: token)
+                    headers: self.headers(token: token)
                 )
             }
         }
@@ -388,7 +194,7 @@ extension ChatService: ChatServicing {
             try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
                 let list: ChatBannerList = try await self.network.get(
                     url: requestURL,
-                    headers: Self.headers(token: token)
+                    headers: self.headers(token: token)
                 )
                 return list.banners
             }
@@ -401,8 +207,14 @@ private extension ChatService {
     /// Messages per history page
     private static let historyPageLimit = 100
 
-    static func headers(token: String) -> [String: String] {
-        ["Authorization": "Bearer \(token)"]
+    /// Bearer auth plus the SDK version tag for every API endpoint. Attachment / font fetches
+    /// (`fetchData`) stay header-less — they may target third-party hosts.
+    func headers(token: String) -> [String: String] {
+        var headers = ["Authorization": "Bearer \(token)"]
+        if let sdkVersion = self.sdkVersion {
+            headers[Self.sdkVersionHeader] = sdkVersion
+        }
+        return headers
     }
 
     /// RAM-only by design: no disk cache, cookies, or credential storage
@@ -436,12 +248,6 @@ private extension ChatService {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         return encoder
     }
-
-    /// Strategy-free encoder for ``SubmitActionRequest`` — dictionary field keys must stay
-    /// verbatim; the struct's own snake_case names are spelled out in `CodingKeys`.
-    static var actionsEncoder: JSONEncoder {
-        JSONEncoder()
-    }
 }
 
 private extension ChatService {
@@ -450,18 +256,8 @@ private extension ChatService {
     enum Endpoint: String {
         case config = "api/v1/chat/config"
         case messages = "api/v1/chat/messages"
-        case actions = "api/v1/chat/actions"
-        case rate = "api/v1/chat/rate"
-        case livechatState = "api/v1/chat/livechat/state"
-        case livechatHandover = "api/v1/chat/livechat/handover"
-        case livechatMessages = "api/v1/chat/livechat/messages"
-        case livechatTyping = "api/v1/chat/livechat/typing"
-        case livechatClose = "api/v1/chat/livechat/close"
-        case livechatFeedback = "api/v1/chat/livechat/feedback"
         case export = "api/v1/chat/export"
         case banners = "api/v1/chat/banners"
-        case forms = "api/v1/chat/forms"
-        case session = "api/v1/chat/session"
     }
 
     func url(for endpoint: Endpoint) -> URL {

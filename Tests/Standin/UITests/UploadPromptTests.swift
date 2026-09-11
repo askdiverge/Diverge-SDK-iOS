@@ -23,7 +23,7 @@ final class UploadPromptTests: XCTestCase {
         app.launchEnvironment["SAMPLE_FLOW"] = flow
         app.launch()
 
-        let field = composer(app)
+        let field = app.composer()
         XCTAssertTrue(field.waitForExistence(timeout: 20), "composer not found")
 
         // Seeded history text + the upload-prompt card.
@@ -42,7 +42,7 @@ final class UploadPromptTests: XCTestCase {
         // once `done` lands.
         field.tap()
         field.typeText("hello")
-        tapSend(app)
+        app.tapSend()
         let liveReply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'please add a photo'")).firstMatch
         XCTAssertTrue(liveReply.waitForExistence(timeout: 20), "text-only reply did not render")
         // The live card is the newest one on screen (the seed card may have scrolled off in
@@ -83,10 +83,10 @@ final class UploadPromptTests: XCTestCase {
         sleep(1)
         shot(app, "\(flow)-12-chip")
 
-        tapSend(app)
+        app.tapSend()
         let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'I received your photo'")).firstMatch
         if !reply.waitForExistence(timeout: 20) {
-            tapSend(app)
+            app.tapSend()
         }
         XCTAssertTrue(reply.waitForExistence(timeout: 30), "assistant reply after photo send did not render")
         sleep(2)
@@ -99,7 +99,7 @@ final class UploadPromptTests: XCTestCase {
         app.launchEnvironment["SAMPLE_AUTO_TOKEN"] = "host-token"
         app.launchEnvironment["SAMPLE_FLOW"] = flow
         app.launch()
-        XCTAssertTrue(composer(app).waitForExistence(timeout: 20))
+        XCTAssertTrue(app.composer().waitForExistence(timeout: 20))
         let replyAgain = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'I received your photo'")).firstMatch
         XCTAssertTrue(replyAgain.waitForExistence(timeout: 20), "history did not reload the photo reply")
         var promptAgain = uploadPrompt(app)
@@ -144,26 +144,6 @@ final class UploadPromptTests: XCTestCase {
             }
         }
         XCTFail("no photo cell found in the picker")
-    }
-
-    private func composer(_ app: XCUIApplication) -> XCUIElement {
-        let byPlaceholder = app.textViews.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if byPlaceholder.waitForExistence(timeout: 15) { return byPlaceholder }
-        let asField = app.textFields.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if asField.exists { return asField }
-        return app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
-    }
-
-    private func tapSend(_ app: XCUIApplication) {
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let notNow = springboard.buttons["Not Now"]
-        if notNow.waitForExistence(timeout: 1) { notNow.tap() }
-
-        let send = app.buttons.matching(NSPredicate(format: "label == 'Up'")).firstMatch
-        guard send.waitForExistence(timeout: 5) else {
-            XCTFail("send button not found"); return
-        }
-        send.tap()
     }
 
     private func shot(_ app: XCUIApplication, _ name: String) {

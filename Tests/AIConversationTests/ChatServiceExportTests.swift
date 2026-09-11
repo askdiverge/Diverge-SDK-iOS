@@ -34,11 +34,11 @@ struct ChatServiceExportTests {
     func tokenKeptAfterExport() async throws {
         let (sut, script) = ChatServiceFixtures.makeSUT(responses: [
             .init(status: 200, body: Self.exportJSON),
-            .init(status: 200, body: Data())
+            .init(status: 200, body: Data(#"{"messages":[],"next_cursor":null}"#.utf8))
         ])
 
         _ = try await sut.exportMyData()
-        try await sut.rateConversation(RateConversationRequest(rating: 5))
+        _ = try await sut.fetchHistory(cursor: nil)
 
         #expect(script.requests.map { $0.header("Authorization") } == [
             "Bearer host-token",

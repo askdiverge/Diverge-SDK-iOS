@@ -105,41 +105,13 @@ as untrusted input and validate it against your catalog before calling a cart AP
 does not show "added" feedback — the host owns toasts / cart UI. Absent → no cart button;
 open-product still works via `openURL` / `onOpenLink`.
 
-**`onLivechatSessionChange`** — optional host hook for livechat **status** and active **agent
-name** changes (`AIChat.LivechatSessionInfo`). Typing ticks and new messages do **not** fire it.
-Use the last value for a launcher badge or to decide whether to re-present the sheet. The
-poller still **parks** when `ChatView` disappears (sheet dismissed but `AIChat` retained) **or**
-the app backgrounds — dismissed polling is intentionally not offered; agent join/close while
-dismissed is only observed after re-present catch-up. Absent → no-op.
-
-**`onClose`** — when set, the SDK shows a close button. Conversation close may ask for a 1–5
-rating (`POST /rate`) first; livechat CSAT uses a separate overlay (see Livechat below). If that
-CSAT card is on screen, Close skips it (no POST) then calls `onClose` so the host can tear down.
-
-**`rating`** — `.enabled` (default) presents the conversation rating overlay on close when there is
-a user turn; `.disabled` closes immediately. This flag does **not** gate livechat CSAT. Only
-takes effect when `onClose` is set. `hasRated` is per `AIChat` instance.
+**`onClose`** — when set, the SDK shows a close button that calls `onClose` so the host can tear
+down the chat UI. (Conversation rating and livechat live on the
+`iOS_CS_Livechat_Contact_Form` branch.)
 
 **`attachments`** — `.photoLibrary` (default) shows a photo-library picker (up to eight photos per
 message). `/config` `image_enabled: false` hides attach even when this is `.photoLibrary`.
 `.disabled` always wins. Omitted `image_enabled` on older APIs is treated as enabled.
-
-**Livechat** — when the chatbot’s `/config` enables livechat, visitors can request a human from the
-toolbar (if `show_livechat_logo`) or a `request_human_agent` marker. Queue notes, agent turns, and
-typing are SDK-owned. Optional `onLivechatSessionChange` reports last-known status for host
-badges. While waiting, the AI still answers; once an
-agent joins, messages go to the livechat channel. Polling pauses when the chat is off-screen or the
-app is backgrounded. While an agent session is **active**, the composer attach control follows
-`/config` `livechat.attachments_enabled` (host `Configuration.attachments == .disabled` still
-wins). Receiving agent attachments already works. While queued, if `/config.forms` lists a
-`livechat_waiting` form, the SDK shows an “Add details for the agent” card (SDK-owned — no host
-gate). Save PATCHes session values; the visitor stays in the queue. There is no Skip. The card
-shows string fields only (`file` is omitted; PhotosPicker is not used). After the
-session closes, if `GET /livechat/state` reports `feedback.status == pending`, the chat shows the
-same 1–5 overlay and posts `POST /livechat/feedback` (this is **not** `Configuration.rating` — that
-flag only gates conversation `POST /rate`). Scale Skip / backdrop dismiss without POSTing;
-feedback-step Skip still POSTs the score. Chat Close while the overlay is visible skips it then
-calls `onClose`. A new waiting/active session dismisses a leftover overlay without POSTing.
 
 **`appearance`** — which `/config` palette slot the chat paints (`theme` / `dark_theme`). Defaults
 to `.system` (follow the environment color scheme). Pass `.light` or `.dark` to lock the slot.

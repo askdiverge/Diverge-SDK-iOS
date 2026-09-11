@@ -67,6 +67,7 @@ enum ChatServiceFixtures {
 
     static func makeSUT(
         hostToken: String = "host-token",
+        sdkVersion: String? = nil,
         responses: [ScriptedURLProtocol.Response]
     ) -> (service: ChatService, script: ScriptedURLProtocol.Script) {
         let (script, session) = ScriptedURLProtocol.make(responses: responses)
@@ -75,7 +76,8 @@ enum ChatServiceFixtures {
             onResetConversation: { hostToken },
             onDeleteData: {},
             baseURL: Self.baseURL,
-            session: session
+            session: session,
+            sdkVersion: sdkVersion
         )
         return (service, script)
     }

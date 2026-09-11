@@ -9,8 +9,7 @@ The shipped Privacy Manifest [`Sources/AIConversation/PrivacyInfo.xcprivacy`](..
 - `NSPrivacyTracking` = `false`
 - Empty tracking domains and accessed API types
 - One collected data type: `OtherUserContent`, linked to the user and not used for tracking, for app
-  functionality — typed messages, the optional context string, and close-rating free-text feedback
-  are sent to the assistant backend
+  functionality — typed messages and the optional context string are sent to the assistant backend
 
 **No required-reason API declarations** are needed until the SDK actually calls those APIs (file timestamps, UserDefaults, disk space, boot time, etc.). Do not declare APIs “just in case.”
 

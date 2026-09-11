@@ -23,11 +23,8 @@ suite_server() {
     HistoryTests) echo "history_server.py" ;;
     UploadPromptTests) echo "upload_prompt_server.py" ;;
     UploadPromptDisabledTests) echo "upload_prompt_server.py" ;;
-    FormsTests) echo "forms_server.py" ;;
-    RatingTests) echo "rating_server.py" ;;
     StartPromptsTests) echo "start_prompts_server.py" ;;
     ProductActionsTests) echo "product_actions_server.py" ;;
-    LivechatTests) echo "livechat_server.py" ;;
     DarkAppearanceTests) echo "dark_theme_server.py" ;;
     DownloadDataTests) echo "export_server.py" ;;
     BannerTests) echo "banners_server.py" ;;
@@ -51,11 +48,8 @@ ALL_SUITES=(
   HistoryTests
   UploadPromptTests
   UploadPromptDisabledTests
-  FormsTests
-  RatingTests
   StartPromptsTests
   ProductActionsTests
-  LivechatTests
   DarkAppearanceTests
   DownloadDataTests
   BannerTests

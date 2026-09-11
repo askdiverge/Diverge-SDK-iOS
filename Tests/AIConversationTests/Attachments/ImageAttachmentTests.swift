@@ -30,17 +30,17 @@ struct ImageAttachmentTests {
         #expect(max(payloadWidth, payloadHeight) <= Int(ImageAttachment.maxPixelSize))
     }
 
-    @Test("action options: synthetic filename and the marker's byte cap as a base64 length")
-    func actionOptions() {
-        let options = ImageAttachment.Options.action(filename: "photo.jpg", maxDecodedBytes: 2_097_152)
+    @Test("message options honour an optional tighter decoded-byte budget as a base64 length")
+    func messageOptionsTighterBudget() {
+        var options = ImageAttachment.Options.message(maxDecodedBytes: 2_097_152)
+        options.filename = "photo.jpg"
         #expect(options.filename == "photo.jpg")
         #expect(options.maxEncodedLength == 2_796_200) // (2 MiB / 3) * 4 — floors, never over the cap
         #expect(options.maxEncodedLength == ImageAttachment.Options.encodedLength(forDecodedBytes: 2_097_152))
-        #expect(options.maxEncodedLength <= OutgoingAttachment.maxActionEncodedLength)
         #expect(options.maxPixelSize == ImageAttachment.maxPixelSize)
     }
 
-    @Test("tighterEncodedLength skips the default 5 MiB livechat budget")
+    @Test("tighterEncodedLength skips budgets near the default 5 MiB chat cap")
     func tighterEncodedLengthSkipsDefaultChatCap() {
         #expect(ImageAttachment.Options.tighterEncodedLength(decodedBytes: 3_000) == 4_000)
         #expect(ImageAttachment.Options.tighterEncodedLength(decodedBytes: 5_242_880) == nil)

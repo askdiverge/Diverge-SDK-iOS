@@ -12,11 +12,7 @@ import Testing
 @Suite("ChatConfig — start_prompts decode")
 struct ChatConfigStartPromptsTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("start_prompts decodes prompt_text and nullable url_pattern")
     func decodesPrompts() throws {

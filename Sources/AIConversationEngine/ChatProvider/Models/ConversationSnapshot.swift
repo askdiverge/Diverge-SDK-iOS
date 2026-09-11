@@ -39,15 +39,12 @@ package struct ConversationSnapshot: Sendable, Equatable {
 
 extension ConversationSnapshot {
 
-    /// A single conversation turn — the display-oriented union of user, bot, agent, and note content.
+    /// A single conversation turn — the display-oriented union of user and bot content.
     package enum Turn: Sendable, Equatable {
         case bot([ChatResponse])
-        case agent(LivechatAgent, [ChatResponse])
         case user([UserContent])
         /// Wire `role: system` history — centred muted copy, not an assistant bubble.
         case system([ChatResponse])
-        /// Locally minted boundary line (queue / agent joined / ended).
-        case note(LivechatNote)
 
         /// True for visitor turns — layout code uses this so it need not switch exhaustively
         /// when new non-user turn kinds land.
@@ -66,12 +63,10 @@ extension ConversationSnapshot {
     /// The id of the newest bot turn, else `nil`. Used by the top-flowing layout to measure the
     /// live answer and to detect when a reply has arrived.
     package var lastBotTurnID: UUID? {
-        // Agent turns count too — the top-flowing layout treats them as the "answer" side.
-        // System notes are not answers.
         self.turns.last {
             switch $0.model {
-            case .bot, .agent: return true
-            case .user, .note, .system: return false
+            case .bot: return true
+            case .user, .system: return false
             }
         }?.id
     }

@@ -7,9 +7,9 @@
 
 /// An ordered part of a message, discriminated on `type`.
 ///
-/// Supports `rich_text`, `table`, `products`, `suggestions`, `image`, `file`, and the
-/// `request_image_upload` / `request_human_agent` / form markers. All other variants decode
-/// to `.unknown` and are skipped at render time. Malformed `image` / `file` / marker payloads
+/// Supports `rich_text`, `table`, `products`, `suggestions`, `quick_replies`, `image`, `file`,
+/// and `request_image_upload`. Form / livechat markers and all other variants decode to
+/// `.unknown` and are skipped at render time. Malformed `image` / `file` / marker payloads
 /// also fall back to `.unknown` so a bad attachment cannot abort sibling parts.
 /// [API ref](https://docs.dialoge.ai/api#model/message-part)
 package enum Part: Decodable, Sendable, Equatable {
@@ -22,10 +22,6 @@ package enum Part: Decodable, Sendable, Equatable {
     case image(MessageImage)
     case file(MessageFile)
     case requestImageUpload(RequestImageUpload)
-    case requestHumanAgent(RequestHumanAgent)
-    case showContactForm(ShowContactForm)
-    case showSupportTicket(ShowSupportTicket)
-    case showForm(ShowForm)
     case unknown
 
     private enum CodingKeys: String, CodingKey {
@@ -41,10 +37,6 @@ package enum Part: Decodable, Sendable, Equatable {
         case image
         case file
         case requestImageUpload = "request_image_upload"
-        case requestHumanAgent = "request_human_agent"
-        case showContactForm = "show_contact_form"
-        case showSupportTicket = "show_support_ticket"
-        case showForm = "show_form"
     }
 
     package init(from decoder: any Decoder) throws {
@@ -64,14 +56,6 @@ package enum Part: Decodable, Sendable, Equatable {
         case .file: (try? MessageFile(from: decoder)).map(Part.file) ?? .unknown
         case .requestImageUpload:
             (try? RequestImageUpload(from: decoder)).map(Part.requestImageUpload) ?? .unknown
-        case .requestHumanAgent:
-            (try? RequestHumanAgent(from: decoder)).map(Part.requestHumanAgent) ?? .unknown
-        case .showContactForm:
-            (try? ShowContactForm(from: decoder)).map(Part.showContactForm) ?? .unknown
-        case .showSupportTicket:
-            (try? ShowSupportTicket(from: decoder)).map(Part.showSupportTicket) ?? .unknown
-        case .showForm:
-            (try? ShowForm(from: decoder)).map(Part.showForm) ?? .unknown
         case .none: .unknown
         }
     }

@@ -96,7 +96,7 @@ private extension ConversationTopFlowingList {
 
     /// The turns the exchange spans — the lifted user turn and everything beneath it — or empty when nothing
     /// is armed or the user turn has left the snapshot. Any number of turns may follow the user turn (one
-    /// streamed answer today; agent or system turns once livechat lands), so the buffer sizes against all of
+    /// streamed answer today; system turns too), so the buffer sizes against all of
     /// them rather than a single "the answer".
     var exchangeTurns: ArraySlice<Identified<ConversationSnapshot.Turn>> {
         guard
@@ -213,7 +213,7 @@ private extension ConversationTopFlowingList {
 
     func alignment(_ turn: ConversationSnapshot.Turn) -> Alignment {
         switch turn {
-        case .bot, .agent, .note: .topLeading
+        case .bot: .topLeading
         case .system: .top
         case .user: .topTrailing
         }

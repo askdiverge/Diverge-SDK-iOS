@@ -1,10 +1,7 @@
 disabled_rules:
   - todo
-  - file_length
   - line_length
-  - type_body_length
   - closure_parameter_position
-  - function_body_length
   - unneeded_break_in_switch
   - switch_case_alignment
   - orphaned_doc_comment
@@ -43,6 +40,25 @@ excluded:
 
 cyclomatic_complexity:
   ignores_case_statements: true
+
+# One type or one concern per file. Split by `extension` files (`ChatView+ViewModel+Send.swift`)
+# or by extracting a subview / helper type before a file reaches the warning — CI lints
+# `--strict`, so the warning is the effective limit. Tests carry looser thresholds in
+# `Tests/.swiftlint.yml`.
+file_length:
+  warning: 250
+  error: 400
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 200
+  error: 350
+
+# Generous on purpose: SwiftUI `body` modifier chains and wire-decoding `switch`es are long by
+# nature and read worse when chopped up. The cap is there to catch runaway functions.
+function_body_length:
+  warning: 60
+  error: 100
 
 type_name:
   excluded:

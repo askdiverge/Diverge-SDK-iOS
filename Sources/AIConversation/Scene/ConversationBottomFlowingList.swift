@@ -163,7 +163,7 @@ private extension ConversationBottomFlowingList {
 
     func alignment(_ turn: ConversationSnapshot.Turn) -> Alignment {
         switch turn {
-        case .bot, .agent, .note: .leading
+        case .bot: .leading
         case .system: .center
         case .user: .trailing
         }

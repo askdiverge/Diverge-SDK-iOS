@@ -78,6 +78,27 @@ See also [`Docs/ops/canary-release.md`](Docs/ops/canary-release.md).
 
 SwiftLint config at the repo root (`.swiftlint.yml`) is the single source of style truth.
 
+### File and type size
+
+One type, or one concern of a type, per file. SwiftLint enforces it and CI lints `--strict`, so
+the warning threshold is the effective limit (counts exclude comment-only and blank lines):
+
+| Scope                     | `file_length`        | `type_body_length`   | `function_body_length` |
+| ------------------------- | -------------------- | -------------------- | ---------------------- |
+| `Sources/`, `Samples/`    | warn 250 / error 400 | warn 200 / error 350 | warn 60 / error 100    |
+| `Tests/` (nested config)  | warn 400 / error 600 | warn 350 / error 500 | warn 60 / error 100    |
+
+When a file approaches the limit, split by concern rather than trimming comments:
+
+- Behaviour of a type → `extension` files named `Type+Concern.swift`
+  (`ChatView+ViewModel+Send.swift`, `ChatProvider+Mapping.swift`).
+- Layout → a sub-view or `ViewModifier` in its own file (`ChatView+Turns.swift`).
+- Test suites → one `@Suite` per feature, fixtures in a shared protocol extension
+  (`ChatProviderTestHelpers`, `HistoryPaginationFixtures`).
+
+Stored state that sibling extensions mutate is module-internal rather than `private(set)`; keep
+the declaration in the primary file with a `// MARK: State` header so the surface stays obvious.
+
 ### Localization catalog
 
 `Sources/AIConversation/Resources/Localizable.xcstrings` must stay in Xcode's serialization

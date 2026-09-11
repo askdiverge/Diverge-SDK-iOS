@@ -137,5 +137,7 @@ struct ChatInput: View {
         .buttonStyle(.plain)
         .opacity(self.canSend ? 1 : 0.5)
         .disabled(!self.canSend)
+        .accessibilityLabel(L10n.inputSend.string)
+        .accessibilityIdentifier("chat.send")
     }
 }

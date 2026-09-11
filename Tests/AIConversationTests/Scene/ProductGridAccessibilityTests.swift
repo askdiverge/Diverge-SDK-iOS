@@ -9,6 +9,7 @@ import Testing
 @testable import AIConversationEngine
 
 @Suite("ProductGridView — accessibility contract")
+@MainActor
 struct ProductGridAccessibilityTests {
 
     @Test("label is the title alone when there is no description or splash")
@@ -39,7 +40,7 @@ struct ProductGridAccessibilityTests {
         #expect(ProductGridView.resolvedOpenLabel(nil) == L10n.productOpen.string)
     }
 
-    @Test("cart is offered with a host hook or a link-mode cart URL")
+    @Test("cart is offered with a host hook or a link-mode cart URL, only when config enables cart")
     func shouldOfferCart() {
         let withSku = self.card(title: "Classic Tee", description: nil, splash: nil, sku: "SKU-TEE-001")
         let withLinkCart = self.card(
@@ -52,16 +53,39 @@ struct ProductGridAccessibilityTests {
         let withoutSku = self.card(title: "Classic Tee", description: nil, splash: nil, sku: nil)
         let hook: @MainActor (AIChat.ProductSelection) -> Void = { _ in }
 
-        #expect(ProductGridView.shouldOfferCart(for: withSku, onAddToCart: hook) == true)
-        #expect(ProductGridView.shouldOfferCart(for: withLinkCart, onAddToCart: nil) == true)
-        #expect(ProductGridView.shouldOfferCart(for: withoutSku, onAddToCart: hook) == false)
-        #expect(ProductGridView.shouldOfferCart(for: withSku, onAddToCart: nil) == false)
+        #expect(ProductGridView.shouldOfferCart(for: withSku, cartEnabled: true, onAddToCart: hook) == true)
+        #expect(ProductGridView.shouldOfferCart(for: withLinkCart, cartEnabled: true, onAddToCart: nil) == true)
+        #expect(ProductGridView.shouldOfferCart(for: withoutSku, cartEnabled: true, onAddToCart: hook) == false)
+        #expect(ProductGridView.shouldOfferCart(for: withSku, cartEnabled: true, onAddToCart: nil) == false)
+        // `/config` off wins over both modes — a stale link pattern must not leak a cart button.
+        #expect(ProductGridView.shouldOfferCart(for: withSku, cartEnabled: false, onAddToCart: hook) == false)
+        #expect(ProductGridView.shouldOfferCart(for: withLinkCart, cartEnabled: false, onAddToCart: nil) == false)
+    }
+
+    @Test("image ratio is decided once per grid so mixed rows stay aligned")
+    func gridWideImageAspectRatio() {
+        let withSku = self.card(title: "Classic Tee", description: nil, splash: nil, sku: "SKU-TEE-001")
+        let withoutSku = self.card(title: "Classic Hat", description: nil, splash: nil, sku: nil)
+        let hook: @MainActor (AIChat.ProductSelection) -> Void = { _ in }
+
+        #expect(
+            ProductGridView.imageAspectRatio(for: [withSku, withoutSku], cartEnabled: true, onAddToCart: hook)
+                == ProductGridView.compactImageAspectRatio
+        )
+        #expect(
+            ProductGridView.imageAspectRatio(for: [withoutSku, withoutSku], cartEnabled: true, onAddToCart: hook)
+                == ProductGridView.defaultImageAspectRatio
+        )
+        #expect(
+            ProductGridView.imageAspectRatio(for: [withSku, withoutSku], cartEnabled: false, onAddToCart: hook)
+                == ProductGridView.defaultImageAspectRatio
+        )
     }
 
     @Test("product copy exists in every locale")
     func catalogCoverage() throws {
         try StringCatalog.expectKeysInEveryLocale([
-            "product.open", "product.openHint", "product.addToCart", "product.addToCartHint",
+            "product.open", "product.openHint", "product.addToCart", "product.addToCartHint"
         ])
     }
 

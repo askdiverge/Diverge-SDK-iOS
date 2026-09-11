@@ -19,8 +19,7 @@ package enum ChatServiceError: Error {
     /// Next action re-authenticates.
     case sessionExpired
 
-    /// A 409 — the request conflicts with server state (livechat offline, or AI send
-    /// while a livechat session is already active).
+    /// A 409 — the request conflicts with server state.
     case conflict
 
     /// The server terminated the message stream.
@@ -30,7 +29,7 @@ package enum ChatServiceError: Error {
     /// The internal networking call to the chat API failed (transport, non-401 HTTP, decoding)
     case transport(NetworkError)
 
-    /// Server-side validation — per-field `params` plus an optional form-level `message`.
+    /// Server-side validation — per-field `params` plus an optional message.
     case validation(message: String, params: [ValidationError])
 
     /// A host hook (token / reset / delete) threw

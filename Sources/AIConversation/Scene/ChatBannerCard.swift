@@ -42,6 +42,10 @@ struct ChatBannerCard: View {
         .padding(.trailing, self.banner.dismissible ? 44 : 0)
         .frame(maxWidth: .infinity)
         .background(fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        // The card must be a container *element* before it takes an identifier: on a bare stack
+        // SwiftUI pushes the identifier down onto every child and the CTA's `banner.cta.<id>`
+        // (and the message text) come out as `banner.<id>` instead.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("banner.\(self.banner.id)")
         .overlay(alignment: .topTrailing) {
             if self.banner.dismissible {

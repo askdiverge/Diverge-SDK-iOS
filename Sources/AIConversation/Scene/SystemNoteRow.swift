@@ -6,8 +6,7 @@
 import SwiftUI
 import AIConversationEngine
 
-/// Centred, muted copy for wire `role: system` history — distinct from assistant bubbles and
-/// SDK-local livechat boundary notes.
+/// Centred, muted copy for wire `role: system` history — distinct from assistant bubbles.
 struct SystemNoteRow: View {
 
     @Environment(\.appearance) private var appearance

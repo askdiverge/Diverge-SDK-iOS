@@ -73,7 +73,7 @@ struct ChatAppearance {
         let userBubbleBorder: Color?
         let inputBorder: Color?
         /// Parsed header button fill when the config supplies a valid CSS colour.
-        /// Painted behind close / reset / livechat toolbar glyphs; nil keeps the system chrome.
+        /// Painted behind close / reset toolbar glyphs; nil keeps the system chrome.
         let headerButtonBackground: Color?
         /// Ordered color stops for the assistant thinking-state border animation; empty when unset.
         let thinkingBorderGradient: [Color]
@@ -88,17 +88,6 @@ struct ChatAppearance {
         let accentForeground: Color
         let destructive: Color
         let outline: Color
-
-        /// Satisfaction palette for the 1–5 rating scale (web widget parity).
-        static func ratingColor(for score: Int) -> Color {
-            switch score {
-            case 1: Color(hex: "#C0392B") ?? .red
-            case 2: Color(hex: "#E74C3C") ?? .red
-            case 3: Color(hex: "#FF6B6B") ?? .orange
-            case 4: Color(hex: "#F39C12") ?? .orange
-            default: Color(hex: "#27AE60") ?? .green
-            }
-        }
     }
 
     /// The chat's 4-pt spacing grid. `spacing.units(2)` → 8.
@@ -214,9 +203,6 @@ extension ChatAppearance {
         /// composer — opens the photo library picker.
         static let attach = Image(systemName: "photo.badge.plus")
 
-        /// toolbar — request a human agent / leave the livechat queue.
-        static let person = Image(systemName: "person.crop.circle")
-
         /// deletes visitor data.
         static let delete = Image(systemName: "trash")
 
@@ -313,7 +299,7 @@ private extension ChatAppearance.Theme {
         self.accentForeground = Self.default.accentForeground
         // Destructive actions — delete button and the checkbox.
         self.destructive = Self.default.destructive
-        // Neutral outline for form controls — checkbox and secondary-button borders.
+        // Neutral outline for secondary-button borders.
         self.outline = Self.default.outline
     }
 }

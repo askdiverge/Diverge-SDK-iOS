@@ -10,11 +10,7 @@ import Testing
 @Suite("ChatConfig — dark_theme")
 struct ChatConfigDarkThemeTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("absent dark_theme decodes equal to theme")
     func absentDarkThemeEqualsTheme() throws {

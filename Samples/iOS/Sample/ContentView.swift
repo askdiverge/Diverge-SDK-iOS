@@ -5,17 +5,6 @@ import SwiftUI
 import UIKit
 #endif
 
-/// Mutable box for Sample host hooks — escaping `AIChat.Configuration` closures capture this
-/// class so UITest probes update while the chat sheet is presented.
-private final class HostProbe: ObservableObject, @unchecked Sendable {
-    @Published var lastAddedProduct: String?
-    @Published var lastOpenedURL: String?
-    /// Last-known livechat session from `onLivechatSessionChange` (survives sheet dismiss).
-    @Published var lastLivechatSession: String?
-    /// Latest visitor JWT for `resetConversation` (`POST /auth/reset` needs the current token).
-    var visitorToken = ""
-}
-
 struct ContentView: View {
     /// Sample chrome — matches SDK AA-safe primary (~17:1 on white).
     private static let primaryText = Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
@@ -29,43 +18,6 @@ struct ContentView: View {
         let chat: AIChat
     }
 
-    private enum Backend: String, CaseIterable {
-        case production
-        case development
-        case local
-
-        var title: String {
-            switch self {
-            case .production: "Production"
-            case .development: "Development"
-            case .local: "Local"
-            }
-        }
-
-        var apiBaseURL: URL {
-            switch self {
-            case .production: DivergeAPI.productionBaseURL
-            case .development: SampleConfig.developmentBaseURL
-            case .local: SampleConfig.localBaseURL
-            }
-        }
-
-        var footnote: String {
-            switch self {
-            case .production:
-                "Talks to \(DivergeAPI.productionBaseURL.absoluteString)"
-            case .development:
-                "Talks to \(SampleConfig.developmentBaseURL.absoluteString) (shared dev API)."
-            case .local:
-                "Talks to a local dialogintelligens API. Start it with docker compose."
-            }
-        }
-
-        static var fromBuildSettings: Backend {
-            Backend(rawValue: SampleConfig.environmentName) ?? .development
-        }
-    }
-
     @State private var token = ""
     @State private var backend: Backend = .fromBuildSettings
     @State private var session: ChatSession?
@@ -74,7 +26,6 @@ struct ContentView: View {
     @State private var attachments: AIChat.Attachments = .photoLibrary
     /// Page / URL string forwarded as `contextProvider` so start-prompt `url_pattern`s can match.
     @State private var page = ""
-    /// Kept across sheet dismiss so `RatingSession.hasRated` survives a second Open chat.
     /// Recreated when token, backend, conversation flow, appearance, attachments, or page change.
     @State private var chat: AIChat?
     @State private var chatBoundTo: String?
@@ -149,20 +100,12 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .accessibilityLabel("Open chat")
                 .accessibilityHint("Presents the conversation using the token above")
-
-                if let lastLivechatSession = hostProbe.lastLivechatSession {
-                    Text(Self.livechatStatusLine(lastLivechatSession))
-                        .font(.footnote)
-                        .foregroundColor(Self.secondaryText)
-                        .accessibilityIdentifier("sample.lastLivechatSession")
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
         .dynamicTypeSize(.small ... .accessibility3)
-        // Swipe-to-dismiss would skip the SDK close path (and the rating prompt). Close is
-        // the path that can ask; the SDK cannot see a host-sheet gesture.
+        // Swipe-to-dismiss would skip the SDK close path. Close is the path that dismisses.
         .sheet(item: self.$session) { session in
             session.chat.makeView()
                 .interactiveDismissDisabled()
@@ -178,11 +121,6 @@ struct ContentView: View {
                             Text("Added to cart: \(lastAddedProduct)")
                                 .font(.caption2)
                                 .accessibilityIdentifier("sample.lastAddedProduct")
-                        }
-                        if let lastLivechatSession = hostProbe.lastLivechatSession {
-                            Text(Self.livechatStatusLine(lastLivechatSession))
-                                .font(.caption2)
-                                .accessibilityIdentifier("sample.lastLivechatSession.sheet")
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -229,15 +167,6 @@ struct ContentView: View {
         "\(self.token)|\(self.backend.rawValue)|\(String(describing: self.conversationFlow))|\(String(describing: self.appearance))|\(self.page)|\(String(describing: self.attachments))"
     }
 
-    /// Sample probe line. `inactive` means no livechat session — waiting only starts after
-    /// a tap on the person toolbar icon, not a composer message.
-    private static func livechatStatusLine(_ status: String) -> String {
-        if status == "inactive" || status == "closed" {
-            return "Livechat: \(status) — tap the person icon to queue"
-        }
-        return "Livechat: \(status)"
-    }
-
     private func openChat() {
         if self.chat == nil || self.chatBoundTo != self.configurationIdentity {
             let probe = self.hostProbe
@@ -265,17 +194,6 @@ struct ContentView: View {
                         probe.lastAddedProduct = line
                     }
                 },
-                onLivechatSessionChange: { info in
-                    let line: String
-                    if info.status == .active, let name = info.agentDisplayName {
-                        line = "\(info.status.rawValue) · \(name)"
-                    } else {
-                        line = info.status.rawValue
-                    }
-                    Task { @MainActor in
-                        probe.lastLivechatSession = line
-                    }
-                },
                 probe: probe
             ))
             self.chatBoundTo = self.configurationIdentity
@@ -283,6 +201,11 @@ struct ContentView: View {
         guard let chat else { return }
         self.session = ChatSession(chat: chat)
     }
+}
+
+// MARK: - SDK configuration
+
+private extension ContentView {
 
     /// Token minting and data lifecycle stay with the host; the SDK only calls back for them.
     private static func configuration(
@@ -295,7 +218,6 @@ struct ContentView: View {
         onClose: @escaping () -> Void,
         onOpenLink: @escaping (URL) -> Void,
         onAddToCart: @escaping @MainActor (AIChat.ProductSelection) -> Void,
-        onLivechatSessionChange: @escaping @MainActor (AIChat.LivechatSessionInfo) -> Void,
         probe: HostProbe
     ) -> AIChat.Configuration {
         .init(
@@ -320,7 +242,6 @@ struct ContentView: View {
             onOpenLink: onOpenLink,
             onClose: onClose,
             onAddToCart: onAddToCart,
-            onLivechatSessionChange: onLivechatSessionChange,
             conversationFlow: conversationFlow,
             apiBaseURL: apiBaseURL,
             attachments: attachments,

@@ -72,4 +72,29 @@ struct ChatViewModelAppearanceTests {
         #expect(viewModel.preferredColorScheme(for: distinct.with(colorScheme: .light)) == .light)
         #expect(viewModel.preferredColorScheme(for: nil) == nil)
     }
+
+    @Test(".system with a distinct dark palette leaves chrome to the environment (no self-lock)")
+    func systemWithDistinctDarkDoesNotPinChrome() {
+        let distinct = ChatAppearance(
+            light: .default,
+            dark: .default,
+            colorScheme: .dark,
+            fontFamily: nil,
+            hasDistinctDarkPalette: true
+        )
+        let viewModel = ChatView.ViewModel.forTesting(
+            provider: StubChatProviding(),
+            appearancePreference: .system
+        )
+        // Pinning here would feed back into the environment `resolvedScheme` reads and freeze
+        // the palette on the first-rendered scheme when the system flips.
+        #expect(viewModel.preferredColorScheme(for: distinct) == nil)
+        #expect(viewModel.preferredColorScheme(for: distinct.with(colorScheme: .light)) == nil)
+        // A host lock still pins, so the keyboard matches the painted palette.
+        let locked = ChatView.ViewModel.forTesting(
+            provider: StubChatProviding(),
+            appearancePreference: .light
+        )
+        #expect(locked.preferredColorScheme(for: distinct.with(colorScheme: .light)) == .light)
+    }
 }

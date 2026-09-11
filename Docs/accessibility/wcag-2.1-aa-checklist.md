@@ -1,7 +1,7 @@
 # WCAG 2.1 AA checklist (iOS SDK-owned UI)
 
 Target: [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/?levels=aa) for UI the Diverge SDK
-owns — the conversation view, its bubbles, product cards (open CTA + optional add-to-cart), suggestion cards, start-prompt chips, tables, image and file attachments, in-conversation forms, livechat (toolbar, marker card, agent turns, notes, typing), the close-rating overlay, input and sheets. Host chrome
+owns — the conversation view, its bubbles, product cards (open CTA + optional add-to-cart), suggestion cards, start-prompt and quick-reply chips, in-chat banners, tables, image and file attachments, input and sheets. (Livechat, in-conversation forms and the close-rating overlay live on `iOS_CS_Livechat_Contact_Form` and are audited there.) Host chrome
 (navigation bar, presentation) is out of scope.
 
 Use alongside [`voiceover-checklist.md`](voiceover-checklist.md).

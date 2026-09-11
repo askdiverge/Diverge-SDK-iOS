@@ -12,11 +12,7 @@ import Testing
 @Suite("ChatAppearance — color scheme")
 struct ChatAppearanceColorSchemeTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("with(colorScheme: .dark) serves the dark palette")
     func darkSchemeServesDark() throws {

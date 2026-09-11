@@ -45,8 +45,6 @@ public final class AIChat {
 
     private let configuration: Configuration
     private let service: ChatService
-    /// Survives host dismiss / re-present — `makeView()` builds a fresh view model each time.
-    private let ratingSession: RatingSession
     /// Reused across `makeView()` calls so SwiftUI body re-evals do not re-bootstrap mid-presentation.
     private var hostedViewModel: ChatView.ViewModel?
 
@@ -64,9 +62,9 @@ public final class AIChat {
             tokenProvider: configuration.tokenProvider,
             onResetConversation: configuration.resetConversation,
             onDeleteData: configuration.deleteData,
-            baseURL: configuration.apiBaseURL
+            baseURL: configuration.apiBaseURL,
+            sdkVersion: VersionInfo.current
         )
-        self.ratingSession = RatingSession()
     }
 
     /// Picks up the configuration registered via ``configure(_:)``. Calling this before
@@ -84,7 +82,7 @@ public extension AIChat {
     /// The chat UI as a SwiftUI view. The session is tied to this instance;
     /// presentation (sheet, cover, push) is the caller's responsibility.
     ///
-    /// ``Configuration/appearance``, ``Configuration/attachments`` and ``Configuration/rating``
+    /// ``Configuration/appearance`` and ``Configuration/attachments``
     /// are captured on the first call. Mint a new ``AIChat`` to change them.
     func makeView() -> some View {
         let viewModel: ChatView.ViewModel
@@ -96,12 +94,9 @@ public extension AIChat {
                 contextProvider: self.configuration.contextProvider,
                 conversationFlow: self.configuration.conversationFlow,
                 attachments: self.configuration.attachments,
-                rating: self.configuration.rating,
                 appearancePreference: self.configuration.appearance,
                 onClose: self.configuration.onClose,
-                onAddToCart: self.configuration.onAddToCart,
-                onLivechatSessionChange: self.configuration.onLivechatSessionChange,
-                ratingSession: self.ratingSession
+                onAddToCart: self.configuration.onAddToCart
             )
             self.hostedViewModel = viewModel
         }
@@ -153,22 +148,6 @@ public extension AIChat {
         case photoLibrary
     }
 
-    /// Whether the SDK offers a **conversation** rating prompt (`POST /rate`) when the visitor
-    /// taps close.
-    ///
-    /// The public `/config` response has no rating-enabled flag, so the host decides.
-    /// The close button itself only appears when
-    /// ``Configuration/onClose`` is set; this flag controls the conversation prompt, not the
-    /// button. Livechat CSAT (`POST /livechat/feedback` when `feedback.pending`) is gated by
-    /// the server, not this flag.
-    enum Rating: Sendable {
-        /// Show the 1–5 rating overlay on close when the conversation has a user turn and has
-        /// not been rated yet.
-        case enabled
-        /// Close immediately without asking.
-        case disabled
-    }
-
     /// Which `/config` palette slot the chat paints.
     ///
     /// `.dark` means “use the `dark_theme` slot”, not “invent a dark look”. When a chatbot
@@ -177,7 +156,7 @@ public extension AIChat {
     /// (keyboard, pickers) follows the **painted** palette, not this lock alone.
     ///
     /// Captured on the first ``AIChat/makeView()``. Mint a new ``AIChat`` to change it
-    /// (same as ``Attachments`` and ``Rating``). There is no in-chat theme toggle.
+    /// (same as ``Attachments``). There is no in-chat theme toggle.
     enum Appearance: Sendable {
         /// Follow the environment color scheme (default).
         case system
@@ -215,8 +194,8 @@ public extension AIChat {
     /// the SDK is not correctly configured without them (Control Plane: Identity, Minting, Invalidation).
     /// SDK is pure (Data plane) to avoid split Token Ownership, Distributed State with Async Reconciliation and Structural Inversion.
     ///
-    /// The enhancement hooks (`contextProvider`, `onOpenLink`, `onClose`, `onAddToCart`,
-    /// `onLivechatSessionChange`) are optional and degrade gracefully when omitted.
+    /// The enhancement hooks (`contextProvider`, `onOpenLink`, `onClose`, `onAddToCart`)
+    /// are optional and degrade gracefully when omitted.
     struct Configuration {
 
         let tokenProvider: @Sendable () async throws -> String
@@ -224,8 +203,7 @@ public extension AIChat {
         let deleteData: @Sendable () async throws -> Void
         let contextProvider: (@Sendable () async -> String?)?
         let onOpenLink: ((URL) -> Void)?
-        /// Called after the visitor rates or skips (or when rating is disabled / not offered).
-        /// When non-`nil`, the SDK shows a close button that eventually invokes this so the
+        /// When non-`nil`, the SDK shows a close button that invokes this so the
         /// host can dismiss. Absent → no close button (host owns dismissal exclusively).
         let onClose: (() -> Void)?
         /// Receives an add-to-cart tap on a product card. The cart button only appears when this
@@ -233,18 +211,12 @@ public extension AIChat {
         /// a sku. Absent → no cart button. Invoked on the main actor; the SDK does not show
         /// add-to-cart feedback (toast / "Added" is host-owned).
         let onAddToCart: (@MainActor (ProductSelection) -> Void)?
-        /// Fires when livechat **status** or active **agent name** changes (not typing / messages).
-        /// Absent → no-op. The poller still parks when the chat is off-screen or backgrounded;
-        /// the last value is the host’s to keep for a launcher badge after dismiss.
-        let onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)?
         let conversationFlow: ConversationFlow
         /// Chatbot API host. Defaults to ``DivergeAPI/productionBaseURL``.
         /// Pass a non-production URL from the host or sample build settings while integrating.
         let apiBaseURL: URL
         /// Attachment sources offered in the composer. Defaults to ``Attachments/photoLibrary``.
         let attachments: Attachments
-        /// Whether to prompt for a rating on close. Defaults to ``Rating/enabled``.
-        let rating: Rating
         /// Which `/config` palette slot to paint. Defaults to ``Appearance/system``.
         /// Captured on the first ``AIChat/makeView()`` — mint a new ``AIChat`` to change it.
         let appearance: Appearance
@@ -266,21 +238,13 @@ public extension AIChat {
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
         ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
         ///     → default OS open.
-        ///   - onClose: Receives the visitor's close action after an optional rating prompt.
-        ///     If livechat CSAT is on screen, Close skips that overlay (no POST) then calls
-        ///     this. Absent → no SDK close button.
+        ///   - onClose: Receives the visitor's close action. Absent → no SDK close button.
         ///   - onAddToCart: Receives an add-to-cart tap (main actor). Absent → no cart button
         ///     even when `/config` enables add-to-cart. The button is per-card: only cards
         ///     that carry a sku show it. The SDK does not show "added" feedback.
-        ///   - onLivechatSessionChange: Receives livechat status / agent-name changes (main
-        ///     actor). Typing and message ticks do not fire. Absent → no-op. Polling still
-        ///     parks when the sheet is dismissed or the app backgrounds — last value is for
-        ///     host badges / re-present.
         ///   - apiBaseURL: Chatbot API host. Defaults to production.
         ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
         ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
-        ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
-        ///     Defaults to ``Rating/enabled``. Does **not** gate livechat CSAT.
         ///   - appearance: Palette slot. Defaults to ``Appearance/system``. `.dark` uses
         ///     `/config`'s `dark_theme` (visually light when that slot is a clone). Mint a
         ///     new ``AIChat`` to change this after the first ``AIChat/makeView()``.
@@ -292,10 +256,8 @@ public extension AIChat {
             onOpenLink: ((URL) -> Void)? = nil,
             onClose: (() -> Void)? = nil,
             onAddToCart: (@MainActor (ProductSelection) -> Void)? = nil,
-            onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             apiBaseURL: URL = DivergeAPI.productionBaseURL,
             attachments: Attachments = .photoLibrary,
-            rating: Rating = .enabled,
             appearance: Appearance = .system
         ) {
             self.tokenProvider = tokenProvider
@@ -305,11 +267,9 @@ public extension AIChat {
             self.onOpenLink = onOpenLink
             self.onClose = onClose
             self.onAddToCart = onAddToCart
-            self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = .bottomUp
             self.apiBaseURL = apiBaseURL
             self.attachments = attachments
-            self.rating = rating
             self.appearance = appearance
         }
 #else
@@ -329,22 +289,14 @@ public extension AIChat {
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
         ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
         ///     → default OS open.
-        ///   - onClose: Receives the visitor's close action after an optional rating prompt.
-        ///     If livechat CSAT is on screen, Close skips that overlay (no POST) then calls
-        ///     this. Absent → no SDK close button.
+        ///   - onClose: Receives the visitor's close action. Absent → no SDK close button.
         ///   - onAddToCart: Receives an add-to-cart tap (main actor). Absent → no cart button
         ///     even when `/config` enables add-to-cart. The button is per-card: only cards
         ///     that carry a sku show it. The SDK does not show "added" feedback.
-        ///   - onLivechatSessionChange: Receives livechat status / agent-name changes (main
-        ///     actor). Typing and message ticks do not fire. Absent → no-op. Polling still
-        ///     parks when the sheet is dismissed or the app backgrounds — last value is for
-        ///     host badges / re-present.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
         ///   - apiBaseURL: Chatbot API host. Defaults to production.
         ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
         ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
-        ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
-        ///     Defaults to ``Rating/enabled``. Does **not** gate livechat CSAT.
         ///   - appearance: Palette slot. Defaults to ``Appearance/system``. `.dark` uses
         ///     `/config`'s `dark_theme` (visually light when that slot is a clone). Mint a
         ///     new ``AIChat`` to change this after the first ``AIChat/makeView()``.
@@ -356,11 +308,9 @@ public extension AIChat {
             onOpenLink: ((URL) -> Void)? = nil,
             onClose: (() -> Void)? = nil,
             onAddToCart: (@MainActor (ProductSelection) -> Void)? = nil,
-            onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             conversationFlow: ConversationFlow = .topDown,
             apiBaseURL: URL = DivergeAPI.productionBaseURL,
             attachments: Attachments = .photoLibrary,
-            rating: Rating = .enabled,
             appearance: Appearance = .system
         ) {
             self.tokenProvider = tokenProvider
@@ -370,11 +320,9 @@ public extension AIChat {
             self.onOpenLink = onOpenLink
             self.onClose = onClose
             self.onAddToCart = onAddToCart
-            self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = conversationFlow
             self.apiBaseURL = apiBaseURL
             self.attachments = attachments
-            self.rating = rating
             self.appearance = appearance
         }
 #endif

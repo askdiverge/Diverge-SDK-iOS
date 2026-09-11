@@ -63,6 +63,17 @@ history_calls = 0
 turn = 0
 
 
+def reset_state():
+    """Back to seed: forget live sends, the injected-500 memory, and the evidence log."""
+    global history_calls, turn
+    live.clear()
+    failed_once.clear()
+    history_calls = 0
+    turn = 0
+    with open(EVIDENCE, "w") as f:
+        f.write(json.dumps({"shape": SHAPE, "total": TOTAL}) + "\n")
+
+
 def page_for(cursor):
     """Newest-first slice. cursor None → newest PAGE; cursor 'c<k>' → the k-th older page."""
     k = 0 if cursor is None else int(cursor[1:])
@@ -132,6 +143,14 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length) if length else b""
+        if url.path == "/__control":
+            # `{"reset": true}` returns the run to seed: every flow (topDown / bottomUp) then sees
+            # the same pages, call counts and exhaustion point instead of the previous flow's
+            # sent messages leaking into the newest page.
+            if json.loads(body or b"{}").get("reset"):
+                reset_state()
+                self._log("control reset")
+            return self._json({"ok": True})
         if url.path != "/api/v1/chat/messages":
             self._log("404")
             return self._json({"error": "not_found"}, 404)
@@ -170,8 +189,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    with open(EVIDENCE, "w") as f:
-        f.write(json.dumps({"shape": SHAPE, "total": TOTAL}) + "\n")
+    reset_state()
     print(f"stand-in chatbot API (history) on http://127.0.0.1:{PORT}; TOTAL={TOTAL} PAGE={PAGE} DELAY={DELAY} "
           f"FAIL_ONCE={FAIL_ONCE} SHAPE={SHAPE}; evidence -> {EVIDENCE}", flush=True)
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

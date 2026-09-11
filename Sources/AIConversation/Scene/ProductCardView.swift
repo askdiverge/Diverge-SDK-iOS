@@ -19,6 +19,8 @@ struct ProductCardView: View {
     let card: Products.Card
     /// Resolved open-product CTA label — the grid applies the L10n fallback.
     var openLabel: String
+    /// Image width ÷ height. The grid decides this once for all its cards so rows stay aligned.
+    var imageAspectRatio: CGFloat = ProductGridView.defaultImageAspectRatio
     /// When false, the open capsule is omitted so the grid can lay it out beside add-to-cart.
     var showsOpenCTA = true
 
@@ -29,7 +31,7 @@ struct ProductCardView: View {
     var body: some View {
         MediaCardBody(
             imageURL: self.card.imageUrl,
-            aspectRatio: self.showsOpenCTA ? 0.7 : 1.0,
+            aspectRatio: self.imageAspectRatio,
             title: self.card.title,
             description: self.card.description
         ) {

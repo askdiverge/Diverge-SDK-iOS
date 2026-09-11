@@ -11,22 +11,14 @@ import Testing
 @Suite("ChatView.ViewModel — GDPR export", .serialized)
 struct ChatViewModelExportTests {
 
-    @Test("export writes a JSON file and leaves rating / conversation state alone")
+    @Test("export writes a JSON file and leaves the conversation intact")
     @MainActor
     func exportWritesTempFile() async throws {
-        let session = RatingSession()
         let provider = StubChatProviding()
         provider.exportData = Data(
             #"{"generated_at":"2026-01-01T00:00:00Z","chatbot_id":"bot","visitor_id":"v"}"#.utf8
         )
-        let viewModel = ChatView.ViewModel.forTesting(
-            provider: provider,
-            ratingSession: session,
-            rateConversation: { _ in }
-        )
-        _ = viewModel.beginRating()
-        try await viewModel.submitRating(score: 5, feedback: nil)
-        #expect(session.hasRated == true)
+        let viewModel = ChatView.ViewModel.forTesting(provider: provider)
 
         let url = try await viewModel.exportMyData()
 
@@ -36,8 +28,6 @@ struct ChatViewModelExportTests {
         let data = try Data(contentsOf: url)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(object["visitor_id"] as? String == "v")
-        #expect(session.hasRated == true)
-        #expect(viewModel.ratingSessionHasRated == true)
         viewModel.discardExportFile()
         #expect(FileManager.default.fileExists(atPath: url.path) == false)
     }

@@ -14,7 +14,7 @@ struct PrivacyExportAccessibilityTests {
     func catalogKeysInEveryLocale() throws {
         try StringCatalog.expectKeysInEveryLocale([
             "privacy.downloadEntry",
-            "privacy.downloadError",
+            "privacy.downloadError"
         ])
     }
 }

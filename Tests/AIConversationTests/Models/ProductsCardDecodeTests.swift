@@ -10,11 +10,7 @@ import Testing
 @Suite("Products.Card — decode")
 struct ProductsCardDecodeTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("decodes splash and add_to_cart when present")
     func decodesOptionalFields() throws {

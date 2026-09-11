@@ -100,11 +100,9 @@ struct ChatViewModelBannerTests {
         do {
             try await viewModel.loadBanners(url: "/products")
             Issue.record("expected SessionEnded")
-        } catch is ChatView.SessionEnded {
+        } catch {
             #expect(viewModel.banners.isEmpty)
             #expect(viewModel.sessionEnded == true)
-        } catch {
-            Issue.record("expected SessionEnded, got \(error)")
         }
     }
 

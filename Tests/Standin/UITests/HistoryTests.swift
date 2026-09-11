@@ -12,12 +12,15 @@ final class HistoryTests: XCTestCase {
 
     private func run(flow: String) throws {
         try? FileManager.default.createDirectory(atPath: shots, withIntermediateDirectories: true)
+        // Both flows share one server process; without this the second flow's newest page
+        // starts with the first flow's sent messages and the exhaustion counts drift.
+        StandinControl.reset()
         let app = XCUIApplication(bundleIdentifier: "ai.askdiverge.sample")
         app.launchEnvironment["SAMPLE_AUTO_TOKEN"] = "host-token"
         app.launchEnvironment["SAMPLE_FLOW"] = flow
         app.launch()
 
-        let field = composer(app)
+        let field = app.composer()
         XCTAssertTrue(field.waitForExistence(timeout: 20), "composer not found")
         XCTAssertTrue(row(app, 299).waitForExistence(timeout: 20), "newest seeded message not rendered")
         sleep(2)
@@ -55,7 +58,7 @@ final class HistoryTests: XCTestCase {
         field.tap()
         sleep(1)
         field.typeText("after two prepends")
-        tapSend(app)
+        app.tapSend()
         let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Reply #1'")).firstMatch
         XCTAssertTrue(reply.waitForExistence(timeout: 30), "reply after prepends did not render")
         sleep(2)
@@ -299,23 +302,6 @@ final class HistoryTests: XCTestCase {
             usleep(900_000)
         }
         return element.exists
-    }
-
-    private func composer(_ app: XCUIApplication) -> XCUIElement {
-        let byPlaceholder = app.textViews.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if byPlaceholder.waitForExistence(timeout: 15) { return byPlaceholder }
-        let asField = app.textFields.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if asField.exists { return asField }
-        return app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
-    }
-
-    private func tapSend(_ app: XCUIApplication) {
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let notNow = springboard.buttons["Not Now"]
-        if notNow.waitForExistence(timeout: 1) { notNow.tap() }
-        let send = app.buttons.matching(NSPredicate(format: "label == 'Up'")).firstMatch
-        guard send.waitForExistence(timeout: 5) else { XCTFail("send button not found"); return }
-        send.tap()
     }
 
     private func shot(_ app: XCUIApplication, _ name: String) {

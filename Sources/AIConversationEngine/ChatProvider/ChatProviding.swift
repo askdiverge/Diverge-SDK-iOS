@@ -34,18 +34,6 @@ package protocol ChatProviding: Sendable {
     /// GDPR portability — raw JSON from `GET /api/v1/chat/export`. Does not clear the
     /// conversation or drop the token. A 401 surfaces as ``ChatServiceError/sessionExpired``.
     func exportMyData() async throws(ChatServiceError) -> Data
-
-    /// Appends livechat transcript messages (poll or send response), deduped by `message_id`.
-    func appendLivechat(_ messages: [LivechatMessage]) async
-
-    /// Appends a locally minted livechat boundary note.
-    func note(_ note: LivechatNote) async
-
-    /// Sends a visitor message on the livechat channel while the session is `active`.
-    func sendLivechat(_ text: String, attachments: [OutgoingAttachment]) async throws(ChatProvider.SendFailure)
-
-    /// Drops local conversation state after a 401 detected outside send (livechat poller).
-    func expireSession() async
 }
 
 extension ChatProviding {
@@ -53,10 +41,5 @@ extension ChatProviding {
     /// Text-only convenience — suggestion taps and the pre-attachment composer path.
     package func send(_ text: String) async throws(ChatProvider.SendFailure) {
         try await self.send(text, attachments: [])
-    }
-
-    /// Text-only livechat send.
-    package func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure) {
-        try await self.sendLivechat(text, attachments: [])
     }
 }

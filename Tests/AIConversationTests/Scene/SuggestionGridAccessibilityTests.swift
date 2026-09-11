@@ -11,6 +11,7 @@ import Testing
 /// Pins the VoiceOver contract of a suggestion card: what is spoken as the label and hint.
 /// The `.isButton` trait comes from wrapping the card in `Button`, which is structural.
 @Suite("SuggestionGridView — accessibility contract")
+@MainActor
 struct SuggestionGridAccessibilityTests {
 
     @Test("label is the title alone when there is no description")

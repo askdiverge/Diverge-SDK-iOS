@@ -38,7 +38,7 @@ struct ChatViewModelStartPromptsTests {
         ])
         provider.publish(ConversationSnapshot(turns: [
             Identified(model: .bot([.text(AttributedString("Welcome"))])),
-            Identified(model: .user([.text("hello")])),
+            Identified(model: .user([.text("hello")]))
         ], streamingTurnID: nil, canLoadOlder: false))
         await Self.waitForSnapshot(viewModel)
 
@@ -80,7 +80,7 @@ struct ChatViewModelStartPromptsTests {
         viewModel.applyStartPromptsFromConfig(
             [
                 StartPrompt(promptText: "Track my order"),
-                StartPrompt(promptText: "Find a size", urlPattern: "/products"),
+                StartPrompt(promptText: "Find a size", urlPattern: "/products")
             ],
             page: "https://shop.example.com/products/123"
         )
@@ -102,7 +102,7 @@ struct ChatViewModelStartPromptsTests {
         ])
         provider.publish(ConversationSnapshot(turns: [
             Identified(model: .bot([.text(AttributedString("Welcome"))])),
-            Identified(model: .user([.text("hello")])),
+            Identified(model: .user([.text("hello")]))
         ], streamingTurnID: nil, canLoadOlder: false))
         await Self.waitForSnapshot(viewModel)
         #expect(viewModel.shouldShowStartPrompts == false)

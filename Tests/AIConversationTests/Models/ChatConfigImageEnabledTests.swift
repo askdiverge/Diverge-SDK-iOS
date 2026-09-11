@@ -10,11 +10,7 @@ import Testing
 @Suite("ChatConfig — image_enabled decode")
 struct ChatConfigImageEnabledTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("image_enabled true and false decode")
     func decodesFlag() throws {

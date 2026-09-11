@@ -33,7 +33,7 @@ struct URLResponseErrorMappingTests {
         do {
             try response.mapError(body: body)
             Issue.record("expected validation error")
-        } catch let error as NetworkError {
+        } catch {
             guard case .http(.validation(let status, let message, let params)) = error else {
                 Issue.record("expected validation, got \(error)")
                 return
@@ -57,7 +57,7 @@ struct URLResponseErrorMappingTests {
         do {
             try response.mapError(body: body)
             Issue.record("expected unhandled")
-        } catch let error as NetworkError {
+        } catch {
             guard case .http(.unhandled(500)) = error else {
                 Issue.record("expected unhandled(500), got \(error)")
                 return

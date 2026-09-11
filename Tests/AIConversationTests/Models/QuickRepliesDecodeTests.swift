@@ -10,11 +10,7 @@ import Testing
 @Suite("QuickReplies — decode")
 struct QuickRepliesDecodeTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("decodes quick_replies part")
     func decodesPart() throws {

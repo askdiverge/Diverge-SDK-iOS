@@ -21,10 +21,6 @@ package struct ChatConfig: Decodable, Sendable, Equatable {
     package let startPrompts: [StartPrompt]
     /// Product CTA label and add-to-cart gate. Defaults when absent (older deployments).
     package let productCard: ProductCardSettings
-    /// Livechat handover settings. Defaults disabled when absent (older deployments).
-    package let livechat: LivechatSettings
-    /// Dynamic form references (`session_start` / `livechat_waiting` / `llm`). Empty when absent.
-    package let forms: [ChatFormReference]
     /// Whether this chatbot's image-analysis flow is on. Omitted on older APIs → `true`, so the
     /// host attachments setting stays the only switch.
     package let imageEnabled: Bool
@@ -35,8 +31,6 @@ package struct ChatConfig: Decodable, Sendable, Equatable {
         darkTheme: Theme? = nil,
         startPrompts: [StartPrompt] = [],
         productCard: ProductCardSettings = ProductCardSettings(),
-        livechat: LivechatSettings = LivechatSettings(),
-        forms: [ChatFormReference] = [],
         imageEnabled: Bool = true
     ) {
         self.display = display
@@ -46,8 +40,6 @@ package struct ChatConfig: Decodable, Sendable, Equatable {
             !$0.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         self.productCard = productCard
-        self.livechat = livechat
-        self.forms = forms
         self.imageEnabled = imageEnabled
     }
 
@@ -65,22 +57,11 @@ package struct ChatConfig: Decodable, Sendable, Equatable {
         self.productCard =
             try container.decodeIfPresent(ProductCardSettings.self, forKey: .productCard)
             ?? ProductCardSettings()
-        self.livechat =
-            try container.decodeIfPresent(LivechatSettings.self, forKey: .livechat)
-            ?? LivechatSettings()
-        self.forms =
-            try container.decodeIfPresent(LossyArray<ChatFormReference>.self, forKey: .forms)?
-            .elements ?? []
         self.imageEnabled = try container.decodeIfPresent(Bool.self, forKey: .imageEnabled) ?? true
     }
 
     private enum CodingKeys: String, CodingKey {
-        case display, theme, darkTheme, startPrompts, productCard, livechat, forms, imageEnabled
-    }
-
-    /// First configured waiting-room form id, if any.
-    package var livechatWaitingFormId: String? {
-        self.forms.first { $0.trigger == .livechatWaiting }?.formId
+        case display, theme, darkTheme, startPrompts, productCard, imageEnabled
     }
 }
 
@@ -184,7 +165,7 @@ extension ChatConfig.Theme {
             package let borderColor: ChatConfig.Hex?
         }
     }
-// TODO: - fix
+
     package struct Input: Decodable, Sendable, Equatable {
         package let textColor: ChatConfig.Hex
         package let placeholderColor: ChatConfig.Hex

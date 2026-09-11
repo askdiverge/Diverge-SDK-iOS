@@ -145,7 +145,7 @@ private extension ConversationView {
 private extension ConversationSnapshot.Turn {
     var alignment: Alignment {
         switch self {
-        case .bot, .agent, .note: .leading
+        case .bot: .leading
         case .system: .center
         case .user: .trailing
         }

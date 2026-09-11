@@ -10,6 +10,7 @@ import Testing
 /// Pins the VoiceOver contract of the upload-prompt card: what is spoken as the label and hint.
 /// The `.isButton` trait comes from wrapping the card in `Button`, which is structural.
 @Suite("ImageUploadPromptView — accessibility contract")
+@MainActor
 struct ImageUploadPromptAccessibilityTests {
 
     /// Under `xcodebuild test` (CI) the catalog is compiled and this resolves to copy; under the

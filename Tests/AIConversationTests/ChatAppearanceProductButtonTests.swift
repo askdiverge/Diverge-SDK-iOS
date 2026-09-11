@@ -14,8 +14,7 @@ struct ChatAppearanceProductButtonTests {
 
     @Test("a bad product button hex keeps the palette and leaves background nil")
     func badButtonHexIsLenient() throws {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let decoder = JSONDecoder.wire()
         let config = try decoder.decode(ChatConfig.self, from: Data("""
             {
               "display": {

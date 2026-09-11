@@ -11,7 +11,7 @@ final class PhotoTests: XCTestCase {
         app.launchEnvironment["SAMPLE_AUTO_TOKEN"] = "host-token"
         app.launch()
 
-        let field = composer(app)
+        let field = app.composer()
         XCTAssertTrue(field.waitForExistence(timeout: 20), "composer not found")
         sleep(2)
         shot(app, "10-open")
@@ -49,14 +49,14 @@ final class PhotoTests: XCTestCase {
         field.typeText("What is in this photo?")
         sleep(1)
         shot(app, "12b-typed")
-        tapSend(app)
+        app.tapSend()
         sleep(2)
         shot(app, "12c-after-send-tap")
         let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'I received your photo'")).firstMatch
         if !reply.waitForExistence(timeout: 20) {
             print("EVIDENCE no reply yet; visible texts: \(app.staticTexts.allElementsBoundByIndex.map(\.label))")
             // Second attempt: the first tap may have only dismissed the keyboard.
-            tapSend(app)
+            app.tapSend()
         }
         XCTAssertTrue(reply.waitForExistence(timeout: 30), "assistant reply did not render")
         print("EVIDENCE reply: \(reply.label)")
@@ -105,28 +105,6 @@ final class PhotoTests: XCTestCase {
             }
         }
         XCTFail("no photo cell found in the picker")
-    }
-
-    private func composer(_ app: XCUIApplication) -> XCUIElement {
-        let byPlaceholder = app.textViews.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if byPlaceholder.waitForExistence(timeout: 15) { return byPlaceholder }
-        let asField = app.textFields.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if asField.exists { return asField }
-        return app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
-    }
-
-    /// The send button carries the `arrow.up` symbol, which XCUITest reads as "Up".
-    private func tapSend(_ app: XCUIApplication) {
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let notNow = springboard.buttons["Not Now"]
-        if notNow.waitForExistence(timeout: 1) { notNow.tap() }
-
-        let send = app.buttons.matching(NSPredicate(format: "label == 'Up'")).firstMatch
-        guard send.waitForExistence(timeout: 5) else {
-            XCTFail("send button not found"); return
-        }
-        print("EVIDENCE send button: \(send.frame) enabled=\(send.isEnabled)")
-        send.tap()
     }
 
     private func shot(_ app: XCUIApplication, _ name: String) {

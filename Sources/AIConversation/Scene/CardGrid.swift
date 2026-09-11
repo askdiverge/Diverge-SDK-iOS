@@ -19,7 +19,7 @@ struct CardGrid<Content: View>: View {
         LazyVGrid(
             columns: [
                 GridItem(.flexible(), spacing: self.appearance.spacing.units(2)),
-                GridItem(.flexible()),
+                GridItem(.flexible())
             ],
             alignment: .leading,
             spacing: self.appearance.spacing.units(3)

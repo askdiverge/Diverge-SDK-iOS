@@ -10,11 +10,7 @@ import Testing
 @Suite("ChatConfig — product_card decode")
 struct ChatConfigProductCardTests {
 
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
+    private let decoder = JSONDecoder.wire()
 
     @Test("product_card decodes open_label and add_to_cart.enabled")
     func decodesSettings() throws {

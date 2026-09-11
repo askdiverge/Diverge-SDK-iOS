@@ -24,8 +24,7 @@ struct ChatBannerTests {
           "dismissible": true
         }
         """#.utf8)
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let decoder = JSONDecoder.wire()
         let banner = try decoder.decode(ChatBanner.self, from: json)
         #expect(banner.id == "42")
         #expect(banner.message == "Sale on now")
@@ -40,8 +39,7 @@ struct ChatBannerTests {
         let json = Data(#"""
         { "id": "1", "message": "Hello" }
         """#.utf8)
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let decoder = JSONDecoder.wire()
         let banner = try decoder.decode(ChatBanner.self, from: json)
         #expect(banner.backgroundColor == nil)
         #expect(banner.ctaUrl == nil)
@@ -74,8 +72,7 @@ struct ChatBannerTests {
 
     @Test("unknown and blank cta_style decode as nil")
     func unknownCTAStyleIsNil() throws {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let decoder = JSONDecoder.wire()
         for raw in [#""pill""#, #""""#] {
             let json = Data("""
             { "id": "1", "message": "Hi", "cta_style": \(raw) }
@@ -113,8 +110,7 @@ struct ChatBannerTests {
           ]
         }
         """#.utf8)
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let decoder = JSONDecoder.wire()
         let list = try decoder.decode(ChatBannerList.self, from: json)
         #expect(list.banners.map(\.id) == ["1", "3"])
         #expect(list.banners[1].ctaStyle == nil)

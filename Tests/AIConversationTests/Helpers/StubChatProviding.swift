@@ -63,49 +63,19 @@ final class StubChatProviding: ChatProviding, @unchecked Sendable {
         if let exportError { throw exportError }
         return self.exportData
     }
-
-    func expireSession() async {}
-
-    private(set) var appendedLivechat: [LivechatMessage] = []
-    private(set) var notes: [LivechatNote] = []
-    private(set) var lastLivechatSent: String?
-    var livechatSendFailure: ChatProvider.SendFailure?
-
-    func appendLivechat(_ messages: [LivechatMessage]) async {
-        self.appendedLivechat.append(contentsOf: messages)
-    }
-
-    func note(_ note: LivechatNote) async {
-        self.notes.append(note)
-    }
-
-    func sendLivechat(_ text: String, attachments: [OutgoingAttachment]) async throws(ChatProvider.SendFailure) {
-        self.lastLivechatSent = text
-        if let livechatSendFailure {
-            throw livechatSendFailure
-        }
-    }
 }
 
 extension ChatView.ViewModel {
 
-    /// A view model over a throwaway `ChatService` with `provider` attached. The submitted-form
-    /// store defaults to in-memory so tests never touch Application Support.
+    /// A view model over a throwaway `ChatService` with `provider` attached.
     @MainActor
     static func forTesting(
         provider: StubChatProviding,
         attachments: AIChat.Attachments = .photoLibrary,
-        rating: AIChat.Rating = .enabled,
         appearancePreference: AIChat.Appearance = .system,
         onClose: (() -> Void)? = {},
         onAddToCart: (@MainActor (AIChat.ProductSelection) -> Void)? = nil,
-        onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
-        ratingSession: RatingSession = RatingSession(),
-        encodeAttachment: AttachmentEncoder? = nil,
-        submitAction: ActionSubmitter? = nil,
-        rateConversation: RatingSubmitter? = nil,
-        submitLivechatFeedback: LivechatFeedbackSubmitter? = nil,
-        submittedForms: SubmittedFormStore = SubmittedFormStore(fileURL: nil)
+        encodeAttachment: AttachmentEncoder? = nil
     ) -> ChatView.ViewModel {
         let service = ChatService(
             tokenProvider: { "token" },
@@ -117,20 +87,12 @@ extension ChatView.ViewModel {
             contextProvider: nil,
             conversationFlow: .topDown,
             attachments: attachments,
-            rating: rating,
             appearancePreference: appearancePreference,
             onClose: onClose,
             onAddToCart: onAddToCart,
-            onLivechatSessionChange: onLivechatSessionChange,
-            ratingSession: ratingSession,
-            encodeAttachment: encodeAttachment,
-            submitAction: submitAction,
-            rateConversation: rateConversation,
-            submitLivechatFeedback: submitLivechatFeedback,
-            submittedForms: submittedForms
+            encodeAttachment: encodeAttachment
         )
         viewModel.attachProviderForTesting(provider)
-        viewModel.suppressLivechatNetwork = true
         return viewModel
     }
 }

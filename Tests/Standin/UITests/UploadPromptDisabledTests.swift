@@ -22,7 +22,7 @@ final class UploadPromptDisabledTests: XCTestCase {
         app.launchEnvironment["SAMPLE_ATTACHMENTS"] = "disabled"
         app.launch()
 
-        XCTAssertTrue(composer(app).waitForExistence(timeout: 20), "composer not found")
+        XCTAssertTrue(app.composer().waitForExistence(timeout: 20), "composer not found")
         let seed = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'receipt'")).firstMatch
         XCTAssertTrue(seed.waitForExistence(timeout: 20), "seeded assistant text not rendered")
         sleep(2)
@@ -48,14 +48,6 @@ final class UploadPromptDisabledTests: XCTestCase {
         app.buttons.matching(NSPredicate(format:
             "label CONTAINS[c] 'Add a photo' OR label CONTAINS[c] 'imageUpload.prompt' OR label CONTAINS[c] 'photo so I can help'"
         )).firstMatch
-    }
-
-    private func composer(_ app: XCUIApplication) -> XCUIElement {
-        let byPlaceholder = app.textViews.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if byPlaceholder.waitForExistence(timeout: 15) { return byPlaceholder }
-        let asField = app.textFields.matching(NSPredicate(format: "placeholderValue == 'Ask anything'")).firstMatch
-        if asField.exists { return asField }
-        return app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
     }
 
     private func shot(_ app: XCUIApplication, _ name: String) {

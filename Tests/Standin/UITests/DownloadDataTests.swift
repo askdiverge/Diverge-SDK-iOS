@@ -34,9 +34,7 @@ final class DownloadDataTests: XCTestCase {
         // Dismiss share sheet and privacy sheet; conversation must still be alive.
         app.swipeDown()
         Thread.sleep(forTimeInterval: 0.5)
-        if app.staticTexts["Privacy & Data"].exists {
-            app.swipeDown()
-        }
+        dismissPrivacy(app)
         Thread.sleep(forTimeInterval: 0.5)
         XCTAssertTrue(
             app.staticTexts["Local stand-in — download my data."].waitForExistence(timeout: 5),
@@ -145,11 +143,18 @@ final class DownloadDataTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Privacy & Data"].waitForExistence(timeout: 5))
     }
 
+    /// Drags the Privacy sheet itself off screen. A bare `app.swipeDown()` starts at the screen
+    /// centre, which sits on the dimmed backdrop above a medium-detent sheet and does nothing.
     private func dismissPrivacy(_ app: XCUIApplication) {
-        app.swipeDown()
+        let title = app.staticTexts["Privacy & Data"].firstMatch
+        guard title.exists else { return }
+        let start = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1.0))
+        start.press(forDuration: 0.1, thenDragTo: end)
         Thread.sleep(forTimeInterval: 0.4)
-        if app.staticTexts["Privacy & Data"].exists {
-            app.swipeDown()
+        if title.exists {
+            // Fallback: tap the backdrop above the sheet.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
             Thread.sleep(forTimeInterval: 0.3)
         }
     }

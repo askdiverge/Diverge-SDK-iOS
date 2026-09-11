@@ -4,12 +4,16 @@ E2E XCUITests that drive the **Sample** app (`ai.askdiverge.sample`) against loc
 
 This used to live under ephemeral `/tmp/diverge-standin`. Runtime artefacts (screenshots, evidence JSONL) still write there so the suites keep their original paths; **source** lives here.
 
+## Branch scope
+
+On **`iOS_Product_Recommendation`**, this harness covers product recommendation, chatbot, and SDK-settings surfaces (prompts, products, photos, banners, theme, export). Livechat, contact/support forms, and conversation rating suites live on **`iOS_CS_Livechat_Contact_Form`**.
+
 ## Layout
 
 | Path | What |
 |------|------|
 | `servers/` | One Python server per feature (all listen on `127.0.0.1:3000`) |
-| `UITests/` | 13 XCUITest suites (topDown + bottomUp where the flow matters) |
+| `UITests/` | XCUITest suites (topDown + bottomUp where the flow matters) |
 | `App/` | Dummy `DriverApp` host — tests attach to Sample by bundle id |
 | `Driver.xcodeproj` | UITest target (`DriverUITests`) + dummy app |
 
@@ -44,11 +48,8 @@ Each suite needs its own server. Do not leave a previous stand-in (or docker com
 | `HistoryTests` | `history_server.py` | `DELAY=6 FAIL_ONCE=c2 SHAPE=nonalt` |
 | `UploadPromptTests` | `upload_prompt_server.py` | `TAIL_DELAY=6` |
 | `UploadPromptDisabledTests` | `upload_prompt_server.py` | `SEED_MARKER_ONLY=1` |
-| `FormsTests` | `forms_server.py` | — |
-| `RatingTests` | `rating_server.py` | — |
 | `StartPromptsTests` | `start_prompts_server.py` | — |
 | `ProductActionsTests` | `product_actions_server.py` | — |
-| `LivechatTests` | `livechat_server.py` | — |
 | `DarkAppearanceTests` | `dark_theme_server.py` | — |
 | `DownloadDataTests` | `export_server.py` | — |
 | `BannerTests` | `banners_server.py` | — |
