@@ -41,7 +41,7 @@ extension ChatView.ViewModel {
 
         do {
             let encoded = try await Task.detached(priority: .userInitiated) { [encode = self.encodeAttachment] in
-                try encode(data, options)
+                try await encode(data, options)
             }.value
             return PendingAttachment(
                 thumbnail: Image(decorative: encoded.thumbnail, scale: 1),

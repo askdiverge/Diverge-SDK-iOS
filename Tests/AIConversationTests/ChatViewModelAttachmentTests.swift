@@ -34,20 +34,18 @@ struct ChatViewModelAttachmentTests {
 
     @Test("isEncodingAttachment is true while the encoder runs")
     func encodingFlagWhileBusy() async throws {
-        let gate = Gate()
+        let gate = AsyncGate()
         let encoded = try Self.encoded(data: "AA==")
         let viewModel = Self.makeViewModel { _, _ throws(ImageAttachment.Failure) in
-            gate.wait()
+            await gate.wait()
             return encoded
         }
 
         let ingest = Task { await viewModel.ingestPickedPhoto(Data([0x01])) }
-        try await Task.sleep(for: .milliseconds(50))
-        let during = viewModel.isEncodingAttachment
-        gate.open()
+        try await eventually { viewModel.isEncodingAttachment }
+        await gate.open()
         await ingest.value
 
-        #expect(during == true)
         #expect(viewModel.isEncodingAttachment == false)
     }
 
@@ -223,17 +221,17 @@ struct ChatViewModelAttachmentTests {
 
     @Test("canAttach is false while a photo is encoding")
     func canAttachWhileEncoding() async throws {
-        let gate = Gate()
+        let gate = AsyncGate()
         let encoded = try Self.encoded(data: "AA==")
         let viewModel = Self.makeViewModel { _, _ throws(ImageAttachment.Failure) in
-            gate.wait()
+            await gate.wait()
             return encoded
         }
 
         let ingest = Task { await viewModel.ingestPickedPhoto(Data([0x01])) }
         try await eventually { viewModel.isEncodingAttachment }
         let during = viewModel.canAttach
-        gate.open()
+        await gate.open()
         await ingest.value
 
         #expect(during == false)
@@ -295,13 +293,6 @@ struct ChatViewModelAttachmentTests {
             displayName: L10n.mediaImageLabel.string
         )
     }
-}
-
-/// A one-shot latch the encoder stub blocks on so a test can observe the in-flight state.
-private final class Gate: @unchecked Sendable {
-    private let semaphore = DispatchSemaphore(value: 0)
-    func wait() { self.semaphore.wait() }
-    func open() { self.semaphore.signal() }
 }
 
 /// Scripted encoder results, handed out in order.

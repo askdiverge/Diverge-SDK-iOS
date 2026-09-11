@@ -36,10 +36,12 @@ extension ChatView {
 
         /// Turns picked photo bytes into a wire attachment for the given destination. Defaults to
         /// ``ImageAttachment/encode(_:options:)``; tests inject a stub to drive the failure paths.
+        /// `async` so a stub can *suspend* to hold the encode in flight — a synchronous seam would
+        /// force it to block the `.userInitiated` worker instead (a priority inversion).
         typealias AttachmentEncoder = @Sendable (
             Data,
             ImageAttachment.Options
-        ) throws(ImageAttachment.Failure) -> ImageAttachment.Encoded
+        ) async throws(ImageAttachment.Failure) -> ImageAttachment.Encoded
 
         /// How many photos may ride along with one message. The strip, bounce restore, and wire
         /// path already handle N; 8 is the UX cap so a long chip row stays usable.

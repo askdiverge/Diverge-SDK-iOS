@@ -5,7 +5,7 @@
 
 /// A one-shot latch: `wait()` suspends until `open()`; opening first makes later waits return at
 /// once. An actor so the open / wait race (the parked closure usually runs off the main actor)
-/// cannot lose a continuation. Shared by the provider, paginator and form-submit tests.
+/// cannot lose a continuation. Shared by the provider, paginator and attachment-encoder tests.
 actor AsyncGate {
     private var isOpen = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
