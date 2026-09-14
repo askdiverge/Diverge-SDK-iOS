@@ -13,7 +13,6 @@ import UIKit
 #endif
 
 /// Chatbot API host constants. ``AIChat/Configuration`` defaults to ``productionBaseURL``.
-/// Development and local hosts belong in the host/sample build config — not the public SDK surface.
 public enum DivergeAPI {
     /// Live production API. Single source of truth shared with the engine facade.
     public static let productionBaseURL = ChatService.productionBaseURL

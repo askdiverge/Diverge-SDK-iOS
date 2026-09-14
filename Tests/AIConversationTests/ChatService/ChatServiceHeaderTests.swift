@@ -8,9 +8,6 @@ import Testing
 @testable import AIConversation
 import AIConversationEngine
 
-/// The backend logs adoption on the SDK release and picks its tool set from the capability
-/// profile, so both headers have to reach every authenticated call — and the profile's raw
-/// value is a wire contract that must not drift.
 @Suite("ChatService — version and profile headers")
 struct ChatServiceHeaderTests {
 
@@ -73,7 +70,7 @@ struct ChatServiceHeaderTests {
         #expect(ClientProfile.productRecommendation.rawValue == "product-recommendation")
     }
 
-    @Test("AIChat sends the version scripts/sync-version.sh generated from VERSION")
+    @Test("VersionInfo.current matches SemVer from VERSION")
     func versionInfoIsSemVer() {
         let semver = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/
         #expect(VersionInfo.current.wholeMatch(of: semver) != nil)

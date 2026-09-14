@@ -8,8 +8,6 @@ import Testing
 @testable import AIConversation
 import AIConversationEngine
 
-/// A host may point the SDK at a development or local stand-in backend. Production has to stay
-/// the default so an app that says nothing keeps talking to the live API.
 @Suite("ChatService — API base URL")
 struct ChatServiceBaseURLTests {
 

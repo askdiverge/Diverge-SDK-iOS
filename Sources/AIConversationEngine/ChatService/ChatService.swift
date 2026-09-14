@@ -11,16 +11,10 @@ import AIConversationCore
 /// Concrete SDK facade over the Dialoge chat API.
 package final class ChatService: Sendable {
 
-    /// Live production API — the default every host gets unless it overrides `baseURL`.
+    /// Live production API — the default unless `baseURL` is overridden.
     package static let productionBaseURL = URL(string: "https://api.dialogintelligens.dk")!
 
-    /// Carries the SDK release on every authenticated call, so the backend can log adoption
-    /// and gate wire-contract changes per SDK version.
     package static let sdkVersionHeader = "X-Diverge-SDK-Version"
-
-    /// Names the capability line the host embeds, so the backend can serve a reply the SDK
-    /// can actually render. A ``ClientProfile/productRecommendation`` conversation must not
-    /// be offered livechat handover or forms, which only exist on the customer-service line.
     package static let clientProfileHeader = "X-Diverge-Client-Profile"
 
     private let network: NetworkManager
@@ -29,12 +23,7 @@ package final class ChatService: Sendable {
     private let sdkVersion: String?
     private let clientProfile: ClientProfile?
 
-    /// - Parameters:
-    ///   - baseURL: Chatbot API host. Defaults to ``productionBaseURL``; a host overrides it to
-    ///     reach a development or local stand-in backend.
-    ///   - sdkVersion: SemVer of the embedding SDK release, sent as ``sdkVersionHeader``.
-    ///     `nil` omits the header — the engine used standalone, or under test.
-    ///   - clientProfile: Capability line, sent as ``clientProfileHeader``. `nil` omits it.
+    /// `sdkVersion` and `clientProfile` are omitted from the wire when `nil` (standalone / tests).
     package init(
         tokenProvider: @escaping @Sendable () async throws -> String,
         onResetConversation: @escaping @Sendable () async throws -> String,

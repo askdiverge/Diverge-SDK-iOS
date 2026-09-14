@@ -25,8 +25,6 @@ struct ContentView: View {
                     .foregroundColor(Self.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // The build configuration picks the backend — surfaced so it is obvious
-                // which API a run is talking to.
                 Text("\(SampleConfig.environmentName) · \(SampleConfig.apiBaseURL.absoluteString)")
                     .font(.footnote)
                     .foregroundColor(Self.secondaryText)
@@ -63,9 +61,6 @@ struct ContentView: View {
             }
             self.openChat()
         }
-        // The SDK renders only the conversation; presenting and dismissing it is the host's job.
-        // Presenting on the session itself (rather than a separate flag) means the sheet can
-        // never open before the chat it is meant to show exists.
         .sheet(item: self.$session) { session in
             session.chat.makeView()
         }
