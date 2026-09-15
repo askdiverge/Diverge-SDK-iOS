@@ -29,6 +29,7 @@ enum FontLoader {
         format: String,
         fetch: @Sendable (URL) async throws -> Data
     ) async -> String? {
+        guard !sha256.isEmpty else { return nil }
         guard let slot = Self.cacheSlot(sha256: sha256, format: format) else { return nil }
 
         if !FileManager.default.fileExists(atPath: slot.path) {

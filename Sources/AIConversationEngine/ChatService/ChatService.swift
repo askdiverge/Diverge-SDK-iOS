@@ -11,15 +11,31 @@ import AIConversationCore
 /// Concrete SDK facade over the Dialoge chat API.
 package final class ChatService: Sendable {
 
+    /// Live production API — the default unless `baseURL` is overridden.
+    package static let productionBaseURL = URL(string: "https://api.dialogintelligens.dk")!
+
+    package static let sdkVersionHeader = "X-Diverge-SDK-Version"
+    package static let clientProfileHeader = "X-Diverge-Client-Profile"
+
     private let network: NetworkManager
     private let tokenStore: TokenStore
+    private let baseURL: URL
+    private let sdkVersion: String?
+    private let clientProfile: ClientProfile?
 
+    /// `sdkVersion` and `clientProfile` are omitted from the wire when `nil` (standalone / tests).
     package init(
         tokenProvider: @escaping @Sendable () async throws -> String,
         onResetConversation: @escaping @Sendable () async throws -> String,
         onDeleteData: @escaping @Sendable () async throws -> Void,
-        session: URLSession = ChatService.makeSession()
+        baseURL: URL = ChatService.productionBaseURL,
+        session: URLSession = ChatService.makeSession(),
+        sdkVersion: String? = nil,
+        clientProfile: ClientProfile? = nil
     ) {
+        self.baseURL = baseURL
+        self.sdkVersion = sdkVersion
+        self.clientProfile = clientProfile
         self.tokenStore = TokenStore(
             tokenProvider: tokenProvider,
             onResetConversation: onResetConversation,
@@ -40,8 +56,8 @@ extension ChatService {
         try await self.mappingErrors {
             try await self.tokenStore.retrieve(onAuthFailure: .retryOnce) { token in
                 try await self.network.get(
-                    url: Endpoint.config.url,
-                    headers: Self.headers(token: token)
+                    url: self.url(for: .config),
+                    headers: self.headers(token: token)
                 )
             }
         }
@@ -60,11 +76,11 @@ extension ChatService: ChatServicing {
     package func fetchHistory(cursor: String?) async throws(ChatServiceError) -> MessagePage {
         var queryItems = [URLQueryItem(name: "limit", value: String(Self.historyPageLimit))]
         if let cursor { queryItems.append(URLQueryItem(name: "cursor", value: cursor)) }
-        let url = Endpoint.messages.url.appending(queryItems: queryItems)
+        let url = self.url(for: .messages).appending(queryItems: queryItems)
         // Session bound — a 401 means the conversation expired, surface it.
         return try await self.mappingErrors {
             try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(url: url, headers: Self.headers(token: token))
+                try await self.network.get(url: url, headers: self.headers(token: token))
             }
         }
     }
@@ -84,11 +100,11 @@ extension ChatService: ChatServicing {
             do {
                 // Session bound — a 401 means the conversation expired, surface it.
                 try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                    var headers = Self.headers(token: token)
+                    var headers = self.headers(token: token)
                     headers["Accept"] = "text/event-stream"
 
                     let events: AsyncThrowingStream<StreamEvent, any Error> = self.network.stream(
-                        url: Endpoint.messages.url,
+                        url: self.url(for: .messages),
                         payload: payload,
                         headers: headers
                     )
@@ -135,8 +151,15 @@ private extension ChatService {
     /// Messages per history page
     private static let historyPageLimit = 100
 
-    static func headers(token: String) -> [String: String] {
-        ["Authorization": "Bearer \(token)"]
+    func headers(token: String) -> [String: String] {
+        var headers = ["Authorization": "Bearer \(token)"]
+        if let sdkVersion = self.sdkVersion {
+            headers[Self.sdkVersionHeader] = sdkVersion
+        }
+        if let clientProfile = self.clientProfile {
+            headers[Self.clientProfileHeader] = clientProfile.rawValue
+        }
+        return headers
     }
 
     /// RAM-only by design: no disk cache, cookies, or credential storage
@@ -172,18 +195,14 @@ private extension ChatService {
 
 private extension ChatService {
 
-    /// Dialoge API endpoints. The base URL and every path the facade talks to
-    /// live here — concrete methods reference `Endpoint.<case>.url` only.
+    /// Dialoge API endpoints. Paths live here — the host may override `baseURL`.
     enum Endpoint: String {
-
-        private static let baseURL = URL(string: "https://api.dialogintelligens.dk")!
-
         case config = "api/v1/chat/config"
         case messages = "api/v1/chat/messages"
+    }
 
-        var url: URL {
-            Self.baseURL.appending(path: self.rawValue)
-        }
+    func url(for endpoint: Endpoint) -> URL {
+        self.baseURL.appending(path: endpoint.rawValue)
     }
 }
 

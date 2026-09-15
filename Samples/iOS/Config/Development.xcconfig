@@ -1,0 +1,5 @@
+// `$()` breaks up `//` so xcconfig does not treat the URL as a comment.
+DIVERGE_API_ENVIRONMENT = development
+DIVERGE_API_BASE_URL = https:/$()/dev.api.dialogintelligens.dk
+
+#include? "Secrets.xcconfig"
