@@ -25,11 +25,11 @@ enum FontLoader {
 
     static func loadFamily(
         url: URL,
-        sha256: String?,
+        sha256: String,
         format: String,
         fetch: @Sendable (URL) async throws -> Data
     ) async -> String? {
-        guard let sha256, !sha256.isEmpty else { return nil }
+        guard !sha256.isEmpty else { return nil }
         guard let slot = Self.cacheSlot(sha256: sha256, format: format) else { return nil }
 
         if !FileManager.default.fileExists(atPath: slot.path) {

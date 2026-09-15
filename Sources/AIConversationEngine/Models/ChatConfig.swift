@@ -148,8 +148,8 @@ extension ChatConfig.Theme.Font {
     /// [API ref](https://docs.dialoge.ai/api#model/chatbot-native-font)
     package struct Native: Decodable, Sendable, Equatable {
         package let assetUrl: URL
-        /// Content hash for the on-disk cache slot. Missing/null (some chatbots) skips caching by hash.
-        package let sha256: String?
+        /// Content hash for the on-disk cache slot (required by the Chatbot API).
+        package let sha256: String
         package let format: String
     }
 }
