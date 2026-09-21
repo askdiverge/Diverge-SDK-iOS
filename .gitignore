@@ -45,4 +45,3 @@ site-dist/
 .env
 .env.*
 secrets/
-Samples/iOS/Config/Secrets.xcconfig

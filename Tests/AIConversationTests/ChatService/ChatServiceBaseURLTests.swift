@@ -8,7 +8,9 @@ import Testing
 @testable import AIConversation
 import AIConversationEngine
 
-@Suite("ChatService — API base URL")
+/// No network is involved: `RecordingURLProtocol` intercepts at the `URLProtocol` layer and
+/// replays a scripted response, so these tests only assert the URL the SDK *builds*.
+@Suite("ChatService — API environment")
 struct ChatServiceBaseURLTests {
 
     @Test("the default host is production")
@@ -21,18 +23,18 @@ struct ChatServiceBaseURLTests {
         #expect(url.absoluteString.hasPrefix("https://api.dialogintelligens.dk/api/v1/chat/messages"))
     }
 
-    @Test("an override changes the host and keeps the endpoint path")
-    func overrideChangesHostOnly() async throws {
-        let (sut, recorder) = makeSUT(baseURL: URL(string: "http://127.0.0.1:3000")!)
+    @Test("the development environment changes the host and keeps the endpoint path")
+    func developmentChangesHostOnly() async throws {
+        let (sut, recorder) = makeSUT(baseURL: DivergeAPI.Environment.development.baseURL)
 
         _ = try await sut.fetchHistory(cursor: nil)
 
         let url = try #require(recorder.requests.first?.url)
-        #expect(url.absoluteString.hasPrefix("http://127.0.0.1:3000/api/v1/chat/messages"))
+        #expect(url.absoluteString.hasPrefix("https://dev.api.dialogintelligens.dk/api/v1/chat/messages"))
     }
 
-    @Test("an override with a path prefix is preserved")
-    func overrideKeepsPathPrefix() async throws {
+    @Test("a host with a path prefix keeps it in front of the endpoint")
+    func baseURLKeepsPathPrefix() async throws {
         let (sut, recorder) = makeSUT(baseURL: URL(string: "https://gateway.example/diverge")!)
 
         _ = try await sut.fetchHistory(cursor: nil)
@@ -43,13 +45,15 @@ struct ChatServiceBaseURLTests {
 
     // MARK: - Contract
 
-    @Test("DivergeAPI and the engine facade share one production constant")
-    func productionConstantIsSingleSource() {
-        #expect(DivergeAPI.productionBaseURL == ChatService.productionBaseURL)
-        #expect(DivergeAPI.productionBaseURL.absoluteString == "https://api.dialogintelligens.dk")
+    @Test("each environment maps to a Diverge host over https")
+    func environmentsMapToDivergeHosts() {
+        #expect(DivergeAPI.Environment.production.baseURL == ChatService.productionBaseURL)
+        #expect(DivergeAPI.Environment.development.baseURL == ChatService.developmentBaseURL)
+        #expect(ChatService.productionBaseURL.absoluteString == "https://api.dialogintelligens.dk")
+        #expect(ChatService.developmentBaseURL.absoluteString == "https://dev.api.dialogintelligens.dk")
     }
 
-    @Test("a Configuration that says nothing about the host gets production")
+    @Test("a Configuration that says nothing about the environment gets production")
     func configurationDefaultsToProduction() {
         let configuration = AIChat.Configuration(
             tokenProvider: { "token" },
@@ -57,7 +61,7 @@ struct ChatServiceBaseURLTests {
             deleteData: {}
         )
 
-        #expect(configuration.apiBaseURL == DivergeAPI.productionBaseURL)
+        #expect(configuration.environment == .production)
     }
 
     // MARK: - SUT
@@ -67,19 +71,14 @@ struct ChatServiceBaseURLTests {
             stub: .init(body: Data(#"{"messages":[],"next_cursor":null}"#.utf8))
         )
 
-        let sut = baseURL.map { url in
-            ChatService(
-                tokenProvider: { "token-1" },
-                onResetConversation: { "token-2" },
-                onDeleteData: {},
-                baseURL: url,
-                session: session
-            )
-        } ?? ChatService(
+        let sut = ChatService(
             tokenProvider: { "token-1" },
             onResetConversation: { "token-2" },
             onDeleteData: {},
-            session: session
+            baseURL: baseURL ?? ChatService.productionBaseURL,
+            session: session,
+            sdkVersion: "9.8.7",
+            clientProfile: .productRecommendation
         )
 
         return (sut, recorder)

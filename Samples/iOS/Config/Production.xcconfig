@@ -1,4 +1,0 @@
-DIVERGE_API_ENVIRONMENT = production
-DIVERGE_API_BASE_URL = https:/$()/api.dialogintelligens.dk
-
-#include? "Secrets.xcconfig"

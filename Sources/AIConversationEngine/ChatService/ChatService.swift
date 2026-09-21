@@ -13,6 +13,8 @@ package final class ChatService: Sendable {
 
     /// Live production API — the default unless `baseURL` is overridden.
     package static let productionBaseURL = URL(string: "https://api.dialogintelligens.dk")!
+    /// Shared development API — same contract as production, for integrating ahead of a release.
+    package static let developmentBaseURL = URL(string: "https://dev.api.dialogintelligens.dk")!
 
     package static let sdkVersionHeader = "X-Diverge-SDK-Version"
     package static let clientProfileHeader = "X-Diverge-Client-Profile"
@@ -20,18 +22,23 @@ package final class ChatService: Sendable {
     private let network: NetworkManager
     private let tokenStore: TokenStore
     private let baseURL: URL
-    private let sdkVersion: String?
-    private let clientProfile: ClientProfile?
+    private let sdkVersion: String
+    private let clientProfile: ClientProfile
 
-    /// `sdkVersion` and `clientProfile` are omitted from the wire when `nil` (standalone / tests).
+    /// - Parameters:
+    ///   - baseURL: Chatbot API host. Only Diverge-operated hosts are valid; the public SDK
+    ///     surface exposes them as ``DivergeAPI/Environment`` rather than a raw URL.
+    ///   - sdkVersion: SemVer of the SDK release, sent as ``sdkVersionHeader`` on every
+    ///     authenticated call. Always present — an SDK build always has a version.
+    ///   - clientProfile: The capability line this build renders, sent as ``clientProfileHeader``.
     package init(
         tokenProvider: @escaping @Sendable () async throws -> String,
         onResetConversation: @escaping @Sendable () async throws -> String,
         onDeleteData: @escaping @Sendable () async throws -> Void,
         baseURL: URL = ChatService.productionBaseURL,
         session: URLSession = ChatService.makeSession(),
-        sdkVersion: String? = nil,
-        clientProfile: ClientProfile? = nil
+        sdkVersion: String,
+        clientProfile: ClientProfile
     ) {
         self.baseURL = baseURL
         self.sdkVersion = sdkVersion
@@ -151,15 +158,14 @@ private extension ChatService {
     /// Messages per history page
     private static let historyPageLimit = 100
 
+    /// Every authenticated call identifies the SDK release and its capability line, so the
+    /// backend can log adoption and only offer tools this build can render.
     func headers(token: String) -> [String: String] {
-        var headers = ["Authorization": "Bearer \(token)"]
-        if let sdkVersion = self.sdkVersion {
-            headers[Self.sdkVersionHeader] = sdkVersion
-        }
-        if let clientProfile = self.clientProfile {
-            headers[Self.clientProfileHeader] = clientProfile.rawValue
-        }
-        return headers
+        [
+            "Authorization": "Bearer \(token)",
+            Self.sdkVersionHeader: self.sdkVersion,
+            Self.clientProfileHeader: self.clientProfile.rawValue
+        ]
     }
 
     /// RAM-only by design: no disk cache, cookies, or credential storage

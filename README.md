@@ -83,6 +83,14 @@ onOpenLink: { url in deepLinkRouter.handle(url) }
 | `.topDown` (default) | On send, the user's message lifts to the top of the screen and the reply streams into the space reserved beneath it. |
 | `.bottomUp` | Classic chat: new turns land at the bottom and the list follows the newest message. |
 
+**`environment`** — which Diverge backend the SDK talks to. Defaults to `.production`; a host that
+says nothing keeps talking to the live API. Use `.development` to integrate against backend changes
+before they are released. The SDK owns the URLs — there is no way to point it at another server.
+
+```swift
+environment: .development
+```
+
 ## Shared and per-instance configuration
 
 The two are not exclusive. Register a shared configuration once at launch and mint instances from it

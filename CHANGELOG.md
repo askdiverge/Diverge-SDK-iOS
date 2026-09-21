@@ -14,10 +14,10 @@
   (`/config`, `/messages`), so the backend can log adoption and serve a reply the SDK can
   render — a `product-recommendation` host is never offered livechat handover or forms.
   Attachment and font downloads stay header-less. Hosts need no change
-- `AIChat.Configuration(apiBaseURL:)` and `DivergeAPI.productionBaseURL`, so a host can point
-  the SDK at a development or local stand-in backend. Defaults to production, so an existing
-  host keeps talking to the live API without changes. The iOS sample picks its host from the
-  build configuration (`Development` / `Production` / `Local`)
+- `AIChat.Configuration(environment:)` with `DivergeAPI.Environment` (`.production` /
+  `.development`), so a host can integrate against the development API. Defaults to
+  `.production`, so an existing host keeps talking to the live API without changes. The iOS
+  sample uses `.development` in debug builds
 
 ### Changed
 

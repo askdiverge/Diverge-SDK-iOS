@@ -30,25 +30,10 @@ struct ChatServiceHeaderTests {
         for try await _ in sut.sendMessage("hello", page: nil) {}
 
         let request = try #require(recorder.requests.first)
+        #expect(request.header("Authorization") == "Bearer token-1")
         #expect(request.header(ChatService.sdkVersionHeader) == "9.8.7")
         #expect(request.header(ChatService.clientProfileHeader) == "product-recommendation")
         #expect(request.header("Accept") == "text/event-stream")
-    }
-
-    @Test("unset values omit the headers rather than sending them empty")
-    func omittedWhenUnset() async throws {
-        let (sut, recorder) = makeSUT(
-            body: #"{"messages":[],"next_cursor":null}"#,
-            sdkVersion: nil,
-            clientProfile: nil
-        )
-
-        _ = try await sut.fetchHistory(cursor: nil)
-
-        let request = try #require(recorder.requests.first)
-        #expect(request.header("Authorization") == "Bearer token-1")
-        #expect(request.header(ChatService.sdkVersionHeader) == nil)
-        #expect(request.header(ChatService.clientProfileHeader) == nil)
     }
 
     @Test("unauthenticated asset downloads stay header-less")
@@ -80,9 +65,7 @@ struct ChatServiceHeaderTests {
 
     private func makeSUT(
         body: String,
-        contentType: String = "application/json",
-        sdkVersion: String? = "9.8.7",
-        clientProfile: ClientProfile? = .productRecommendation
+        contentType: String = "application/json"
     ) -> (ChatService, RecordingURLProtocol.Recorder) {
         let (session, recorder) = RecordingURLProtocol.makeSession(
             stub: .init(body: Data(body.utf8), contentType: contentType)
@@ -93,8 +76,8 @@ struct ChatServiceHeaderTests {
             onResetConversation: { "token-2" },
             onDeleteData: {},
             session: session,
-            sdkVersion: sdkVersion,
-            clientProfile: clientProfile
+            sdkVersion: "9.8.7",
+            clientProfile: .productRecommendation
         )
 
         return (sut, recorder)

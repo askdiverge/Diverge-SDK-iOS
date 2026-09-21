@@ -1,5 +1,0 @@
-// `$()` breaks up `//` so xcconfig does not treat the URL as a comment.
-DIVERGE_API_ENVIRONMENT = local
-DIVERGE_API_BASE_URL = http:/$()/127.0.0.1:3000
-
-#include? "Secrets.xcconfig"

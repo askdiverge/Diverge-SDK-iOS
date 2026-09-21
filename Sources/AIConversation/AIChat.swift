@@ -12,10 +12,25 @@ import AIConversationEngine
 import UIKit
 #endif
 
-/// Chatbot API host constants. ``AIChat/Configuration`` defaults to ``productionBaseURL``.
+/// Diverge-operated Chatbot API deployments.
 public enum DivergeAPI {
-    /// Live production API. Single source of truth shared with the engine facade.
-    public static let productionBaseURL = ChatService.productionBaseURL
+
+    /// Which Diverge backend the SDK talks to. The SDK only works against Diverge's own
+    /// deployments, so hosts pick an environment and the SDK owns the URLs.
+    public enum Environment: Sendable, Hashable {
+        /// The live API. The default — a host that says nothing gets production.
+        case production
+        /// The shared development API: the same contract as production, for integrating
+        /// against backend changes before they are released.
+        case development
+
+        var baseURL: URL {
+            switch self {
+            case .production: ChatService.productionBaseURL
+            case .development: ChatService.developmentBaseURL
+            }
+        }
+    }
 }
 
 /// Public entry point for the conversational-search chat SDK.
@@ -59,7 +74,7 @@ public final class AIChat {
             tokenProvider: configuration.tokenProvider,
             onResetConversation: configuration.resetConversation,
             onDeleteData: configuration.deleteData,
-            baseURL: configuration.apiBaseURL,
+            baseURL: configuration.environment.baseURL,
             sdkVersion: VersionInfo.current,
             clientProfile: .productRecommendation
         )
@@ -135,8 +150,8 @@ public extension AIChat {
         let contextProvider: (@Sendable () async -> String?)?
         let onOpenLink: ((URL) -> Void)?
         let conversationFlow: ConversationFlow
-        /// Chatbot API host. Defaults to ``DivergeAPI/productionBaseURL``.
-        let apiBaseURL: URL
+        /// Which Diverge backend to talk to. Defaults to ``DivergeAPI/Environment/production``.
+        let environment: DivergeAPI.Environment
 
 #if os(macOS)
         /// - Parameters:
@@ -149,14 +164,14 @@ public extension AIChat {
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
         ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
         ///     → default OS open.
-        ///   - apiBaseURL: Chatbot API host. Defaults to production.
+        ///   - environment: Which Diverge backend to talk to. Defaults to production.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
-            apiBaseURL: URL = DivergeAPI.productionBaseURL
+            environment: DivergeAPI.Environment = .production
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
@@ -164,7 +179,7 @@ public extension AIChat {
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
             self.conversationFlow = .bottomUp
-            self.apiBaseURL = apiBaseURL
+            self.environment = environment
         }
 #else
         /// - Parameters:
@@ -178,7 +193,7 @@ public extension AIChat {
         ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
         ///     → default OS open.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
-        ///   - apiBaseURL: Chatbot API host. Defaults to production.
+        ///   - environment: Which Diverge backend to talk to. Defaults to production.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
@@ -186,7 +201,7 @@ public extension AIChat {
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
             conversationFlow: ConversationFlow = .topDown,
-            apiBaseURL: URL = DivergeAPI.productionBaseURL
+            environment: DivergeAPI.Environment = .production
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
@@ -194,7 +209,7 @@ public extension AIChat {
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
             self.conversationFlow = conversationFlow
-            self.apiBaseURL = apiBaseURL
+            self.environment = environment
         }
 #endif
     }
