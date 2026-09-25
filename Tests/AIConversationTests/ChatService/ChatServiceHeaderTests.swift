@@ -11,7 +11,7 @@ import AIConversationEngine
 @Suite("ChatService — version and profile headers")
 struct ChatServiceHeaderTests {
 
-    @Test("a GET carries the SDK version and the client profile")
+    @Test("a GET identifies the SDK platform and version and declares the client profile")
     func historyCarriesHeaders() async throws {
         let (sut, recorder) = makeSUT(body: #"{"messages":[],"next_cursor":null}"#)
 
@@ -19,6 +19,7 @@ struct ChatServiceHeaderTests {
 
         let request = try #require(recorder.requests.first)
         #expect(request.header("Authorization") == "Bearer token-1")
+        #expect(request.header(ChatService.sdkPlatformHeader) == "ios")
         #expect(request.header(ChatService.sdkVersionHeader) == "9.8.7")
         #expect(request.header(ChatService.clientProfileHeader) == "product-recommendation")
     }
@@ -31,12 +32,13 @@ struct ChatServiceHeaderTests {
 
         let request = try #require(recorder.requests.first)
         #expect(request.header("Authorization") == "Bearer token-1")
+        #expect(request.header(ChatService.sdkPlatformHeader) == "ios")
         #expect(request.header(ChatService.sdkVersionHeader) == "9.8.7")
         #expect(request.header(ChatService.clientProfileHeader) == "product-recommendation")
         #expect(request.header("Accept") == "text/event-stream")
     }
 
-    @Test("unauthenticated asset downloads stay header-less")
+    @Test("unauthenticated asset downloads carry only the request")
     func assetDownloadsCarryNothing() async throws {
         let (sut, recorder) = makeSUT(body: "font-bytes")
 
@@ -44,14 +46,19 @@ struct ChatServiceHeaderTests {
 
         let request = try #require(recorder.requests.first)
         #expect(request.header("Authorization") == nil)
+        #expect(request.header(ChatService.sdkPlatformHeader) == nil)
         #expect(request.header(ChatService.sdkVersionHeader) == nil)
         #expect(request.header(ChatService.clientProfileHeader) == nil)
     }
 
     // MARK: - Contract
 
-    @Test("the profile raw value is the string the backend gates on")
-    func profileRawValueIsStable() {
+    @Test("header names and values are the strings the backend reads")
+    func wireLiteralsAreStable() {
+        #expect(ChatService.sdkPlatformHeader == "X-Diverge-SDK-Platform")
+        #expect(ChatService.sdkPlatform == "ios")
+        #expect(ChatService.sdkVersionHeader == "X-Diverge-SDK-Version")
+        #expect(ChatService.clientProfileHeader == "X-Diverge-Client-Profile")
         #expect(ClientProfile.productRecommendation.rawValue == "product-recommendation")
     }
 

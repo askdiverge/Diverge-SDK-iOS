@@ -100,8 +100,13 @@ The codebase has one voice; do not introduce a second.
   they never restate the code.
 - A doc comment on a wire enum or discriminator answers *what it is for*: who decides the value,
   what the backend does with it, and when a new case is added. "Add a case for a new line" is
-  not documentation; "the product line of this binary, so the backend only offers tools this
-  build can render" is.
+  not documentation; "the product line of this binary, so the backend registers only the tools
+  this build renders" is.
+- Comments and doc comments state what the code does and the contract it upholds. They do not
+  enumerate what it does not do, which alternatives were rejected, or which cases it is not.
+  A boundary that matters is written as a positive rule ("the backend limits the assistant's
+  tools to that set"), and a rejected alternative belongs in the PR description or the commit
+  body, where the reader asked for the history.
 - Access control: `public` for the public types in §1 only, `package` across targets,
   `private` by default, `private(set)` for observable state.
 - Naming follows the Swift API Design Guidelines. Full words over abbreviations; established
@@ -179,8 +184,13 @@ AIConversationCore    package: NetworkManager, SSE async sequences, TokenStore (
   optional to survive bad data; fix the data at the source and keep the model honest. Do not
   make a field required until rule 2.2 is satisfied.
 - Anything the SDK sends (headers, query items, bodies) is a named constant with a doc comment,
-  covered by a test that pins the literal string. `X-Diverge-SDK-Version` and
-  `X-Diverge-Client-Profile` go on every authenticated call and never on asset downloads.
+  covered by a test that pins the literal string.
+- Three headers go on every authenticated call, and only there. `X-Diverge-SDK-Platform: ios`
+  and `X-Diverge-SDK-Version` together identify one release of one SDK — the iOS, Android and
+  web SDKs version independently, so neither is meaningful alone. `X-Diverge-Client-Profile`
+  declares the capability line and is what the backend gates tools on. The API major the client
+  speaks is the `/api/v1/` path prefix; that is the versioning mechanism, and the header set does
+  not duplicate it.
 - **Deferred to v1.1, do not implement early:** per-type SSE start actions (`start_rich_text`,
   `start_table`, `start_products`, `start_suggestions`) and tables as self-contained `columns`.
   v1 stays on `start_part` + `part_type` and `headers` + `alignments`; the backend rolled the
@@ -247,7 +257,26 @@ AIConversationCore    package: NetworkManager, SSE async sequences, TokenStore (
 - Running the SDK against a local stand-in backend is a developer-machine concern: a temporary
   edit or a gitignored branch, never a sample configuration, an xcconfig or a public API.
 
-## 12. Before you open a PR
+## 12. Keeping this file current
+
+This is the repository level of instruction. Personal or platform-wide instructions live with
+the person or tool that owns them; nothing here depends on them. This file stays true only if it
+is maintained as deliberately as the code it governs.
+
+- **After every external review and every incident**, before the PR is merged, ask two
+  questions: which finding would recur without a rule here, and which existing rule the change
+  has made false. Add the first; delete or rewrite the second. Record the trigger in the commit
+  body so the rule can be traced to its cause.
+- **A rule earns its place by preventing a concrete recurring mistake** or recording a
+  non-obvious decision (the iOS floor, the header set, the Sample's shape). Preferences that a
+  linter can enforce go in `.swiftlint.yml`; commands go in `Makefile` and `scripts/`.
+- **Size is a signal here too.** Keep this file under roughly 300 lines. When a section outgrows
+  it, move the detail to `Docs/agent-guides/<topic>.md` and leave a one-line pointer with the
+  rule that decides *when* to read it, the way `CONTRIBUTING.md` points here.
+- Changes to this file are their own PR (rule 2.3), reviewed by Diverge, and dated in the
+  CHANGELOG only when they change what a host would notice.
+
+## 13. Before you open a PR
 
 - [ ] One concern; diff size stated and justified
 - [ ] `git diff --stat main...HEAD` matches the description — re-checked after the last push
@@ -257,5 +286,6 @@ AIConversationCore    package: NetworkManager, SSE async sequences, TokenStore (
 - [ ] Tests added for the behaviour changed, at the right seam
 - [ ] `make ci-local` green locally, or the PR says it was not run
 - [ ] CHANGELOG updated if a host would notice
-- [ ] Doc comments on every new `public` or `package` symbol
+- [ ] Doc comments on every new `public` or `package` symbol, stating what it does
 - [ ] Commits squashed to a history a reviewer can read top to bottom
+- [ ] This file checked for a rule to add or retire (§12)

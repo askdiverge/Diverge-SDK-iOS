@@ -16,7 +16,14 @@ package final class ChatService: Sendable {
     /// Shared development API — same contract as production, for integrating ahead of a release.
     package static let developmentBaseURL = URL(string: "https://dev.api.dialogintelligens.dk")!
 
+    /// Which client implementation is calling. Together with ``sdkVersionHeader`` this identifies
+    /// one release of one SDK, since the iOS, Android and web SDKs version independently.
+    package static let sdkPlatformHeader = "X-Diverge-SDK-Platform"
+    /// The value this repository sends for ``sdkPlatformHeader``.
+    package static let sdkPlatform = "ios"
+    /// SemVer of the SDK release, from `VERSION`.
     package static let sdkVersionHeader = "X-Diverge-SDK-Version"
+    /// The capability line of the build, see ``ClientProfile``.
     package static let clientProfileHeader = "X-Diverge-Client-Profile"
 
     private let network: NetworkManager
@@ -26,10 +33,10 @@ package final class ChatService: Sendable {
     private let clientProfile: ClientProfile
 
     /// - Parameters:
-    ///   - baseURL: Chatbot API host. Only Diverge-operated hosts are valid; the public SDK
-    ///     surface exposes them as ``DivergeAPI/Environment`` rather than a raw URL.
+    ///   - baseURL: Chatbot API host — one of the Diverge deployments the public surface exposes
+    ///     as ``DivergeAPI/Environment``.
     ///   - sdkVersion: SemVer of the SDK release, sent as ``sdkVersionHeader`` on every
-    ///     authenticated call. Always present — an SDK build always has a version.
+    ///     authenticated call alongside ``sdkPlatform``.
     ///   - clientProfile: The capability line this build renders, sent as ``clientProfileHeader``.
     package init(
         tokenProvider: @escaping @Sendable () async throws -> String,
@@ -158,11 +165,12 @@ private extension ChatService {
     /// Messages per history page
     private static let historyPageLimit = 100
 
-    /// Every authenticated call identifies the SDK release and its capability line, so the
-    /// backend can log adoption and only offer tools this build can render.
+    /// Every authenticated call identifies the calling SDK (platform + version) and declares its
+    /// capability line. The API major the client speaks is the `/api/v1/` path prefix.
     func headers(token: String) -> [String: String] {
         [
             "Authorization": "Bearer \(token)",
+            Self.sdkPlatformHeader: Self.sdkPlatform,
             Self.sdkVersionHeader: self.sdkVersion,
             Self.clientProfileHeader: self.clientProfile.rawValue
         ]

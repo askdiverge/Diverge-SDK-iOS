@@ -12,22 +12,22 @@ Open-source ecommerce SDK for **iOS**, distributed via Swift Package Manager.
 | **Swift toolchain (to build the package)** | Swift 6 / `swift-tools-version: 6.0` | Language mode used by the package sources |
 | **Contributor / CI Xcode** | Newest stable on `macos-26` (currently Xcode 26+) | Matches GitHub Actions; not a pin to an older Xcode |
 
-The OS deployment floor and the Swift toolchain requirement are independent. Version stays at **0.1.0** until the public API is stable.
+The OS deployment floor and the Swift toolchain requirement are independent. Releases follow SemVer: `1.x.y` keeps the public API and wire contract stable; patch versions fix, minor versions add, a major version is the only place a breaking change may land.
 
 ## Installation
 
 In Xcode: **File → Add Package Dependencies…** → paste  
-`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **0.1.0** (Up to Next Major).
+`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **1.0.0** (Up to Next Major).
 
 Or in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "0.1.0")
+    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "1.0.0")
 ]
 ```
 
-Add the **`AIConversation`** product. Prefer SemVer pins / the `v0.1.0` GitHub Release — do not track `main`.
+Add the **`AIConversation`** product. Prefer SemVer pins / the `v1.0.0` GitHub Release — do not track `main`.
 
 ## Usage
 
@@ -85,7 +85,7 @@ onOpenLink: { url in deepLinkRouter.handle(url) }
 
 **`environment`** — which Diverge backend the SDK talks to. Defaults to `.production`; a host that
 says nothing keeps talking to the live API. Use `.development` to integrate against backend changes
-before they are released. The SDK owns the URLs — there is no way to point it at another server.
+before they are released. The SDK owns the URLs for both.
 
 ```swift
 environment: .development
@@ -114,7 +114,7 @@ Root [`VERSION`](VERSION). After changing it:
 ./scripts/check-version.sh
 ```
 
-Push a SemVer tag (`v0.1.0`) for a GitHub Release / SPM version. Keep `0.1.0` until the API is stable; then bump for breaking or feature releases.
+Push a SemVer tag (`v1.0.0`) for a GitHub Release / SPM version. Patch for fixes (`1.0.1`), minor for additive features (`1.1.0`), major for a breaking public-API or wire-contract change (`2.0.0`). The SDK sends its version to the backend on every call, so the tag and `VERSION` must agree.
 
 ## License
 
