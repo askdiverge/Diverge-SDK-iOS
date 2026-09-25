@@ -1,0 +1,8 @@
+---
+description: Repository standards for the Diverge iOS SDK
+alwaysApply: true
+---
+
+Read and follow [AGENTS.md](../../AGENTS.md). It owns the repository instructions:
+wire-contract rules, public-surface policy, Swift and concurrency standards, testing seams,
+and what the Sample app may and may not contain.

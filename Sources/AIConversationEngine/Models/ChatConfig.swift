@@ -87,8 +87,11 @@ extension ChatConfig.Theme {
         package let logo: Logo
         package let button: Button
 
+        /// [API ref](https://docs.dialoge.ai/api#model/chatbot-logo-theme)
         package struct Logo: Decodable, Sendable, Equatable {
-            package let url: URL
+            /// The header logo image. `nil` when the chatbot has no custom logo; the header then
+            /// renders the title alone.
+            package let url: URL?
         }
 
         package struct Button: Decodable, Sendable, Equatable {
@@ -148,6 +151,7 @@ extension ChatConfig.Theme.Font {
     /// [API ref](https://docs.dialoge.ai/api#model/chatbot-native-font)
     package struct Native: Decodable, Sendable, Equatable {
         package let assetUrl: URL
+        /// Content hash for the on-disk cache slot (required by the Chatbot API).
         package let sha256: String
         package let format: String
     }

@@ -10,6 +10,15 @@
   context, in-message link routing, and a choice of conversation layout
 - Localization across 16 languages via a String Catalog
 - Remote font loading, registered from a content-hash-keyed on-disk cache that holds one font
+- `X-Diverge-SDK-Platform: ios`, `X-Diverge-SDK-Version` and `X-Diverge-Client-Profile` on
+  every authenticated API call (`/config`, `/messages`). Platform and version identify the
+  calling SDK release; the profile tells the backend which tools the build renders, so a
+  `product-recommendation` host receives replies it can display. Attachment and font downloads
+  carry only the request itself. Hosts need no change
+- `AIChat.Configuration(environment:)` with `DivergeAPI.Environment` (`.production` /
+  `.development`), so a host can integrate against the development API. Defaults to
+  `.production`, so an existing host keeps talking to the live API without changes. The iOS
+  sample uses `.development` in debug builds
 
 ### Changed
 

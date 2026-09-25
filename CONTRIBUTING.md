@@ -2,6 +2,10 @@
 
 Thanks for contributing. This repository is **iOS-only** (Swift Package Manager). Android lives in [Diverge-SDK-Android](https://github.com/askdiverge/Diverge-SDK-Android).
 
+This file covers tooling. [`AGENTS.md`](AGENTS.md) covers judgement — wire-contract rules, the
+public-surface policy, Swift and concurrency standards, testing seams and what the Sample may
+contain. Read it before opening a PR; reviewers hold changes to it.
+
 ## Development setup
 
 Install local Git hooks once (runs local CI on `git commit` when iOS paths are staged):
