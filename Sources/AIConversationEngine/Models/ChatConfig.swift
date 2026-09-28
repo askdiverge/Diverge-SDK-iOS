@@ -9,7 +9,7 @@ import Foundation
 
 /// Chatbot configuration returned by `GET /api/v1/chat/config`.
 ///
-/// [API ref](https://docs.dialoge.ai/api#model/chatbot-config)
+/// [API ref](https://docs.askdiverge.ai/api#model/chatbotconfig)
 package struct ChatConfig: Decodable, Sendable, Equatable {
 
     package let display: Display
@@ -25,7 +25,7 @@ extension ChatConfig {
 extension ChatConfig {
 
     /// User-facing identity and copy.
-    /// [API ref](https://docs.dialoge.ai/api#model/chatbot-display)
+    /// [API ref](https://docs.askdiverge.ai/api#model/chatbotdisplay)
     package struct Display: Decodable, Sendable, Equatable {
         package let name: String
         package let avatar: Avatar
@@ -33,7 +33,7 @@ extension ChatConfig {
         package let subtitle: Subtitle?
         package let privacyPolicyUrl: URL
 
-        /// [API ref](https://docs.dialoge.ai/api#model/chatbot-display-avatar)
+        /// [API ref](https://docs.askdiverge.ai/api#model/chatbotdisplayavatar)
         package struct Avatar: Decodable, Sendable, Equatable {
             package let url: URL?
         }
@@ -43,12 +43,12 @@ extension ChatConfig {
 extension ChatConfig.Display {
 
     /// Header subtitle — optional body copy and an optional trailing link.
-    /// [API ref](https://docs.dialoge.ai/api#model/chatbot-subtitle)
+    /// [API ref](https://docs.askdiverge.ai/api#model/chatbotsubtitle)
     package struct Subtitle: Decodable, Sendable, Equatable {
         package let text: String?
         package let link: Link?
 
-        /// [API ref](https://docs.dialoge.ai/api#model/chatbot-subtitle-link-value)
+        /// [API ref](https://docs.askdiverge.ai/api#model/chatbotsubtitlelinkvalue)
         package struct Link: Decodable, Sendable, Equatable {
             package let text: String
             package let url: URL
@@ -59,7 +59,7 @@ extension ChatConfig.Display {
 extension ChatConfig {
 
     /// Visual theme for rendering the chat UI.
-    /// [API ref](https://docs.dialoge.ai/api#model/chatbot-theme)
+    /// [API ref](https://docs.askdiverge.ai/api#model/chatbottheme)
     package struct Theme: Decodable, Sendable, Equatable {
         package let brand: Brand
         package let surface: Surface
@@ -139,7 +139,7 @@ extension ChatConfig.Theme {
 extension ChatConfig.Theme {
 
     /// Cross-platform font assets.
-    /// [API ref](https://docs.dialoge.ai/api#model/chatbot-font)
+    /// [API ref](https://docs.askdiverge.ai/api#model/chatbotfont)
     package struct Font: Decodable, Sendable, Equatable {
         package let ios: Native
     }
@@ -148,7 +148,7 @@ extension ChatConfig.Theme {
 extension ChatConfig.Theme.Font {
 
     /// A hosted native font asset for SDK download and registration.
-    /// [API ref](https://docs.dialoge.ai/api#model/chatbot-native-font)
+    /// [API ref](https://docs.askdiverge.ai/api#model/chatbotnativefont)
     package struct Native: Decodable, Sendable, Equatable {
         package let assetUrl: URL
         /// Content hash for the on-disk cache slot (required by the Chatbot API).

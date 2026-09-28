@@ -12,7 +12,7 @@ import Foundation
 ///
 /// Event flow: `status(connected)` → `status(processing)` → (`delta` | `part`)* → `done` | `error`.
 /// `done` and `error` are terminal — the server closes the connection after sending them.
-/// [API ref](https://docs.dialoge.ai/api#model/stream-event)
+/// [API ref](https://docs.askdiverge.ai/api#model/streamevent)
 package enum StreamEvent: Decodable, Sendable, Equatable {
 
     /// Stream lifecycle state change.
@@ -74,7 +74,7 @@ package enum StreamEvent: Decodable, Sendable, Equatable {
 extension StreamEvent {
 
     /// Stream lifecycle status event.
-    /// [API ref](https://docs.dialoge.ai/api#model/stream-status-event)
+    /// [API ref](https://docs.askdiverge.ai/api#model/streamstatusevent)
     package struct Status: Decodable, Sendable, Equatable {
 
         package let state: State
@@ -99,7 +99,7 @@ extension StreamEvent {
     /// Stream errors are separate from HTTP-level failures — auth, validation,
     /// and rate-limit failures surface as non-2xx responses (`NetworkError.http`)
     /// before the SSE stream starts.
-    /// [API ref](https://docs.dialoge.ai/api#model/stream-error-event)
+    /// [API ref](https://docs.askdiverge.ai/api#model/streamerrorevent)
     package struct Failure: Decodable, Sendable, Equatable {
 
         package let code: Code

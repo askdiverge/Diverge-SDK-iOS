@@ -8,7 +8,7 @@
 import Foundation
 
 /// Structured prose part returned by the chatbot API.
-/// [API ref](https://docs.dialoge.ai/api#model/rich-text-content)
+/// [API ref](https://docs.askdiverge.ai/api#model/richtextcontent)
 package struct RichText: Decodable, Sendable, Equatable {
 
     package let partId: String
@@ -18,7 +18,7 @@ package struct RichText: Decodable, Sendable, Equatable {
 extension RichText {
 
     /// A rich-text block, discriminated on `type`.
-    /// [API ref](https://docs.dialoge.ai/api#model/rich-text-block)
+    /// [API ref](https://docs.askdiverge.ai/api#model/richtextblock)
     package enum Block: Decodable, Sendable, Equatable {
 
         case paragraph(Paragraph)
@@ -45,26 +45,26 @@ extension RichText {
     }
 
     /// A paragraph of ordered inline spans.
-    /// [API ref](https://docs.dialoge.ai/api#model/rich-text-paragraph-block)
+    /// [API ref](https://docs.askdiverge.ai/api#model/richtextparagraphblock)
     package struct Paragraph: Decodable, Sendable, Equatable {
         package let spans: [Span]
     }
 
     /// An unordered bullet list.
-    /// [API ref](https://docs.dialoge.ai/api#model/rich-text-bullet-list-block)
+    /// [API ref](https://docs.askdiverge.ai/api#model/richtextbulletlistblock)
     package struct BulletList: Decodable, Sendable, Equatable {
 
         package let items: [Item]
 
         /// A single bullet-list item carrying its own ordered spans.
-        /// [API ref](https://docs.dialoge.ai/api#model/rich-text-bullet-list-item)
+        /// [API ref](https://docs.askdiverge.ai/api#model/richtextbulletlistitem)
         package struct Item: Decodable, Sendable, Equatable {
             package let spans: [Span]
         }
     }
 
     /// An inline span, discriminated on `type`.
-    /// [API ref](https://docs.dialoge.ai/api#model/rich-text-span)
+    /// [API ref](https://docs.askdiverge.ai/api#model/richtextspan)
     package enum Span: Decodable, Sendable, Equatable {
 
         case text(String)

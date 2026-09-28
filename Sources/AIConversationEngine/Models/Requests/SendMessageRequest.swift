@@ -8,7 +8,7 @@
 import Foundation
 
 /// Request body for
-/// [API ref](https://docs.dialoge.ai/api#operation/Messages_send)
+/// [API ref](https://docs.askdiverge.ai/api#tag/visitor-conversations/POST/api/v1/chat/messages)
 struct SendMessageRequest: Encodable, Sendable, Equatable {
     let message: Payload
     let context: Context?
@@ -25,7 +25,7 @@ extension SendMessageRequest {
     }
 
     /// An image uploaded by the user
-    /// [API ref](https://docs.dialoge.ai/api#model/image-input)
+    /// [API ref](https://docs.askdiverge.ai/api#model/imageinput)
     struct Input: Encodable, Sendable, Equatable {
         let data: String
         let mime: String

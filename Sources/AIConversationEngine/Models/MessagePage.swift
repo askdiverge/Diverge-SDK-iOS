@@ -12,7 +12,7 @@ import Foundation
 ///
 /// `nextCursor` — you can only paginate when a cursor is present, so cursor
 /// presence is the actionable "more pages" signal.
-/// [API ref](https://docs.dialoge.ai/api#model/message-page)
+/// [API ref](https://docs.askdiverge.ai/api#model/messagepage)
 package struct MessagePage: Decodable, Sendable, Equatable {
 
     package let messages: [Message]

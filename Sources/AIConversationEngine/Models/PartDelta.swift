@@ -16,7 +16,7 @@ import Foundation
 /// ```
 /// `endPart` is shared and untyped — the wire `end_part` carries no part type, so the
 /// consumer (which knows the open part) finalises on it.
-/// [API ref](https://docs.dialoge.ai/api#model/stream-part-delta)
+/// [API ref](https://docs.askdiverge.ai/api#model/streampartdelta)
 package enum PartDelta: Decodable, Sendable, Equatable {
 
     case richText(RichTextDelta)
@@ -165,7 +165,7 @@ extension PartDelta {
         case appendRow([Table.Cell])
 
         /// Up-front payload for an in-progress table part.
-        /// [API ref](https://docs.dialoge.ai/api#model/stream-start-table-part-delta)
+        /// [API ref](https://docs.askdiverge.ai/api#model/streamstarttablepartdelta)
         package struct StartTable: Decodable, Sendable, Equatable {
             package let headers: [Table.Cell]
             package let alignments: [Table.Alignment]?

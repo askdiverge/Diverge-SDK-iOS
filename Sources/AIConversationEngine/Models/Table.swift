@@ -8,7 +8,7 @@
 import Foundation
 
 /// A structured table part extracted from the assistant response.
-/// [API ref](https://docs.dialoge.ai/api#model/table-content)
+/// [API ref](https://docs.askdiverge.ai/api#model/tablecontent)
 package struct Table: Decodable, Sendable, Equatable {
 
     package let partId: String
@@ -29,7 +29,7 @@ extension Table {
     }
 
     /// Structured content for a single table cell.
-    /// [API ref](https://docs.dialoge.ai/api#model/table-cell)
+    /// [API ref](https://docs.askdiverge.ai/api#model/tablecell)
     package struct Cell: Decodable, Sendable, Equatable {
 
         package let blocks: [Block]
@@ -37,7 +37,7 @@ extension Table {
         /// A block inside a table cell, discriminated on `type`.
         /// Cells support the rich-text blocks plus an image block —
         /// a superset of `RichText.Block`.
-        /// [API ref](https://docs.dialoge.ai/api#model/table-cell-block)
+        /// [API ref](https://docs.askdiverge.ai/api#model/tablecellblock)
         package enum Block: Decodable, Sendable, Equatable {
 
             case paragraph(RichText.Paragraph)
@@ -68,7 +68,7 @@ extension Table {
     }
 
     /// An image rendered inside a table cell.
-    /// [API ref](https://docs.dialoge.ai/api#model/table-cell-image-block)
+    /// [API ref](https://docs.askdiverge.ai/api#model/tablecellimageblock)
     package struct Image: Decodable, Sendable, Equatable {
         package let url: URL
         package let thumbnailUrl: URL?

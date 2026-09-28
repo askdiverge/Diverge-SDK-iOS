@@ -95,8 +95,10 @@ The codebase has one voice; do not introduce a second.
 - Explicit `self.` on every member access. `// MARK: - Section` headers between
   `private extension Type` blocks that group related helpers.
 - `///` doc comments on every `public` and `package` declaration: what it is, when it is `nil`,
-  what the caller owns. Wire models link the API reference
-  (`[API ref](https://docs.dialoge.ai/api#model/...)`). Comments explain intent and trade-offs;
+  what the caller owns. Wire models link the API reference:
+  `[API ref](https://docs.askdiverge.ai/api#model/chatbotlogotheme)` for a schema (its OpenAPI
+  name lowercased, no hyphens) and `#tag/visitor-conversations/POST/api/v1/chat/messages` for an
+  operation. Open a new link before committing it. Comments explain intent and trade-offs;
   they never restate the code.
 - A doc comment on a wire enum or discriminator answers *what it is for*: who decides the value,
   what the backend does with it, and when a new case is added. "Add a case for a new line" is
