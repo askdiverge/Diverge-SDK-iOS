@@ -5,6 +5,7 @@ Per-release guides for host apps integrating the **iOS** Diverge SDK.
 | File | Purpose |
 |------|---------|
 | [`TEMPLATE.md`](TEMPLATE.md) | Skeleton for a new release guide |
+| [`v1.0.0.md`](v1.0.0.md) | First stable release; integration and migration from `0.1.0` |
 | [`v0.1.0.md`](v0.1.0.md) | Pre-release baseline; superseded by the `1.0.0` public surface |
 
 ## Process (every tagged release)

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-01
+
+First stable release. Upgrading from 0.1.0: see
+[`Docs/integration/v1.0.0.md`](Docs/integration/v1.0.0.md).
+
 ### Added
 
 - The conversational chat SDK: `AIChat`, `AIChat.Configuration` and `ConversationFlow` as the entire
