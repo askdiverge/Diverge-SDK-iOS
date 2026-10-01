@@ -8,7 +8,7 @@
 import Foundation
 
 /// A single message in a conversation.
-/// [API ref](https://docs.dialoge.ai/api#model/message)
+/// [API ref](https://docs.askdiverge.ai/api#model/message)
 package struct Message: Decodable, Sendable, Equatable {
 
     package let messageId: String
@@ -20,7 +20,7 @@ package struct Message: Decodable, Sendable, Equatable {
 
 extension Message {
 
-    /// [API ref](https://docs.dialoge.ai/api#model/message-role)
+    /// [API ref](https://docs.askdiverge.ai/api#model/messagerole)
     package enum Role: String, ExtendableEnum, Sendable {
         case user, assistant, agent, system, unknown
     }

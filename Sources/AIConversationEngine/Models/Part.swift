@@ -10,7 +10,7 @@
 /// Supports `rich_text`, `table`, and `products`. All other variants
 /// decode to `.unknown` and are skipped
 /// at render time.
-/// [API ref](https://docs.dialoge.ai/api#model/message-part)
+/// [API ref](https://docs.askdiverge.ai/api#model/messagepart)
 package enum Part: Decodable, Sendable, Equatable {
 
     case richText(RichText)

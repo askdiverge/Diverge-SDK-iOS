@@ -13,6 +13,13 @@ The token, conversation reset, and data deletion are supplied by the host throug
 `AIChat.Configuration`; the SDK renders the conversation and nothing else, so presenting and
 dismissing it is the host's responsibility.
 
+Debug builds talk to the development API and release builds to production, via
+`AIChat.Configuration(environment:)` in `ContentView.swift`. The SDK itself defaults to
+`.production`, so a host that says nothing keeps talking to the live API.
+
+Never put a chatbot API key in the sample — it would ship in the app. Paste a visitor JWT into
+the token field instead.
+
 ## Regenerating the Xcode project (optional)
 
 ```bash

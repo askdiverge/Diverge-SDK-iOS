@@ -7,6 +7,13 @@ struct ContentView: View {
     /// Sample secondary — ~8.9:1 on white.
     private static let secondaryText = Color(red: 74 / 255, green: 74 / 255, blue: 74 / 255)
 
+    /// Debug builds talk to the development API, release builds to production.
+    #if DEBUG
+    private static let environment: DivergeAPI.Environment = .development
+    #else
+    private static let environment: DivergeAPI.Environment = .production
+    #endif
+
     @State private var token = ""
     @State private var chat: AIChat?
     @State private var isChatPresented = false
@@ -61,7 +68,8 @@ struct ContentView: View {
         .init(
             tokenProvider: { token },
             resetConversation: { token },
-            deleteData: {}
+            deleteData: {},
+            environment: Self.environment
         )
     }
 }

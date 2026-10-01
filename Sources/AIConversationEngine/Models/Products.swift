@@ -8,7 +8,7 @@
 import Foundation
 
 /// A collection of product cards surfaced from the product catalog.
-/// [API ref](https://docs.dialoge.ai/api#model/products-content)
+/// [API ref](https://docs.askdiverge.ai/api#model/productscontent)
 package struct Products: Decodable, Sendable, Equatable {
 
     package let partId: String
@@ -17,7 +17,7 @@ package struct Products: Decodable, Sendable, Equatable {
 
 extension Products {
 
-    /// [API ref](https://docs.dialoge.ai/api#model/product-card)
+    /// [API ref](https://docs.askdiverge.ai/api#model/productcard)
     package struct Card: Decodable, Sendable, Equatable {
 
         package let id: String
@@ -30,7 +30,7 @@ extension Products {
     }
 
     /// Price with amount and ISO 4217 currency code.
-    /// [API ref](https://docs.dialoge.ai/api#model/product-price)
+    /// [API ref](https://docs.askdiverge.ai/api#model/productprice)
     package struct Price: Decodable, Sendable, Equatable {
         package let amount: Double
         package let currency: String
