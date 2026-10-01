@@ -78,7 +78,7 @@ struct ChatServiceBaseURLTests {
             baseURL: baseURL ?? ChatService.productionBaseURL,
             session: session,
             sdkVersion: "9.8.7",
-            clientProfile: .productRecommendation
+            clientProfiles: [.productRecommendation]
         )
 
         return (sut, recorder)

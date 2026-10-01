@@ -76,7 +76,7 @@ public final class AIChat {
             onDeleteData: configuration.deleteData,
             baseURL: configuration.environment.baseURL,
             sdkVersion: VersionInfo.current,
-            clientProfile: .productRecommendation
+            clientProfiles: [.productRecommendation]
         )
     }
 

@@ -62,6 +62,15 @@ struct ChatServiceHeaderTests {
         #expect(ClientProfile.productRecommendation.rawValue == "product-recommendation")
     }
 
+    @Test("the profile list sends each value once, in declaration order, comma-separated")
+    func profileListIsCanonical() {
+        let canonical = ClientProfile.allCases.map(\.rawValue).joined(separator: ", ")
+
+        #expect(ClientProfile.headerValue(for: ClientProfile.allCases.reversed()) == canonical)
+        #expect(ClientProfile.headerValue(for: ClientProfile.allCases + ClientProfile.allCases) == canonical)
+        #expect(ClientProfile.headerValue(for: [.productRecommendation]) == "product-recommendation")
+    }
+
     @Test("VersionInfo.current matches SemVer from VERSION")
     func versionInfoIsSemVer() {
         let semver = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/
@@ -84,7 +93,7 @@ struct ChatServiceHeaderTests {
             onDeleteData: {},
             session: session,
             sdkVersion: "9.8.7",
-            clientProfile: .productRecommendation
+            clientProfiles: [.productRecommendation]
         )
 
         return (sut, recorder)

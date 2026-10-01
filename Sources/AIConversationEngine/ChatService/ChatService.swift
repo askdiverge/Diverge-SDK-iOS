@@ -23,21 +23,22 @@ package final class ChatService: Sendable {
     package static let sdkPlatform = "ios"
     /// SemVer of the SDK release, from `VERSION`.
     package static let sdkVersionHeader = "X-Diverge-SDK-Version"
-    /// The capability line of the build, see ``ClientProfile``.
+    /// The features the build requests, as a comma-separated list; see ``ClientProfile``.
     package static let clientProfileHeader = "X-Diverge-Client-Profile"
 
     private let network: NetworkManager
     private let tokenStore: TokenStore
     private let baseURL: URL
     private let sdkVersion: String
-    private let clientProfile: ClientProfile
+    private let clientProfiles: [ClientProfile]
 
     /// - Parameters:
     ///   - baseURL: Chatbot API host — one of the Diverge deployments the public surface exposes
     ///     as ``DivergeAPI/Environment``.
     ///   - sdkVersion: SemVer of the SDK release, sent as ``sdkVersionHeader`` on every
     ///     authenticated call alongside ``sdkPlatform``.
-    ///   - clientProfile: The capability line this build renders, sent as ``clientProfileHeader``.
+    ///   - clientProfiles: Every feature this build requests, sent as ``clientProfileHeader``.
+    ///     The backend grants the subset the caller is eligible for.
     package init(
         tokenProvider: @escaping @Sendable () async throws -> String,
         onResetConversation: @escaping @Sendable () async throws -> String,
@@ -45,11 +46,11 @@ package final class ChatService: Sendable {
         baseURL: URL = ChatService.productionBaseURL,
         session: URLSession = ChatService.makeSession(),
         sdkVersion: String,
-        clientProfile: ClientProfile
+        clientProfiles: [ClientProfile]
     ) {
         self.baseURL = baseURL
         self.sdkVersion = sdkVersion
-        self.clientProfile = clientProfile
+        self.clientProfiles = clientProfiles
         self.tokenStore = TokenStore(
             tokenProvider: tokenProvider,
             onResetConversation: onResetConversation,
@@ -165,14 +166,14 @@ private extension ChatService {
     /// Messages per history page
     private static let historyPageLimit = 100
 
-    /// Every authenticated call identifies the calling SDK (platform + version) and declares its
-    /// capability line. The API major the client speaks is the `/api/v1/` path prefix.
+    /// Every authenticated call identifies the calling SDK (platform + version) and lists the
+    /// features it requests. The API major the client speaks is the `/api/v1/` path prefix.
     func headers(token: String) -> [String: String] {
         [
             "Authorization": "Bearer \(token)",
             Self.sdkPlatformHeader: Self.sdkPlatform,
             Self.sdkVersionHeader: self.sdkVersion,
-            Self.clientProfileHeader: self.clientProfile.rawValue
+            Self.clientProfileHeader: ClientProfile.headerValue(for: self.clientProfiles)
         ]
     }
 

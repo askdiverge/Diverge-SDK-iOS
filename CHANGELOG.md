@@ -12,9 +12,10 @@
 - Remote font loading, registered from a content-hash-keyed on-disk cache that holds one font
 - `X-Diverge-SDK-Platform: ios`, `X-Diverge-SDK-Version` and `X-Diverge-Client-Profile` on
   every authenticated API call (`/config`, `/messages`). Platform and version identify the
-  calling SDK release; the profile tells the backend which tools the build renders, so a
-  `product-recommendation` host receives replies it can display. Attachment and font downloads
-  carry only the request itself. Hosts need no change
+  calling SDK release; the profile header lists every feature the build requests
+  (comma-separated, `product-recommendation` today), and the backend enables the tools for the
+  ones it grants, so one chat can combine features. Attachment and font downloads carry only
+  the request itself. Hosts need no change
 - `AIChat.Configuration(environment:)` with `DivergeAPI.Environment` (`.production` /
   `.development`), so a host can integrate against the development API. Defaults to
   `.production`, so an existing host keeps talking to the live API without changes. The iOS

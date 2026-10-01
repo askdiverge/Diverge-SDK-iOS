@@ -5,22 +5,37 @@
 
 import Foundation
 
-/// The set of chat features this SDK build renders, declared to the backend on every
-/// authenticated call as ``ChatService/clientProfileHeader``.
+/// A chat feature this SDK build requests from the backend. The build sends every profile it
+/// requests on each authenticated call, as a comma-separated list in
+/// ``ChatService/clientProfileHeader``.
 ///
-/// It describes the product line of the binary. The backend registers the assistant's tools
-/// from it, so the assistant can only reach for features this build has UI for, however the
-/// visitor phrases the request. Declaring the capability directly keeps the backend rule a
-/// single equality check; a rule derived from ``ChatService/sdkVersionHeader`` would need a
-/// version range per platform, widened on every release.
+/// The backend grants a subset of the list and registers the assistant's tools for the granted
+/// profiles only, so one conversation can combine several features while the assistant reaches
+/// only for features this build has UI for. Eligibility is the backend's decision: it can grant
+/// or withhold a profile per SDK platform and version or per account behind the token, and it
+/// ignores values it does not know, so a newer build keeps working against an older backend.
+/// Declaring features directly keeps that rule a membership check; a rule derived from
+/// ``ChatService/sdkVersionHeader`` would need a version range per platform, widened on every
+/// release.
 ///
-/// One SDK release ships exactly one profile. A new case is added when a new product line
-/// ships (for example a customer-service line that renders livechat and forms). Raw values are a
-/// wire contract shared with the backend and the other SDKs; each value stays bound to the line
-/// it was introduced for.
-package enum ClientProfile: String, Sendable {
+/// A new case is added when the SDK ships UI for a new feature (for example customer service
+/// with livechat and forms). Raw values are a wire contract shared with the backend and the
+/// other SDKs; each value stays bound to the feature it was introduced for.
+package enum ClientProfile: String, CaseIterable, Sendable {
 
-    /// Conversational search with product and suggestion cards. The backend limits the
-    /// assistant's tools to that set.
+    /// Conversational search with product cards. The backend registers the product search and
+    /// recommendation tools for it.
     case productRecommendation = "product-recommendation"
+}
+
+extension ClientProfile {
+
+    /// The wire form of the requested profiles: each value once, in declaration order, joined
+    /// with `", "`. The order is canonical so the same request always produces the same header.
+    package static func headerValue(for profiles: [ClientProfile]) -> String {
+        Self.allCases
+            .filter(profiles.contains)
+            .map(\.rawValue)
+            .joined(separator: ", ")
+    }
 }
