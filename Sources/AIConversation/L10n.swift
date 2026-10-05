@@ -25,6 +25,29 @@ enum L10n {
     static let noticeHistoryLoadFailed = string("notice.historyLoadFailed")
     static let noticeSendFailed = string("notice.sendFailed")
 
+    static let formContactTitle = string("form.contactTitle")
+    static let formTicketTitle = string("form.ticketTitle")
+    static let formSubmit = string("form.submit")
+    static let formSubmitting = string("form.submitting")
+    static let formRequired = string("form.required")
+    static let formInvalidEmail = string("form.invalidEmail")
+    static let formSubmitFailed = string("form.submitFailed")
+    static let formSubmittedDefault = string("form.submittedDefault")
+    static let formLoadFailed = string("form.loadFailed")
+    static let formAttachmentsDisabled = string("form.attachmentsDisabled")
+    static let formReadOnly = string("form.readOnly")
+    static let formAccessibilityHint = string("form.accessibilityHint")
+    static let formSelectOption = string("form.selectOption")
+
+    /// Parameterised and pluralised in the catalog — "Fill in at least %lld field(s)".
+    static func formMinFilled(_ count: Int) -> LocalizedStringResource {
+        LocalizedStringResource(
+            "form.minFilled",
+            defaultValue: "Fill in at least \(count) fields",
+            bundle: .atURL(Bundle.module.bundleURL)
+        )
+    }
+
     static let privacyTitle = string("privacy.title")
     static let privacyPolicy = string("privacy.policy")
     static let privacyDeleteEntry = string("privacy.deleteEntry")

@@ -96,6 +96,25 @@ struct ChatProviderTests {
 
     // MARK: - pagination
 
+    @Test("a form marker in history becomes a form response")
+    func formMarkerMapsToForm() async throws {
+        let marker = ShowContactForm(partId: "p_form", fields: [])
+        let message = Message(
+            messageId: "m",
+            role: .assistant,
+            parts: [.showContactForm(marker)],
+            createdAt: "2026-01-01T00:00:00.000Z"
+        )
+        let mock = MockChatService(.init(historyPages: [MessagePage(messages: [message], nextCursor: nil)]))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.incoming.map(\.model) == [[.form(.contact(marker))]])
+    }
+
     @Test("loadOlder fetches a page and prepends it")
     func loadOlderPrepends() async throws {
         let mock = MockChatService(.init(historyPages: [

@@ -35,6 +35,24 @@ package struct FormField: Decodable, Sendable, Equatable {
     package let options: [String]
     package let visibleWhen: [FormFieldCondition]
 
+    package init(
+        key: String,
+        label: String,
+        placeholder: String? = nil,
+        type: FieldType = .text,
+        required: Bool = false,
+        options: [String] = [],
+        visibleWhen: [FormFieldCondition] = []
+    ) {
+        self.key = key
+        self.label = label
+        self.placeholder = placeholder
+        self.type = type
+        self.required = required
+        self.options = options
+        self.visibleWhen = visibleWhen
+    }
+
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.key = try container.decode(String.self, forKey: .key)

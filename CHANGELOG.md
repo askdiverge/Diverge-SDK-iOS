@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Contact, support-ticket and custom forms render in the conversation, validate locally, and
+  submit through `POST /actions`. File fields are shown as unavailable until photo attach ships.
+
 ## [1.0.0] - 2026-10-01
 
 First stable release. Upgrading from 0.1.0: see

@@ -90,19 +90,19 @@ struct FormMarkerDecodingTests {
 
     // MARK: - show_form
 
-    @Test("a thin show_form decodes with its form_id as the name")
+    @Test("a thin show_form decodes unnamed")
     func thinShowForm() throws {
         let form = try self.decode(ShowForm.self, #"{"type":"show_form","form_id":"frm_1","part_id":"p_1"}"#)
 
         #expect(form.partId == "p_1")
         #expect(form.formId == "frm_1")
-        #expect(form.name == "frm_1")
+        #expect(form.name == nil)
         #expect(form.confirmationText == nil)
         #expect(form.fields.isEmpty)
         #expect(form.minFilledFields == 0)
     }
 
-    @Test("a show_form name is trimmed, and a blank one falls back to form_id")
+    @Test("a show_form name is trimmed, and a blank one decodes as unnamed")
     func showFormNameTrimming() throws {
         let named = try self.decode(
             ShowForm.self,
@@ -114,7 +114,7 @@ struct FormMarkerDecodingTests {
         )
 
         #expect(named.name == "Waiting contact")
-        #expect(blank.name == "frm_1")
+        #expect(blank.name == nil)
     }
 
     @Test("a full show_form decodes its inline definition")
@@ -142,6 +142,29 @@ struct FormMarkerDecodingTests {
         #expect(throws: DecodingError.self) {
             try self.decode(ShowForm.self, #"{"type":"show_form","part_id":"p_1"}"#)
         }
+    }
+
+    // MARK: - Part
+
+    @Test("each form marker decodes through Part to its own case")
+    func markersDecodeThroughPart() throws {
+        let message = try self.decode(Message.self, """
+            {"message_id":"m_1","role":"assistant","created_at":"2026-01-01T00:00:00Z","parts":[
+              {"type":"show_contact_form","part_id":"p_1","fields":[]},
+              {"type":"show_support_ticket","part_id":"p_2","fields":[]},
+              {"type":"show_form","part_id":"p_3","form_id":"frm_1"}
+            ]}
+            """)
+
+        guard message.parts.count == 3,
+              case .showContactForm(let contact) = message.parts[0],
+              case .showSupportTicket(let ticket) = message.parts[1],
+              case .showForm(let form) = message.parts[2]
+        else {
+            Issue.record("expected the three marker cases, got \(message.parts)")
+            return
+        }
+        #expect([contact.partId, ticket.partId, form.partId] == ["p_1", "p_2", "p_3"])
     }
 
     // MARK: - Fixtures

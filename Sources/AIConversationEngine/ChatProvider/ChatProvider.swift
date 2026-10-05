@@ -322,6 +322,12 @@ private extension ChatProvider {
                         rows: table.rows
                     )
                 )
+        case .showContactForm(let marker):
+                .form(.contact(marker))
+        case .showSupportTicket(let marker):
+            ConversationForm.supportTicket(marker).map(ChatResponse.form)
+        case .showForm(let marker):
+                .form(.custom(marker))
         case .unknown: nil
         }
     }
