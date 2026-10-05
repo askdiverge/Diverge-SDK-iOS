@@ -16,7 +16,7 @@ package struct ShowSupportTicket: Decodable, Sendable, Equatable {
 
     /// Contract default when `max_attachment_size_bytes` is absent (2 MiB) — matches the
     /// backend factory and the TypeSpec `Attachment` decoded-size cap.
-    package static let defaultMaxAttachmentSizeBytes = 2 * 1024 * 1024
+    package static let defaultMaxAttachmentSizeBytes = OutgoingAttachment.maxActionDecodedBytes
 
     package let partId: String
     package let fields: [FormField]

@@ -159,6 +159,36 @@ extension ChatService: ChatServicing {
             try await self.tokenStore.delete()
         }
     }
+
+    package func submitAction(
+        _ request: SubmitActionRequest
+    ) async throws(ChatServiceError) -> SubmitActionResponse {
+        do {
+            return try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.post(
+                        url: self.url(for: .actions),
+                        payload: request,
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
+    }
+
+    package func fetchForm(id: String) async throws(ChatServiceError) -> ChatFormDefinition {
+        // Session agnostic like `/config` — a 401 is recoverable, retry once.
+        try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .retryOnce) { token in
+                try await self.network.get(
+                    url: self.url(for: .forms).appending(component: id),
+                    headers: self.headers(token: token)
+                )
+            }
+        }
+    }
 }
 
 private extension ChatService {
@@ -214,6 +244,8 @@ private extension ChatService {
     enum Endpoint: String {
         case config = "api/v1/chat/config"
         case messages = "api/v1/chat/messages"
+        case actions = "api/v1/chat/actions"
+        case forms = "api/v1/chat/forms"
     }
 
     func url(for endpoint: Endpoint) -> URL {
