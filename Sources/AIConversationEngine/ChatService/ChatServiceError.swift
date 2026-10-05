@@ -19,12 +19,20 @@ package enum ChatServiceError: Error {
     /// Next action re-authenticates.
     case sessionExpired
 
+    /// A 409 from `POST /actions` — the action conflicts with server state.
+    case conflict
+
     /// The server terminated the message stream.
     /// Carries the wire payload — `code`, `message`, `retryable`.
     case stream(StreamEvent.Failure)
 
-    /// The internal networking call to the chat API failed (transport, non-401 HTTP, decoding)
+    /// The internal networking call to the chat API failed (transport, decoding, or an HTTP
+    /// status the facade gives no meaning of its own).
     case transport(NetworkError)
+
+    /// The API rejected the request body: a 422, or any status whose error envelope names
+    /// invalid values. Carries the envelope's `message` and its `params`.
+    case validation(message: String, params: [ValidationError])
 
     /// A host hook (token / reset / delete) threw
     case provider(any Error)
@@ -37,8 +45,23 @@ extension ChatServiceError {
         self = switch error {
         case let error as ChatServiceError: error
         case NetworkError.http(.unauthorized): .sessionExpired
+        case NetworkError.http(.unhandled(let status, let body)):
+            Self.validation(status: status, body: body) ?? .transport(.http(.unhandled(status: status, body: body)))
         case let error as NetworkError: .transport(error)
         default: .provider(error)
         }
+    }
+}
+
+private extension ChatServiceError {
+
+    /// The rejected request's error envelope as ``validation(message:params:)``, or `nil` when
+    /// the status and body carry no validation failure.
+    static func validation(status: Int, body: Data) -> Self? {
+        // A body in another shape (a proxy's HTML page, a legacy error string) maps by status alone.
+        guard let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: body) else { return nil }
+        let params = envelope.error.params ?? []
+        guard status == 422 || !params.isEmpty else { return nil }
+        return .validation(message: envelope.error.message, params: params)
     }
 }

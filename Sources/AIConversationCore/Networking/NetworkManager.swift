@@ -41,7 +41,7 @@ package final class NetworkManager: NetworkService, Sendable {
         try await self.mappingErrors {
             let request = URLRequest(url: url, method: .get, headers: nil)
             let (data, response) = try await self.session.data(for: request)
-            try response.mapError()
+            try response.mapError(body: data)
             return data
         }
     }
@@ -116,15 +116,15 @@ private extension NetworkManager {
     ) async throws(NetworkError) -> Response {
         try await self.mappingErrors {
             let (data, response) = try await self.session.data(for: request)
-            try response.mapError()
+            try response.mapError(body: data)
             return try self.decoder.decode(Response.self, from: data)
         }
     }
 
     func sendVoid(_ request: URLRequest) async throws(NetworkError) {
         try await self.mappingErrors {
-            let (_, response) = try await self.session.data(for: request)
-            try response.mapError()
+            let (data, response) = try await self.session.data(for: request)
+            try response.mapError(body: data)
         }
     }
 
@@ -159,7 +159,10 @@ private extension NetworkManager {
             )
 
             let (bytes, response) = try await self.session.bytes(for: request)
-            try response.mapError()
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                // A rejected request's body is the API's error envelope, not an event stream.
+                try response.mapError(body: try await bytes.reduce(into: Data()) { $0.append($1) })
+            }
 
             for try await frame in bytes.sseFrames {
                 yield(try self.decoder.decode(Event.self, from: frame.envelope))
