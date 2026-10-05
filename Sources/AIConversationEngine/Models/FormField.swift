@@ -7,38 +7,6 @@
 
 import Foundation
 
-/// A condition evaluated against the visitor's answer to an earlier form field.
-/// Only `equals` is supported today; reserved for future operators.
-/// [API ref](https://docs.askdiverge.ai/api#model/formfieldcondition)
-package struct FormFieldCondition: Decodable, Sendable, Equatable {
-
-    package enum Operator: String, Decodable, Sendable, Equatable {
-        case equals
-    }
-
-    /// Key of a `dropdown` field defined earlier in the same `fields` array.
-    package let field: String
-    package let `operator`: Operator
-    package let value: String
-
-    package init(field: String, operator: Operator = .equals, value: String) {
-        self.field = field
-        self.operator = `operator`
-        self.value = value
-    }
-
-    package init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.field = try container.decode(String.self, forKey: .field)
-        self.value = try container.decode(String.self, forKey: .value)
-        self.operator = (try? container.decodeIfPresent(Operator.self, forKey: .operator)) ?? .equals
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case field, `operator`, value
-    }
-}
-
 /// A dynamic form field definition carried inline on a form marker.
 ///
 /// Lenient on `type`: a missing or future value falls back to `.text` so a required field
@@ -46,6 +14,9 @@ package struct FormFieldCondition: Decodable, Sendable, Equatable {
 /// [API ref](https://docs.askdiverge.ai/api#model/formfield)
 package struct FormField: Decodable, Sendable, Equatable {
 
+    /// The input control the client renders for the field, chosen per field by the operator who
+    /// designs the form. The visitor's answer is submitted under the field's ``key``. A case is
+    /// added when the backend introduces a new input type and the SDK ships a control for it.
     package enum FieldType: String, Sendable, Equatable {
         case text
         case email
@@ -57,39 +28,22 @@ package struct FormField: Decodable, Sendable, Equatable {
 
     package let key: String
     package let label: String
+    /// Hint text shown in the empty input. `nil` when the operator set none.
     package let placeholder: String?
     package let type: FieldType
     package let required: Bool
     package let options: [String]
     package let visibleWhen: [FormFieldCondition]
 
-    package init(
-        key: String,
-        label: String,
-        placeholder: String? = nil,
-        type: FieldType = .text,
-        required: Bool = false,
-        options: [String] = [],
-        visibleWhen: [FormFieldCondition] = []
-    ) {
-        self.key = key
-        self.label = label
-        self.placeholder = placeholder
-        self.type = type
-        self.required = required
-        self.options = options
-        self.visibleWhen = visibleWhen
-    }
-
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.key = try container.decode(String.self, forKey: .key)
         self.label = try container.decode(String.self, forKey: .label)
-        self.placeholder = try? container.decodeIfPresent(String.self, forKey: .placeholder)
+        self.placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
         self.type = Self.decodeType(from: container)
-        self.required = (try? container.decodeIfPresent(Bool.self, forKey: .required)) ?? false
-        self.options = (try? container.decodeIfPresent([String].self, forKey: .options)) ?? []
-        self.visibleWhen = (try? container.decodeIfPresent([FormFieldCondition].self, forKey: .visibleWhen)) ?? []
+        self.required = try container.decodeIfPresent(Bool.self, forKey: .required) ?? false
+        self.options = try container.decodeIfPresent([String].self, forKey: .options) ?? []
+        self.visibleWhen = try container.decodeIfPresent([FormFieldCondition].self, forKey: .visibleWhen) ?? []
     }
 
     /// Maps the wire string onto ``FieldType``. Unknown / missing → `.text`; `phone` → `.tel`.

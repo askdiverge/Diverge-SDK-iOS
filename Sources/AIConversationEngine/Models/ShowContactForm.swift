@@ -7,10 +7,10 @@
 
 import Foundation
 
-/// Instructs the client to display a contact / lead form. Field definitions travel inline —
-/// no config cross-reference is required to render.
+/// Instructs the client to display a contact / lead form. The marker carries every field the
+/// form renders.
 ///
-/// Arrives only as a full `part` / history / `done` — markers never stream via `part_delta`.
+/// Arrives whole, as a `part` event, in history or in `done`.
 /// [API ref](https://docs.askdiverge.ai/api#model/showcontactformmarker)
 package struct ShowContactForm: Decodable, Sendable, Equatable {
 
@@ -22,13 +22,12 @@ package struct ShowContactForm: Decodable, Sendable, Equatable {
         self.fields = fields
     }
 
-    /// Soft on `fields` — an empty or missing list still produces a marker so the card can
-    /// show its title and a disabled submit rather than vanishing. `part_id` is required;
-    /// without it the part falls back to `.unknown` upstream.
+    /// `part_id` is required and an absent `fields` decodes as empty. A malformed payload
+    /// throws, and the part decoder decides how the message degrades.
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.partId = try container.decode(String.self, forKey: .partId)
-        self.fields = (try? container.decodeIfPresent(LossyArray<FormField>.self, forKey: .fields))?.elements ?? []
+        self.fields = try container.decodeIfPresent([FormField].self, forKey: .fields) ?? []
     }
 
     private enum CodingKeys: String, CodingKey {
