@@ -15,6 +15,7 @@ struct ChatView: View {
 
     @Environment(\.openURL) private var openURL
     @FocusState private var inputFocused: Bool
+    @FocusState private var focusedFormField: String?
 
     @State private var showSessionEndedAlert = false
     @State private var privacyDestination: PrivacyDataDestination?
@@ -225,7 +226,7 @@ private extension ChatView {
     func turnView(for turn: Identified<ConversationSnapshot.Turn>, streamingTurnID: UUID?) -> some View {
         switch turn.model {
         case .bot(let responses):
-            self.botTurn(responses, isStreaming: turn.id == streamingTurnID)
+            self.botTurn(responses, turnID: turn.id, isStreaming: turn.id == streamingTurnID)
 
         case .user(let bubbles):
             self.userTurn(bubbles)
@@ -262,11 +263,12 @@ private extension ChatView {
 
 private extension ChatView {
 
-    func botTurn(_ responses: [ChatResponse], isStreaming: Bool) -> some View {
+    func botTurn(_ responses: [ChatResponse], turnID: UUID, isStreaming: Bool) -> some View {
         VStack(alignment: .leading, spacing: self.appearance.spacing.units(2)) {
             ForEach(Array(responses.enumerated()), id: \.offset) { index, response in
                 self.botResponse(
                     response,
+                    turnID: turnID,
                     // Only the last bubble is the one being generated, animate border/typewrite just that.
                     isStreaming: isStreaming && index == responses.count - 1,
                     isFirstResponse: index == 0,
@@ -279,6 +281,7 @@ private extension ChatView {
     @ViewBuilder
     func botResponse(
         _ response: ChatResponse,
+        turnID: UUID,
         isStreaming: Bool,
         isFirstResponse: Bool,
         isLastResponse: Bool
@@ -298,6 +301,33 @@ private extension ChatView {
             ProductGridView(cards: cards)
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
                 .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+
+        case .form(let form):
+            if let model = self.viewModel.formModels[form.partId] {
+                ConversationFormView(
+                    model: model,
+                    isEditable: self.viewModel.isFormEditable(inBotTurn: turnID),
+                    isBusy: isStreaming,
+                    focus: self.$focusedFormField,
+                    onChange: { key, value in
+                        self.viewModel.setFormValue(value, for: key, inForm: form.partId)
+                    },
+                    onSubmit: {
+                        self.inputFocused = false
+                        self.focusedFormField = nil
+                        Task {
+                            do {
+                                try await self.viewModel.submitForm(partId: form.partId)
+                            } catch {
+                                self.showSessionEndedAlert = true
+                            }
+                        }
+                    },
+                    onReload: { self.viewModel.reloadFormDefinition(partId: form.partId) }
+                )
+                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+            }
 
         case .table(let content):
             TableView(content: content)
