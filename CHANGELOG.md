@@ -7,6 +7,13 @@
 - Contact, support-ticket and custom forms render in the conversation, validate locally, and
   submit through `POST /actions`. File fields are shown as unavailable until photo attach ships.
 
+### Fixed
+
+- Presenting `AIChat.makeView()` from a SwiftUI sheet no longer shows a blank card.
+  The session is owned by the `AIChat` instance, so a sheet remount cannot drop bootstrap.
+  A failed first history page still publishes a snapshot, so the composer and title stay on
+  screen when `GET /messages` returns 500.
+
 ## [1.0.0] - 2026-10-01
 
 First stable release. Upgrading from 0.1.0: see

@@ -59,6 +59,9 @@ public final class AIChat {
 
     private let configuration: Configuration
     private let service: ChatService
+    /// Owned here so `makeView()` can be called from a SwiftUI `body` without minting a
+    /// new session on every evaluation.
+    private let viewModel: ChatView.ViewModel
 
     /// Registers shared configuration for the no-argument ``init()``. Stores the config
     /// only — it neither returns nor retains an instance. Call once, typically at launch.
@@ -70,13 +73,19 @@ public final class AIChat {
     public init(_ configuration: Configuration) {
         self.configuration = configuration
         // The  hooks wire straight to the service / token store.
-        self.service = ChatService(
+        let service = ChatService(
             tokenProvider: configuration.tokenProvider,
             onResetConversation: configuration.resetConversation,
             onDeleteData: configuration.deleteData,
             baseURL: configuration.environment.baseURL,
             sdkVersion: VersionInfo.current,
             clientProfiles: [.productRecommendation]
+        )
+        self.service = service
+        self.viewModel = ChatView.ViewModel(
+            service: service,
+            contextProvider: configuration.contextProvider,
+            conversationFlow: configuration.conversationFlow
         )
     }
 
@@ -95,14 +104,8 @@ public extension AIChat {
     /// The chat UI as a SwiftUI view. The session is tied to this instance
     /// presentation (sheet, cover, push) is the caller's responsibility.
     func makeView() -> some View {
-        ChatView(
-            viewModel: .init(
-                service: self.service,
-                contextProvider: self.configuration.contextProvider,
-                conversationFlow: self.configuration.conversationFlow
-            )
-        )
-        .environment(\.openURL, self.openURL)
+        ChatView(viewModel: self.viewModel)
+            .environment(\.openURL, self.openURL)
     }
 
 #if canImport(UIKit)

@@ -130,6 +130,23 @@ struct ChatProviderTests {
         #expect(snapshot?.user == [])
     }
 
+    @Test("loadOlder yields a snapshot when the first page fails")
+    func loadOlderFailureStillPublishes() async throws {
+        let mock = MockChatService(
+            .init(historyError: .transport(.http(.unhandled(status: 500, body: Data()))))
+        )
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.user == [])
+        #expect(snapshot?.incoming == [])
+    }
+
     @Test("loadOlder stops fetching once the cursor is exhausted")
     func loadOlderStopsWhenExhausted() async throws {
         let mock = MockChatService(.init(historyPages: [
