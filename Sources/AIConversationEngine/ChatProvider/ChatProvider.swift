@@ -205,6 +205,9 @@ extension ChatProvider {
 
         } catch {
             self.paginator.release()
+            // The composer and header read this snapshot; a failed first page must
+            // still yield one or the sheet paints an empty NavigationStack.
+            self.publish()
             throw error
         }
     }

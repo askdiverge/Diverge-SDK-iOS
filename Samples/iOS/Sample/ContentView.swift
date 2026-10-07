@@ -1,6 +1,13 @@
 import AIConversation
 import SwiftUI
 
+/// Holds the `AIChat` for as long as the sheet is up. `sheet(item:)` always has
+/// a value, so the card cannot present empty.
+private struct PresentedChat: Identifiable {
+    let id = UUID()
+    let chat: AIChat
+}
+
 struct ContentView: View {
     /// Sample chrome — matches SDK AA-safe primary (~17:1 on white).
     private static let primaryText = Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
@@ -15,8 +22,7 @@ struct ContentView: View {
     #endif
 
     @State private var token = ""
-    @State private var chat: AIChat?
-    @State private var isChatPresented = false
+    @State private var presentedChat: PresentedChat?
 
     var body: some View {
         ScrollView {
@@ -42,8 +48,7 @@ struct ContentView: View {
                     .accessibilityHint("Demo token only. Do not use production secrets.")
 
                 Button("Open chat") {
-                    chat = AIChat(Self.configuration(token: token))
-                    isChatPresented = true
+                    self.presentedChat = PresentedChat(chat: AIChat(Self.configuration(token: token)))
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(token.isEmpty)
@@ -56,10 +61,8 @@ struct ContentView: View {
         }
         .dynamicTypeSize(.small ... .accessibility3)
         // The SDK renders only the conversation; presenting and dismissing it is the host's job.
-        .sheet(isPresented: $isChatPresented) {
-            if let chat {
-                chat.makeView()
-            }
+        .sheet(item: $presentedChat) { session in
+            session.chat.makeView()
         }
     }
 

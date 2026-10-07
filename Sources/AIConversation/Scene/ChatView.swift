@@ -54,6 +54,7 @@ private extension ChatView {
     var loadingView: some View {
         ProgressView()
             .tint(self.appearance.theme.accent)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     var readyView: some View {
@@ -94,8 +95,11 @@ private extension ChatView {
             Group {
                 if let snapshot = self.viewModel.snapshot {
                     self.chat(from: snapshot)
+                } else {
+                    Color.clear
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(self.viewModel.name)
             .toolbarTitleDisplayMode(.inline)
             .toolbar { self.resetToolbarItem }

@@ -35,6 +35,7 @@ extension ChatView {
         @ObservationIgnored private let service: ChatService
         @ObservationIgnored private let pageContext: @Sendable () async -> String?
         @ObservationIgnored private var provider: (any ChatProviding)?
+        @ObservationIgnored private var bootstrapTask: Task<Void, Never>?
         @ObservationIgnored private let submitAction: ActionSubmitter
         @ObservationIgnored private let fetchForm: FormFetcher
 
@@ -71,11 +72,18 @@ extension ChatView {
             self.imageLoader = ImageLoader(maxPixelSize: 800) { try await service.fetchData($0) }
         }
 
-        /// Bootstraps once, then no-ops on re-entry
-        /// (e.g. the view reappearing) so the live session survives.
+        /// Bootstraps once. The work is unstructured so a cancelled view `.task`
+        /// (a sheet remounting) cannot leave the session stuck on loading.
         func start() async {
             guard self.provider == nil else { return }
-            await self.bootstrap()
+            if self.phase == .loading, let bootstrapTask = self.bootstrapTask, !bootstrapTask.isCancelled {
+                return
+            }
+            let task = Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.bootstrap()
+            }
+            self.bootstrapTask = task
         }
 
         /// Config → provider → snapshot stream → first history page.
