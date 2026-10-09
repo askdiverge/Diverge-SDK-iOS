@@ -14,6 +14,7 @@ struct ChatView: View {
     private let viewModel: ViewModel
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @FocusState private var inputFocused: Bool
     @FocusState private var focusedFormField: String?
 
@@ -33,6 +34,9 @@ struct ChatView: View {
         self.content
             .modifier(LoadingOverlay(isLoading: self.isLoading))
             .task { await self.viewModel.start() }
+            .onAppear { self.viewModel.setVisible(true) }
+            .onDisappear { self.viewModel.setVisible(false) }
+            .onChange(of: self.scenePhase) { _, phase in self.viewModel.setSceneActive(phase == .active) }
             .environment(\.appearance, self.appearance)
             .environment(\.imageLoader, self.viewModel.imageLoader)
     }

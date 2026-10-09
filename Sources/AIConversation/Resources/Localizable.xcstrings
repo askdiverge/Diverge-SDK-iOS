@@ -2849,6 +2849,107 @@
         }
       }
     },
+    "notice.livechatEnded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Din chat med medarbejderen er afsluttet. Send igen for at spørge assistenten."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr Chat mit dem Mitarbeiter wurde beendet. Senden Sie erneut, um den Assistenten zu fragen."
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr Chat mit dem Mitarbeiter wurde beendet. Senden Sie erneut, um den Assistenten zu fragen."
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr Chat mit dem Mitarbeiter wurde beendet. Senden Sie erneut, um den Assistenten zu fragen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your chat with the agent has ended. Send again to ask the assistant."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teie vestlus klienditeenindajaga on lõppenud. Saatke uuesti, et küsida assistendilt."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keskustelusi asiakaspalvelijan kanssa on päättynyt. Lähetä uudelleen kysyäksesi avustajalta."
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kjattið við starvsfólkið er endað. Send aftur fyri at spyrja hjálparan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre conversation avec l'agent est terminée. Renvoyez votre message pour interroger l'assistant."
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spjallinu við þjónustufulltrúann er lokið. Sendu aftur til að spyrja aðstoðarmanninn."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jūsų pokalbis su konsultantu baigėsi. Išsiųskite dar kartą, kad paklaustumėte asistento."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jūsu tērzēšana ar konsultantu ir beigusies. Nosūtiet vēlreiz, lai jautātu asistentam."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chatten med medarbeideren er avsluttet. Send på nytt for å spørre assistenten."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je chat met de medewerker is beëindigd. Verstuur opnieuw om de assistent te vragen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rozmowa z konsultantem została zakończona. Wyślij ponownie, aby zapytać asystenta."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chatten med handläggaren har avslutats. Skicka igen för att fråga assistenten."
+          }
+        }
+      }
+    },
     "notice.sendFailed" : {
       "extractionState" : "manual",
       "localizations" : {
