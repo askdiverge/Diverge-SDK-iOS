@@ -19,7 +19,8 @@ package enum ChatServiceError: Error {
     /// Next action re-authenticates.
     case sessionExpired
 
-    /// A 409 from `POST /actions` — the action conflicts with server state.
+    /// A 409 — the request conflicts with server state. Each ``ChatServicing`` method that maps it
+    /// says what it means there.
     case conflict
 
     /// A 404 from `GET /forms/{form_id}` — the backend has no form with that id.
