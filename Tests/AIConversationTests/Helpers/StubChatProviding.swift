@@ -7,18 +7,24 @@ import Foundation
 @testable import AIConversation
 @testable import AIConversationEngine
 
-/// Minimal ``ChatProviding`` stub for view-model tests: records the last send, optionally fails
-/// it with a scripted ``ChatProvider/SendFailure``, and lets a test `publish` a snapshot to
-/// drive the view model's snapshot-derived state (e.g. `isFormEditable`).
+/// Minimal ``ChatProviding`` stub for view-model tests: records the last assistant and agent sends,
+/// optionally fails them with a scripted ``ChatProvider/SendFailure``, and lets a test `publish` a
+/// snapshot to drive the view model's snapshot-derived state (e.g. `isFormEditable`).
 final class StubChatProviding: ChatProviding, @unchecked Sendable {
 
     private let sendFailure: ChatProvider.SendFailure?
+    private let livechatSendFailure: ChatProvider.SendFailure?
     private let continuation: AsyncStream<ConversationSnapshot>.Continuation
     private(set) var lastSent: String?
+    private(set) var lastLivechatSent: String?
+    private(set) var appendedLivechat: [LivechatMessage] = []
+    private(set) var resetCount = 0
+    private(set) var expireCount = 0
     var resetError: Error?
 
-    init(sendFailure: ChatProvider.SendFailure? = nil) {
+    init(sendFailure: ChatProvider.SendFailure? = nil, livechatSendFailure: ChatProvider.SendFailure? = nil) {
         self.sendFailure = sendFailure
+        self.livechatSendFailure = livechatSendFailure
         (self.stream, self.continuation) = AsyncStream<ConversationSnapshot>.makeStream()
     }
 
@@ -43,21 +49,26 @@ final class StubChatProviding: ChatProviding, @unchecked Sendable {
     func loadOlder() async throws {}
 
     func reset() async throws {
+        self.resetCount += 1
         if let resetError { throw resetError }
     }
 
     func delete() async throws {}
 
-    func appendLivechat(_: [LivechatMessage]) async {}
+    func appendLivechat(_ messages: [LivechatMessage]) async {
+        self.appendedLivechat += messages
+    }
 
     func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure) {
-        self.lastSent = text
-        if let sendFailure {
-            throw sendFailure
+        self.lastLivechatSent = text
+        if let livechatSendFailure {
+            throw livechatSendFailure
         }
     }
 
-    func expireSession() async {}
+    func expireSession() async {
+        self.expireCount += 1
+    }
 }
 
 extension ChatView.ViewModel {
@@ -67,7 +78,8 @@ extension ChatView.ViewModel {
     static func forTesting(
         provider: StubChatProviding,
         submitAction: ActionSubmitter? = nil,
-        fetchForm: FormFetcher? = nil
+        fetchForm: FormFetcher? = nil,
+        livechat: LivechatSession? = nil
     ) -> ChatView.ViewModel {
         let service = ChatService(
             tokenProvider: { "token" },
@@ -81,7 +93,8 @@ extension ChatView.ViewModel {
             contextProvider: nil,
             conversationFlow: .topDown,
             submitAction: submitAction,
-            fetchForm: fetchForm
+            fetchForm: fetchForm,
+            livechat: livechat
         )
         viewModel.attachProviderForTesting(provider)
         return viewModel

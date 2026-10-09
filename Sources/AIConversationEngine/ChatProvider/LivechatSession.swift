@@ -145,7 +145,7 @@ package actor LivechatSession {
     }
 
     /// Closes the session from the visitor's side, publishes the messages that arrived before
-    /// the close, and stops polling.
+    /// the close, and stops polling. A 409 (no open session) fails with ``ChatServiceError/conflict``.
     package func close(reason: String?) async throws(ChatServiceError) {
         self.bumpGeneration()
         let gen = self.generation

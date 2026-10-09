@@ -19,6 +19,9 @@ extension ChatProvider {
         /// The livechat session is no longer active (409 on a livechat send). The user's text is
         /// popped back so it can go to the assistant instead.
         case livechatInactive(popped: String)
+        /// A livechat session is active (409 on an assistant send). The user's text is popped back
+        /// so it can go to the agent instead.
+        case livechatActive(popped: String)
         /// Another mutating operation (send/reset/delete) is already in flight.
         case busy(Reason)
 

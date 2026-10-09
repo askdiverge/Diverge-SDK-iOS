@@ -21,7 +21,8 @@ package protocol ChatServicing: Sendable {
     /// response as SSE events until `done`/`error` terminates it.
     /// `page` is per-message context .
     /// every failure (transport, 401, or a stream `error` event) is delivered on the stream's throwing channel as
-    /// `ChatServiceError`.
+    /// `ChatServiceError`. A 409 means a livechat session is active, so the text belongs to the agent;
+    /// it surfaces as ``ChatServiceError/conflict``.
     func sendMessage(
         _ text: String,
         page: String?
@@ -68,6 +69,7 @@ package protocol ChatServicing: Sendable {
     /// Tells the agent whether the visitor is typing.
     func sendLivechatTyping(isTyping: Bool) async throws(ChatServiceError)
 
-    /// Closes the visitor's livechat session.
+    /// Closes the visitor's livechat session. A 409 means the visitor has no open session and
+    /// surfaces as ``ChatServiceError/conflict``.
     func closeLivechat(reason: String?) async throws(ChatServiceError)
 }

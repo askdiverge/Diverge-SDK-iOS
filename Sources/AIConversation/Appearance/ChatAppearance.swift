@@ -112,6 +112,9 @@ extension ChatAppearance {
         /// toolbar — starts a fresh conversation.
         static let reset = Image(systemName: "arrow.trianglehead.2.counterclockwise.rotate.90")
 
+        /// toolbar — asks for a person, or ends the livechat session.
+        static let livechat = Image(systemName: "headset")
+
         /// leading control & opens Privacy & Data.
         static let privacy = Image(systemName: "checkmark.shield")
 

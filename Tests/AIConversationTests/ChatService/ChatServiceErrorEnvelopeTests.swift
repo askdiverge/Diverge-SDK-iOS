@@ -36,8 +36,8 @@ struct ChatServiceErrorEnvelopeTests {
         }
     }
 
-    @Test("a 409 outside /actions stays a transport error")
-    func conflictOutsideActionsIsTransport() async throws {
+    @Test("a 409 on an endpoint that gives it no meaning stays a transport error")
+    func unmappedConflictIsTransport() async throws {
         let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409, body: Data())])
 
         do {

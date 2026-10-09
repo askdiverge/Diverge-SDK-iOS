@@ -6,6 +6,9 @@
 
 - Contact, support-ticket and custom forms render in the conversation, validate locally, and
   submit through `POST /actions`. File fields are shown as unavailable until photo attach ships.
+- Livechat handover: when livechat is enabled, a header control asks for a person or ends the
+  session, the composer sends to the agent while one is connected, and the agent's messages appear
+  in the conversation. A reset closes an open session first.
 
 ## [1.0.0] - 2026-10-01
 
