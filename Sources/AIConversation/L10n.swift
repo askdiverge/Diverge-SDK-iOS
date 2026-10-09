@@ -24,6 +24,7 @@ enum L10n {
     static let noticeBusy = string("notice.busy")
     static let noticeHistoryLoadFailed = string("notice.historyLoadFailed")
     static let noticeSendFailed = string("notice.sendFailed")
+    static let noticeLivechatEnded = string("notice.livechatEnded")
 
     static let formContactTitle = string("form.contactTitle")
     static let formTicketTitle = string("form.ticketTitle")

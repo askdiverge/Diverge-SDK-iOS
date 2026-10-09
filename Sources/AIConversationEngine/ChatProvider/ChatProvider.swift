@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AIConversationCore
 
 /// Stateful session data layer between the facade (`ChatServicing`, pure wire I/O)
 /// and the view model.
@@ -45,7 +46,23 @@ package actor ChatProvider: ChatProviding {
     /// Serializes send/reset/delete — they must not interleave.
     private var isBusy = false
 
-    /// A session expiry that arrived during a send, reset or delete; the clear runs when it ends.
+    /// Message ids already in the panes, from history, the livechat log and this device's sends,
+    /// so the poller's copy of a message isn't shown twice.
+    private var livechatMessageIDs: Set<String> = []
+    /// The newest `created_at` of the first history page, in milliseconds. History carries every
+    /// livechat message stored before it was read, under ids of its own, so the log's copies up
+    /// to this point are already on screen.
+    private var historyHead: Int64?
+    /// Which pane holds the conversation's first turn. Turns pair up by index across the panes,
+    /// leading pane first; whatever opens an empty conversation sets it, and so does each
+    /// history page.
+    private var botLeads = false
+    /// Livechat messages that arrived while an operation was in flight. A streaming reply owns
+    /// the newest bot turn, and a livechat send's id isn't known until its POST returns, so they
+    /// are folded in when the operation finishes.
+    private var deferredLivechatMessages: [LivechatMessage] = []
+    /// Set when the poller saw the session end during an operation; the conversation clears when
+    /// the operation finishes, so a streaming reply never writes into emptied panes.
     private var expiresAfterOperation = false
 
     /// Snapshot channel the view model observes. Latest-wins — the VM only ever
@@ -63,9 +80,8 @@ package actor ChatProvider: ChatProviding {
         (self.stream, self.continuation) = ChatStream.makeStream(bufferingPolicy: .bufferingNewest(1))
     }
 
-    /// True only while the synthetic welcome is present (history exhausted). It sits above the
-    /// first user turn, so the bot leads the interleave,
-    /// otherwise the user leads.
+    /// True only while the synthetic welcome is present (history exhausted). It opens the
+    /// conversation, so the bot leads the interleave.
     private var showsWelcome: Bool {
         self.welcomeMessage != nil && self.paginator.isExhausted
     }
@@ -75,7 +91,7 @@ package actor ChatProvider: ChatProviding {
             .init(
                 user: self.user,
                 incoming: self.incoming,
-                isUserInitiatedConversation: !self.showsWelcome,
+                isUserInitiatedConversation: !self.botLeads,
                 streamingTurnID: self.streamingTurnID
             )
         )
@@ -107,7 +123,7 @@ extension ChatProvider {
         let page = await self.pageContext()
 
         // Optimistic echo — the user turn shows immediately.
-        self.user.append(Identified(model: [AttributedString(text)]))
+        self.appendUser([AttributedString(text)])
         self.publish()
 
         // In-flight assistant turn, the thinking placeholder fills the pre-delta gap
@@ -194,6 +210,9 @@ extension ChatProvider {
             let cursor = try self.paginator.next()
             let page = try await self.service.fetchHistory(cursor: cursor)
             self.paginator.commit(nextCursor: page.nextCursor)
+            if cursor == nil {
+                self.historyHead = page.messages.compactMap { Self.milliseconds(of: $0.createdAt) }.max()
+            }
             self.prepend(page.messages)
             self.publish()
 
@@ -246,8 +265,53 @@ extension ChatProvider {
         self.publish()
     }
 
-    /// Clears the conversation after a call outside the provider saw the session end (401). During
-    /// a send, reset or delete the clear waits until the operation finishes.
+}
+
+// MARK: - Livechat
+
+extension ChatProvider {
+
+    /// Folds messages from the livechat poller into the panes, skipping ids already shown.
+    package func appendLivechat(_ messages: [LivechatMessage]) {
+        guard !self.isBusy else {
+            self.deferredLivechatMessages.append(contentsOf: messages)
+            return
+        }
+        self.ingestLivechat(messages)
+    }
+
+    /// Sends the visitor's text to the agent while a livechat session is active. The text shows
+    /// at once, and the stored message's id is recorded so the poller's copy isn't shown again.
+    package func sendLivechat(_ text: String) async throws(SendFailure) {
+        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
+        self.isBusy = true
+        defer { self.finishOperation() }
+
+        let page = await self.pageContext()
+        self.appendUser([AttributedString(text)])
+        self.publish()
+
+        do {
+            let stored = try await self.postLivechat(text, page: page)
+            self.livechatMessageIDs.insert(stored.messageId)
+        } catch ChatServiceError.sessionExpired {
+            self.clear()
+            self.publish()
+            throw SendFailure.sessionExpired
+        } catch ChatServiceError.conflict {
+            self.popLastUserBubble()
+            self.publish()
+            throw .livechatInactive(popped: text)
+        } catch {
+            self.popLastUserBubble()
+            self.publish()
+            throw .retry(popped: text, body: nil)
+        }
+    }
+
+    /// Clears the conversation after a call outside the provider — the livechat poller, a form
+    /// submit — saw the session end (401). During a send, reset or delete the clear waits until
+    /// the operation finishes.
     package func expireSession() {
         guard !self.isBusy else {
             self.expiresAfterOperation = true
@@ -278,17 +342,88 @@ private extension ChatProvider {
     func discardInFlight() -> String {
         self.streamingTurnID = nil
         self.incoming.removeLast()
-        let userText = self.user.removeLast().model.last ?? ""
-        return String(userText.characters)
+        return self.popLastUserBubble()
     }
 
-    /// Ends a send, reset or delete, then applies a session expiry that arrived meanwhile.
+    /// Adds a visitor turn, or a bubble on the newest one when a new turn would break the pairing.
+    func appendUser(_ bubbles: [AttributedString]) {
+        if self.user.isEmpty, self.incoming.isEmpty {
+            self.botLeads = false
+        }
+        if Self.startsTurn(count: self.user.count, otherCount: self.incoming.count, leads: !self.botLeads) {
+            self.user.append(Identified(model: bubbles))
+        } else {
+            let last = self.user[self.user.count - 1]
+            self.user[self.user.count - 1] = Identified(id: last.id, model: last.model + bubbles)
+        }
+    }
+
+    /// Adds a bot turn, or a bubble on the newest one when a new turn would break the pairing.
+    func appendIncoming(_ responses: [ChatResponse]) {
+        if self.user.isEmpty, self.incoming.isEmpty {
+            self.botLeads = true
+        }
+        if Self.startsTurn(count: self.incoming.count, otherCount: self.user.count, leads: self.botLeads) {
+            self.incoming.append(Identified(model: responses))
+        } else {
+            let last = self.incoming[self.incoming.count - 1]
+            self.incoming[self.incoming.count - 1] = Identified(id: last.id, model: last.model + responses)
+        }
+    }
+
+    /// Whether new content starts a turn in a pane of `count` turns. Turns pair up by index across
+    /// the panes, leading pane first, so the leading pane may start a turn only when the panes are
+    /// level, and the other only to catch up. A pane that runs two turns ahead loses one from
+    /// ``ConversationSnapshot/turns``.
+    static func startsTurn(count: Int, otherCount: Int, leads: Bool) -> Bool {
+        leads ? count == otherCount : count < otherCount
+    }
+
+    /// Removes the newest visitor bubble, and its turn when nothing is left, returning its text.
+    @discardableResult
+    func popLastUserBubble() -> String {
+        guard let last = self.user.popLast() else { return "" }
+        var bubbles = last.model
+        let text = bubbles.popLast().map { String($0.characters) } ?? ""
+        if !bubbles.isEmpty {
+            self.user.append(Identified(id: last.id, model: bubbles))
+        }
+        return text
+    }
+
+    /// Ends a send, reset or delete, then folds in the livechat messages held back meanwhile.
     func finishOperation() {
         self.isBusy = false
-        guard self.expiresAfterOperation else { return }
-        self.expiresAfterOperation = false
-        self.clear()
-        self.publish()
+        if self.expiresAfterOperation {
+            self.expiresAfterOperation = false
+            self.clear()
+            self.publish()
+            return
+        }
+        let deferred = self.deferredLivechatMessages
+        self.deferredLivechatMessages = []
+        self.ingestLivechat(deferred)
+    }
+
+    func ingestLivechat(_ messages: [LivechatMessage]) {
+        var changed = false
+        for message in messages {
+            if let head = self.historyHead, let createdAt = Self.milliseconds(of: message.createdAt), createdAt <= head {
+                continue
+            }
+            guard self.livechatMessageIDs.insert(message.messageId).inserted else { continue }
+            if message.role == .user {
+                let bubbles = message.parts.compactMap(Self.user)
+                guard !bubbles.isEmpty else { continue }
+                self.appendUser(bubbles)
+            } else {
+                let responses = message.parts.compactMap(Self.incoming)
+                guard !responses.isEmpty else { continue }
+                self.appendIncoming(responses)
+            }
+            changed = true
+        }
+        if changed { self.publish() }
     }
 
     /// Drops all conversation state and resets pagination — after a successful reset
@@ -298,31 +433,114 @@ private extension ChatProvider {
         self.incoming = []
         self.paginator = Paginator()
         self.streamingTurnID = nil
+        self.livechatMessageIDs = []
+        self.historyHead = nil
+        self.botLeads = false
+        self.deferredLivechatMessages = []
+    }
+
+    /// Milliseconds since 1970 of an RFC 3339 `created_at`, whatever its fraction digits and
+    /// offset; `nil` when it doesn't parse. History keeps a message's stored timestamp as written,
+    /// often with microseconds, while the livechat log writes milliseconds in UTC.
+    static func milliseconds(of timestamp: String) -> Int64? {
+        var whole = timestamp
+        var millis: Int64 = 0
+        if let dot = timestamp.firstIndex(of: ".") {
+            let rest = timestamp[timestamp.index(after: dot)...]
+            let digits = rest.prefix { $0.isASCII && $0.isNumber }
+            millis = Int64(String(digits.prefix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)) ?? 0
+            whole = String(timestamp[..<dot]) + rest.dropFirst(digits.count)
+        }
+        guard let date = ISO8601DateFormatter().date(from: whole) else { return nil }
+        return Int64(date.timeIntervalSince1970) * 1000 + millis
+    }
+
+    /// Posts a livechat message under one operation id, and once more when the first attempt may
+    /// have been stored: the server answers a repeated id with the stored copy, so a send whose
+    /// response was lost is never stored twice.
+    func postLivechat(_ text: String, page: String?) async throws(ChatServiceError) -> LivechatMessage {
+        let operationId = UUID().uuidString
+        do {
+            return try await self.service.sendLivechatMessage(text, page: page, operationId: operationId)
+        } catch let error where Self.mayHaveBeenStored(error) {
+            return try await self.service.sendLivechatMessage(text, page: page, operationId: operationId)
+        }
+    }
+
+    /// Whether a failed livechat send may still have been stored: the connection dropped or timed
+    /// out after the request went out, or the response couldn't be read.
+    static func mayHaveBeenStored(_ error: ChatServiceError) -> Bool {
+        switch error {
+        case .transport(.connection(let error)):
+            [.timedOut, .networkConnectionLost, .badServerResponse, .cannotParseResponse].contains(error.code)
+        case .transport(.decoding):
+            true
+        default:
+            false
+        }
     }
 
     /// Buckets a history page into the two panes and prepends it (older turns go
-    /// above existing ones). One message becomes one turn; its parts become the
-    /// turn's adjacent bubbles. Selecting the parser for each part is the caller's
-    /// job here — `RichTextParser` only ever sees a `RichText`.
+    /// above existing ones). Messages in a row from the same side form one turn, and their
+    /// parts the turn's adjacent bubbles; the page's newest turn joins the existing first turn
+    /// when both are the same side, so the panes stay paired. Selecting the parser for each part
+    /// is the caller's job here — `RichTextParser` only ever sees a `RichText`.
     func prepend(_ messages: [Message]) {
-        var olderUser: [Identified<[AttributedString]>] = []
-        var olderIncoming: [Identified<[ChatResponse]>] = []
+        self.livechatMessageIDs.formUnion(messages.map(\.messageId))
 
-        // reverse to chronological (oldest → newest).
+        // Chronological (oldest → newest), one entry per run of messages from one side.
+        var runs: [ConversationSnapshot.Turn] = []
         for message in messages.reversed() {
-            if message.role == .user {
-                olderUser.append(Identified(model: message.parts.compactMap(Self.user)))
-            } else {
-                olderIncoming.append(Identified(model: message.parts.compactMap(Self.incoming)))
+            switch (message.role, runs.last) {
+            case (.user, .user(let bubbles)):
+                runs[runs.count - 1] = .user(bubbles + message.parts.compactMap(Self.user))
+            case (.user, _):
+                runs.append(.user(message.parts.compactMap(Self.user)))
+            case (_, .bot(let responses)):
+                runs[runs.count - 1] = .bot(responses + message.parts.compactMap(Self.incoming))
+            default:
+                runs.append(.bot(message.parts.compactMap(Self.incoming)))
             }
         }
 
-        self.user.insert(contentsOf: olderUser, at: 0)
-        self.incoming.insert(contentsOf: olderIncoming, at: 0)
-
         // Once history is exhausted this is the true start — pin the synthetic greeting above it.
         if self.showsWelcome, let welcome = self.welcomeMessage {
-            self.incoming.insert(Identified(model: [.text(AttributedString(welcome))]), at: 0)
+            let greeting = ChatResponse.text(AttributedString(welcome))
+            if case .bot(let responses) = runs.first {
+                runs[0] = .bot([greeting] + responses)
+            } else {
+                runs.insert(.bot([greeting]), at: 0)
+            }
+        }
+
+        if !self.user.isEmpty || !self.incoming.isEmpty {
+            switch (runs.last, self.botLeads) {
+            case (.user(let bubbles), false):
+                self.user[0] = Identified(id: self.user[0].id, model: bubbles + self.user[0].model)
+                runs.removeLast()
+            case (.bot(let responses), true):
+                self.incoming[0] = Identified(id: self.incoming[0].id, model: responses + self.incoming[0].model)
+                runs.removeLast()
+            default:
+                break
+            }
+        }
+        guard let first = runs.first else { return }
+
+        var olderUser: [Identified<[AttributedString]>] = []
+        var olderIncoming: [Identified<[ChatResponse]>] = []
+        for run in runs {
+            switch run {
+            case .user(let bubbles): olderUser.append(Identified(model: bubbles))
+            case .bot(let responses): olderIncoming.append(Identified(model: responses))
+            }
+        }
+        self.user.insert(contentsOf: olderUser, at: 0)
+        self.incoming.insert(contentsOf: olderIncoming, at: 0)
+        if case .bot = first {
+            self.botLeads = true
+        } else {
+            self.botLeads = false
         }
     }
 

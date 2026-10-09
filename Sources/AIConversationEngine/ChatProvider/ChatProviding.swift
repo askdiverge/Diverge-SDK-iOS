@@ -26,7 +26,14 @@ package protocol ChatProviding: Sendable {
     /// Wipes visitor data, ends the session, and clears the conversation.
     func delete() async throws
 
-    /// Clears the conversation after a call outside the provider saw the session end (401). During
-    /// a send, reset or delete the clear waits until the operation finishes.
+    /// Folds messages from the livechat poller into the conversation, skipping ids already shown.
+    func appendLivechat(_ messages: [LivechatMessage]) async
+
+    /// Sends the visitor's text to the agent while a livechat session is active.
+    func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure)
+
+    /// Clears the conversation after a call outside the provider — the livechat poller, a form
+    /// submit — saw the session end (401). During a send, reset or delete the clear waits until
+    /// the operation finishes.
     func expireSession() async
 }
