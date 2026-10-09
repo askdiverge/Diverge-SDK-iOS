@@ -35,10 +35,15 @@ extension ChatView {
         @ObservationIgnored private let service: ChatService
         @ObservationIgnored private let pageContext: @Sendable () async -> String?
         @ObservationIgnored private var provider: (any ChatProviding)?
+        /// Polls the visitor's livechat session while the chatbot has livechat configured.
+        @ObservationIgnored private var livechat: LivechatSession?
         @ObservationIgnored private let submitAction: ActionSubmitter
         @ObservationIgnored private let fetchForm: FormFetcher
 
         private(set) var snapshot: ConversationSnapshot?
+        /// The visitor's livechat status. While it is `active` the visitor's messages go to the
+        /// agent; otherwise they go to the assistant.
+        private(set) var livechatStatus: LivechatState.Status = .inactive
         /// Drafts of the conversation's forms by `part_id`, created when a snapshot first brings
         /// the form so a draft survives list recycling.
         private(set) var formModels: [String: FormSubmissionModel] = [:]
@@ -112,6 +117,14 @@ extension ChatView {
                 try? await provider.loadOlder()
                 self.phase = .ready
 
+                // After history, so the replayed livechat log skips the messages history shows.
+                if config.livechat.configured {
+                    let livechat = LivechatSession(service: self.service)
+                    self.livechat = livechat
+                    self.observe(livechat, provider: provider)
+                    await livechat.bootstrap()
+                }
+
             } catch {
                 self.phase = .failed
             }
@@ -128,7 +141,11 @@ extension ChatView {
 
             do {
                 self.currentMessage = ""
-                try await provider.send(text)
+                if self.livechatStatus == .active {
+                    try await provider.sendLivechat(text)
+                } else {
+                    try await provider.send(text)
+                }
 
             } catch {
                 switch error {
@@ -142,6 +159,13 @@ extension ChatView {
                 case .retry(popped: let lastMessage, body: let body):
                     self.currentMessage = lastMessage
                     self.present(Notice(edge: .bottom, message: body ?? L10n.noticeSendFailed.string, autoDismiss: nil))
+
+                case .livechatInactive(popped: let lastMessage):
+                    // The agent session ended; the restored text goes to the assistant next time.
+                    self.currentMessage = lastMessage
+                    self.livechatStatus = .closed
+                    self.present(Notice(edge: .bottom, message: L10n.noticeLivechatEnded.string, autoDismiss: nil))
+                    await self.livechat?.refresh()
 
                 case .sessionExpired:
                     throw SessionEnded()
@@ -185,6 +209,10 @@ extension ChatView {
                 let response = try await self.submitAction(request)
                 let text = FormSubmissionModel.confirmation(server: response.confirmationText, form: model.form)
                 self.formModels[partId]?.markSubmitted(confirmation: text)
+                // A form's submit actions can start a livechat session.
+                if !self.livechatStatus.isInSession {
+                    await self.livechat?.bootstrap()
+                }
             } catch ChatServiceError.sessionExpired {
                 self.formModels[partId]?.markFailed()
                 throw SessionEnded()
@@ -224,6 +252,7 @@ extension ChatView {
                 return
             }
             self.formModels = [:]
+            await self.livechat?.teardown()
         }
 
         /// Request deletion of visitor data and end the session. Rethrows so the delete sheet can act on the
@@ -235,6 +264,19 @@ extension ChatView {
                 throw DeletionFailed()
             }
             self.formModels = [:]
+            await self.livechat?.teardown()
+        }
+
+        /// Pauses livechat polling while the app is in the background.
+        func setSceneActive(_ active: Bool) {
+            guard let livechat = self.livechat else { return }
+            Task { await livechat.setSceneActive(active) }
+        }
+
+        /// Pauses livechat polling while the chat is off screen.
+        func setVisible(_ visible: Bool) {
+            guard let livechat = self.livechat else { return }
+            Task { await livechat.setVisible(visible) }
         }
 
         /// Test seam — attach a stub provider without bootstrapping `/config`.
@@ -262,6 +304,22 @@ extension ChatView {
                 for await snapshot in stream {
                     self?.prepareForms(in: snapshot)
                     self?.snapshot = snapshot
+                }
+            }
+        }
+
+        /// Folds the livechat poller's messages into the conversation and tracks the session's
+        /// status, which decides where the visitor's next message goes. A 401 the poller sees
+        /// clears the conversation, as an expired send does.
+        private func observe(_ livechat: LivechatSession, provider: some ChatProviding) {
+            let stream = livechat.stream
+            Task { [weak self] in
+                for await snapshot in stream {
+                    await provider.appendLivechat(snapshot.messages)
+                    if snapshot.sessionExpired {
+                        await provider.expireSession()
+                    }
+                    self?.livechatStatus = snapshot.state.status
                 }
             }
         }

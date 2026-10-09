@@ -42,4 +42,31 @@ package protocol ChatServicing: Sendable {
     /// Full visitor-data wipe via the host's delete hook. The session ends, no
     /// replacement token is fetched. The caller clears local conversation state
     func deleteData() async throws(ChatServiceError)
+
+    // MARK: Livechat
+    // Session-bound: a 401 surfaces as ``ChatServiceError/sessionExpired``.
+
+    /// The visitor's livechat state and the messages after `sequenceNumber` (from the start when
+    /// `nil`), read from one snapshot. With a `waitMs` and the previous response's `syncCursor`,
+    /// the server holds the request until something changes or the wait ends.
+    func syncLivechat(after sequenceNumber: Int64?, waitMs: Int?, syncCursor: String?) async throws(ChatServiceError) -> LivechatSync
+
+    /// Queues the visitor for a human agent and returns the session's status: `waiting`, or
+    /// `active` when the API hands back a session that is already open. A 409 means livechat is
+    /// unavailable and surfaces as ``ChatServiceError/conflict``.
+    func requestLivechatHandover(
+        source: LivechatHandoverRequest.Source,
+        partId: String?,
+        clientContext: LivechatClientContext?
+    ) async throws(ChatServiceError) -> LivechatState.Status
+
+    /// Sends the visitor's text to the agent and returns the stored message. A 409 means the
+    /// session is no longer active and surfaces as ``ChatServiceError/conflict``.
+    func sendLivechatMessage(_ text: String, page: String?) async throws(ChatServiceError) -> LivechatMessage
+
+    /// Tells the agent whether the visitor is typing.
+    func sendLivechatTyping(isTyping: Bool) async throws(ChatServiceError)
+
+    /// Closes the visitor's livechat session.
+    func closeLivechat(reason: String?) async throws(ChatServiceError)
 }

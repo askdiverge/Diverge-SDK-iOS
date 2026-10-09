@@ -47,6 +47,17 @@ final class StubChatProviding: ChatProviding, @unchecked Sendable {
     }
 
     func delete() async throws {}
+
+    func appendLivechat(_: [LivechatMessage]) async {}
+
+    func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure) {
+        self.lastSent = text
+        if let sendFailure {
+            throw sendFailure
+        }
+    }
+
+    func expireSession() async {}
 }
 
 extension ChatView.ViewModel {
