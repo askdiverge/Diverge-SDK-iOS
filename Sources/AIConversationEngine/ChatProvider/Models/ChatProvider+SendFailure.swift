@@ -19,6 +19,9 @@ extension ChatProvider {
         /// The livechat session is no longer active (409 on a livechat send). The user's text is
         /// popped back so it can go to the assistant instead.
         case livechatInactive(popped: String)
+        /// The assistant send was rejected with 409, which an active livechat session causes. The
+        /// user's text is popped back so it can go to the agent once the session's state confirms one.
+        case livechatActive(popped: String)
         /// Another mutating operation (send/reset/delete) is already in flight.
         case busy(Reason)
 

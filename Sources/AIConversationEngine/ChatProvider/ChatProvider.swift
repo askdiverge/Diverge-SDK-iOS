@@ -162,6 +162,11 @@ extension ChatProvider {
             self.publish()
             throw .retry(popped: popped, body: error.message)
 
+        } catch ChatServiceError.conflict {
+            let popped = self.discardInFlight()
+            self.publish()
+            throw .livechatActive(popped: popped)
+
         } catch {
             let popped = self.discardInFlight()
             self.publish()

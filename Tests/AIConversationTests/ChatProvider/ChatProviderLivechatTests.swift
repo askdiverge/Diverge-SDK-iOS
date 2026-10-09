@@ -106,6 +106,21 @@ struct ChatProviderLivechatTests {
         #expect(await snapshots.next()?.user.isEmpty == true)
     }
 
+    @Test("a 409 on an assistant send surfaces livechatActive and drops the turn")
+    func assistantSendConflict() async {
+        let mock = MockChatService(.init(sendError: .conflict))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatProvider.SendFailure.livechatActive(popped: "hi")) {
+            try await provider.send("hi")
+        }
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.user.isEmpty == true)
+        #expect(snapshot?.incoming.isEmpty == true)
+    }
+
     @Test("visitor messages go to the user pane and every other role to the bot pane")
     func roleMapping() async {
         let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })

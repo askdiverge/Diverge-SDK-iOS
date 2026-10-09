@@ -266,10 +266,19 @@ struct LivechatSessionTests {
 
         service.livechatState = LivechatState(status: .closed)
         await session.refresh()
-        await session.resumeActive()
-        try await Task.sleep(for: .milliseconds(40))
+        service.livechatState = LivechatState(status: .active)
+        #expect(await session.resumeActive())
         #expect(service.lastLivechatAfterSequence == nil)
         await session.stopPolling()
+    }
+
+    @Test("a 409 hint with no session open adopts nothing")
+    func resumeWithoutSession() async {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .inactive)))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+
+        #expect(await session.resumeActive() == false)
+        #expect(service.livechatSyncCallCount == 1)
     }
 
     @Test("messages are fetched page by page while has_more holds")

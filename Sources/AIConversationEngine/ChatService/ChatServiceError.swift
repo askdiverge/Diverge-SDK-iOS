@@ -19,7 +19,8 @@ package enum ChatServiceError: Error {
     /// Next action re-authenticates.
     case sessionExpired
 
-    /// A 409 from `POST /actions` — the action conflicts with server state.
+    /// A 409 — the request conflicts with server state. Each ``ChatServicing`` method that maps it
+    /// says what it means there.
     case conflict
 
     /// The server terminated the message stream.
@@ -49,6 +50,16 @@ extension ChatServiceError {
             Self.validation(status: status, body: body) ?? .transport(.http(.unhandled(status: status, body: body)))
         case let error as NetworkError: .transport(error)
         default: .provider(error)
+        }
+    }
+
+    /// Whether the same request may succeed when tried again: the connection failed, the server
+    /// timed out, limited the rate or failed with a 5xx, or a host hook threw.
+    package var isTransient: Bool {
+        switch self {
+        case .transport(.http(.unhandled(let status, _))): status >= 500 || status == 408 || status == 429
+        case .transport(.connection), .transport(.unknown), .provider: true
+        default: false
         }
     }
 }

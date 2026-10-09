@@ -36,6 +36,13 @@ struct LivechatTypingRequest: Encodable, Sendable, Equatable {
 
 /// Body for `POST /api/v1/chat/livechat/close`.
 /// [API ref](https://docs.askdiverge.ai/api#model/livechatcloserequest)
-struct LivechatCloseRequest: Encodable, Sendable, Equatable {
+package struct LivechatCloseRequest: Encodable, Sendable, Equatable {
+
+    /// The `reason` sent when the visitor ends the session from the header control. The backend
+    /// records it as the session's close reason.
+    package static let endedByVisitorReason = "Switched back to AI chatbot mode"
+    /// The `reason` sent when the visitor resets the chat while a session is open.
+    package static let resetReason = "Chat reset"
+
     let reason: String?
 }

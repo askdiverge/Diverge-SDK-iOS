@@ -137,7 +137,12 @@ extension ChatService: ChatServicing {
 
                 continuation.finish()
             } catch {
-                continuation.finish(throwing: ChatServiceError(error))
+                let failure = ChatServiceError(error)
+                if case .transport(.http(.unhandled(status: 409, body: _))) = failure {
+                    continuation.finish(throwing: ChatServiceError.conflict)
+                } else {
+                    continuation.finish(throwing: failure)
+                }
             }
         }
 
@@ -279,7 +284,11 @@ extension ChatService {
     }
 
     package func closeLivechat(reason: String?) async throws(ChatServiceError) {
-        try await self.postLivechat(LivechatCloseRequest(reason: reason), to: .livechatClose)
+        do {
+            try await self.postLivechat(LivechatCloseRequest(reason: reason), to: .livechatClose)
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
     }
 }
 

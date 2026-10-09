@@ -60,6 +60,15 @@ enum L10n {
     static let deleteCancel = string("delete.cancel")
     static let deleteConfirm = string("delete.confirm")
 
+    static let livechatStart = string("livechat.start")
+    static let livechatEnd = string("livechat.end")
+    static let livechatOffline = string("livechat.offline")
+    static let livechatWaitingPlaceholder = string("livechat.waitingPlaceholder")
+    static let livechatActivePlaceholder = string("livechat.activePlaceholder")
+    static let livechatClosedPlaceholder = string("livechat.closedPlaceholder")
+    static let livechatWaitingStatus = string("livechat.waitingStatus")
+    static let livechatActiveStatus = string("livechat.activeStatus")
+
     private static func string(_ key: String.LocalizationValue) -> LocalizedStringResource {
         LocalizedStringResource(key, bundle: .atURL(Bundle.module.bundleURL))
     }
