@@ -102,6 +102,7 @@ struct ChatProviderTests {
         let message = Message(
             messageId: "m",
             role: .assistant,
+            agent: nil,
             parts: [.showContactForm(marker)],
             createdAt: "2026-01-01T00:00:00.000Z"
         )
@@ -258,6 +259,7 @@ private extension ChatProviderTests {
         Message(
             messageId: "m",
             role: .assistant,
+            agent: nil,
             parts: [.richText(RichText(partId: "", blocks: [.paragraph(.init(spans: [.text(text)]))]))],
             createdAt: "2026-01-01T00:00:00.000Z"
         )
