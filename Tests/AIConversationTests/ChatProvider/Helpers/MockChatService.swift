@@ -50,6 +50,7 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) private(set) var lastLivechatHandoverClientContext: LivechatClientContext?
     nonisolated(unsafe) private(set) var lastLivechatAfterSequence: Int64?
     nonisolated(unsafe) private(set) var livechatCloseCallCount = 0
+    nonisolated(unsafe) private(set) var lastLivechatCloseReason: String?
     /// The operation id of each `sendLivechatMessage` call, in order.
     nonisolated(unsafe) private(set) var livechatSendOperationIds: [String] = []
 
@@ -184,8 +185,9 @@ final class MockChatService: ChatServicing {
 
     func sendLivechatTyping(isTyping _: Bool) async throws(ChatServiceError) {}
 
-    func closeLivechat(reason _: String?) async throws(ChatServiceError) {
+    func closeLivechat(reason: String?) async throws(ChatServiceError) {
         self.livechatCloseCallCount += 1
+        self.lastLivechatCloseReason = reason
         if let error = self.stub.livechatCloseError {
             throw error
         }

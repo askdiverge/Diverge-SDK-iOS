@@ -36,9 +36,6 @@ struct ChatView: View {
         self.content
             .modifier(LoadingOverlay(isLoading: self.isLoading))
             .task { await self.viewModel.start() }
-            .onAppear { self.viewModel.setVisible(true) }
-            .onDisappear { self.viewModel.setVisible(false) }
-            .onChange(of: self.scenePhase) { _, phase in self.viewModel.setSceneActive(phase == .active) }
             .environment(\.appearance, self.appearance)
             .environment(\.imageLoader, self.viewModel.imageLoader)
     }
@@ -86,6 +83,16 @@ private extension ChatView {
                 self.viewModel.backgroundSessionEnded = false
                 self.showSessionEndedAlert = true
             }
+            .onChange(of: self.viewModel.livechatSessionEnded) { _, ended in
+                guard ended else { return }
+                self.viewModel.livechatSessionEnded = false
+                self.showSessionEndedAlert = true
+            }
+            .onChange(of: self.scenePhase) { _, phase in
+                Task { await self.viewModel.setSceneActive(phase == .active) }
+            }
+            .onAppear { Task { await self.viewModel.setVisible(true) } }
+            .onDisappear { Task { await self.viewModel.setVisible(false) } }
     }
 
     var failedView: some View {
@@ -113,7 +120,10 @@ private extension ChatView {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(self.viewModel.name)
             .toolbarTitleDisplayMode(.inline)
-            .toolbar { self.resetToolbarItem }
+            .toolbar {
+                self.livechatToolbarItem
+                self.resetToolbarItem
+            }
             .safeAreaInset(edge: .bottom) { self.inputBar }
         }
         .safeAreaInset(edge: .top) { self.topNotice }
@@ -133,7 +143,44 @@ private extension ChatView {
             } label: {
                 ChatAppearance.Symbol.reset
             }
-            .disabled(self.viewModel.snapshot?.streamingTurnID != nil)
+            .disabled(self.viewModel.snapshot?.streamingTurnID != nil || self.viewModel.isLivechatBusy)
+        }
+    }
+
+    /// Asks for a person, or ends the session; amber while queued, green with an agent, and dimmed
+    /// while livechat is offline.
+    @ToolbarContentBuilder
+    var livechatToolbarItem: some ToolbarContent {
+        let control = self.viewModel.livechatControl
+        if control != .hidden {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await self.viewModel.toggleLivechat() }
+                } label: {
+                    ChatAppearance.Symbol.livechat
+                }
+                .tint(self.livechatTint)
+                .help(self.livechatLabel(for: control))
+                .accessibilityLabel(self.livechatLabel(for: control))
+                .accessibilityIdentifier("livechat.control")
+                .disabled(self.viewModel.isLivechatBusy)
+            }
+        }
+    }
+
+    var livechatTint: Color? {
+        switch self.viewModel.livechatStatus {
+        case .waiting: .orange
+        case .active: .green
+        default: self.viewModel.livechatControl == .offline ? .secondary : nil
+        }
+    }
+
+    func livechatLabel(for control: ViewModel.LivechatControl) -> Text {
+        switch control {
+        case .end: Text(L10n.livechatEnd)
+        case .offline: Text(L10n.livechatOffline)
+        case .start, .hidden: Text(L10n.livechatStart)
         }
     }
 
@@ -385,7 +432,7 @@ private extension ChatView {
                 get: { self.viewModel.currentMessage },
                 set: { self.viewModel.currentMessage = $0 }
             ),
-            placeholder: L10n.inputPlaceholder.string,
+            placeholder: self.viewModel.inputPlaceholder,
             leadingIcon: ChatAppearance.Symbol.privacy,
             onLeadingTap: { self.privacyDestination = .privacy },
             onSend: self.send,
