@@ -184,6 +184,28 @@ struct ChatServiceLivechatTests {
         }
     }
 
+    @Test("a 409 on an assistant send, while an agent session is active, surfaces as conflict")
+    func assistantSendConflict() async {
+        let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409)])
+
+        await #expect {
+            try await ChatServiceFixtures.drain(sut.sendMessage("hi", page: nil))
+        } throws: { error in
+            if case ChatServiceError.conflict = error { true } else { false }
+        }
+    }
+
+    @Test("a 409 on close, with no open session, surfaces as conflict")
+    func closeConflict() async {
+        let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409)])
+
+        await #expect {
+            try await sut.closeLivechat(reason: nil)
+        } throws: { error in
+            if case ChatServiceError.conflict = error { true } else { false }
+        }
+    }
+
     @Test("typing and close post their bodies")
     func typingAndClose() async throws {
         let (sut, script) = ChatServiceFixtures.makeSUT(responses: [.init()])

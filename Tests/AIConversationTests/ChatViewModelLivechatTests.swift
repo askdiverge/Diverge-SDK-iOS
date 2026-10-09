@@ -26,7 +26,7 @@ struct ChatViewModelLivechatTests {
 
         try await eventually { provider.appendedLivechat.map(\.messageId) == ["a1"] }
         #expect(viewModel.livechatStatus == .active)
-        #expect(service.livechatStateCallCount == 1)
+        #expect(service.livechatSyncCallCount == 1)
     }
 
     @Test("livechat that isn't configured is never read")
@@ -36,7 +36,7 @@ struct ChatViewModelLivechatTests {
         viewModel.startLivechat(with: try Self.config(configured: false))
         try await Task.sleep(for: .milliseconds(50))
 
-        #expect(service.livechatStateCallCount == 0)
+        #expect(service.livechatSyncCallCount == 0)
     }
 
     @Test("a session that ended on the poller (401) clears the conversation and asks for the alert")
@@ -102,7 +102,8 @@ struct ChatViewModelLivechatTests {
     func copyInEveryLocale() throws {
         try StringCatalog.expectKeysInEveryLocale([
             "livechat.start", "livechat.end", "livechat.offline",
-            "livechat.waitingPlaceholder", "livechat.activePlaceholder", "livechat.closedPlaceholder"
+            "livechat.waitingPlaceholder", "livechat.activePlaceholder", "livechat.closedPlaceholder",
+            "livechat.waitingStatus", "livechat.activeStatus"
         ])
     }
 
@@ -147,7 +148,23 @@ struct ChatViewModelLivechatTests {
         try await eventually { viewModel.livechatStatus == .active }
     }
 
-    @Test("a 409 on the agent send restores the text and refreshes, so the next send goes to the assistant")
+    @Test("a 409 on the assistant send with no agent session offers a retry and stays with the assistant")
+    func assistantConflictWithoutSession() async throws {
+        let provider = StubChatProviding(sendFailure: .livechatActive(popped: "hi"))
+        let (viewModel, service, _) = self.makeSUT(provider: provider)
+        service.livechatState = LivechatState(status: .inactive)
+
+        viewModel.currentMessage = "hi"
+        try await viewModel.send()
+
+        #expect(provider.lastLivechatSent == nil)
+        #expect(viewModel.currentMessage == "hi")
+        #expect(viewModel.notice?.message == L10n.noticeSendFailed.string)
+        #expect(service.livechatSyncCallCount == 1)
+        #expect(viewModel.livechatStatus == .inactive)
+    }
+
+    @Test("a 409 on the agent send says the agent chat ended and refreshes, so the next send goes to the assistant")
     func agentConflictRefreshes() async throws {
         let provider = StubChatProviding(livechatSendFailure: .livechatInactive(popped: "hi"))
         let (viewModel, service, _) = self.makeSUT(provider: provider)
@@ -158,7 +175,7 @@ struct ChatViewModelLivechatTests {
         try await viewModel.send()
 
         #expect(viewModel.currentMessage == "hi")
-        #expect(viewModel.notice?.message == L10n.noticeSendFailed.string)
+        #expect(viewModel.notice?.message == L10n.noticeLivechatEnded.string)
         try await eventually { viewModel.livechatStatus == .closed }
     }
 
@@ -190,15 +207,17 @@ struct ChatViewModelLivechatTests {
         #expect(viewModel.livechatStatus == .inactive)
     }
 
-    @Test("the control says livechat is offline without asking the server")
-    func offlineControlShowsNotice() async throws {
+    @Test("an offline control still asks the server, so livechat that came online since launch is reached")
+    func offlineControlAsks() async throws {
         let (viewModel, service, _) = self.makeSUT()
+        service.livechatState = LivechatState(status: .waiting)
         viewModel.startLivechat(with: try Self.config(configured: false, live: false))
 
         await viewModel.toggleLivechat()
 
-        #expect(service.livechatHandoverCallCount == 0)
-        #expect(viewModel.notice?.message == L10n.livechatOffline.string)
+        #expect(service.livechatHandoverCallCount == 1)
+        #expect(viewModel.notice == nil)
+        try await eventually { viewModel.livechatStatus == .waiting }
     }
 
     @Test("during a session the control closes it and returns to the assistant")
@@ -240,6 +259,22 @@ struct ChatViewModelLivechatTests {
         #expect(service.lastLivechatCloseReason == "Chat reset")
         #expect(provider.resetCount == 1)
         try await eventually { viewModel.livechatStatus == .inactive }
+    }
+
+    @Test("a reset during a send to the agent does nothing, so the session stays open")
+    func resetDuringSendKeepsSession() async throws {
+        let provider = StubChatProviding()
+        let (viewModel, service, _) = self.makeSUT(provider: provider)
+        try await self.start(viewModel, in: .active, on: service)
+        provider.whileSendingLivechat = { await viewModel.reset() }
+
+        viewModel.currentMessage = "hi"
+        try await viewModel.send()
+
+        #expect(provider.lastLivechatSent == "hi")
+        #expect(service.livechatCloseCallCount == 0)
+        #expect(provider.resetCount == 0)
+        #expect(viewModel.livechatStatus == .active)
     }
 
     @Test("a reset with no session open closes nothing")

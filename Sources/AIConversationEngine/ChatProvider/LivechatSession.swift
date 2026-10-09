@@ -152,7 +152,7 @@ package actor LivechatSession {
     }
 
     /// Closes the session from the visitor's side, publishes the messages that arrived before
-    /// the close, and stops polling.
+    /// the close, and stops polling. A 409 (no open session) fails with ``ChatServiceError/conflict``.
     package func close(reason: String?) async throws(ChatServiceError) {
         self.bumpGeneration()
         let gen = self.generation
@@ -169,18 +169,17 @@ package actor LivechatSession {
         }
     }
 
-    /// Adopts an active session this device wasn't polling, which a 409 on the AI send reveals.
-    /// Publishes `active` at once so the next send can go to the agent, then ticks for the rest.
-    package func resumeActive() {
+    /// Reads the state after a 409 on the AI send, which a session this device wasn't polling
+    /// causes, and returns whether an agent session is active. An open session is published with
+    /// its messages and polled from then on.
+    package func resumeActive() async -> Bool {
         self.bumpGeneration()
         self.sessionExpired = false
         self.consecutiveFailures = 0
-        if !self.lastStatus.isInSession {
-            // A session this device wasn't tracking numbers its messages from the start.
-            self.afterSequence = 0
-            self.publishTransition(to: LivechatState(status: .active), messages: [])
-        }
-        self.startPolling(immediate: true)
+        await self.tick(waiting: false)
+        guard self.lastStatus.isInSession else { return false }
+        self.startPolling()
+        return self.lastStatus == .active
     }
 
     /// Ticks once now, for example after a livechat send was rejected with 409.

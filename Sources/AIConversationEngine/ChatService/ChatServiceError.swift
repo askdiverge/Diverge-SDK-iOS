@@ -52,6 +52,16 @@ extension ChatServiceError {
         default: .provider(error)
         }
     }
+
+    /// Whether the same request may succeed when tried again: the connection failed, the server
+    /// timed out, limited the rate or failed with a 5xx, or a host hook threw.
+    package var isTransient: Bool {
+        switch self {
+        case .transport(.http(.unhandled(let status, _))): status >= 500 || status == 408 || status == 429
+        case .transport(.connection), .transport(.unknown), .provider: true
+        default: false
+        }
+    }
 }
 
 private extension ChatServiceError {

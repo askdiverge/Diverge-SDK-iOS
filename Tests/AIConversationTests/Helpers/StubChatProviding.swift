@@ -9,8 +9,10 @@ import Foundation
 
 /// Minimal ``ChatProviding`` stub for view-model tests: records the last assistant and agent sends,
 /// optionally fails them with a scripted ``ChatProvider/SendFailure``, and lets a test `publish` a
-/// snapshot to drive the view model's snapshot-derived state (e.g. `isFormEditable`).
-final class StubChatProviding: ChatProviding, @unchecked Sendable {
+/// snapshot to drive the view model's snapshot-derived state (e.g. `isFormEditable`). Isolated to
+/// the main actor, like the view model and the suites that read its records.
+@MainActor
+final class StubChatProviding: ChatProviding {
 
     private let sendFailure: ChatProvider.SendFailure?
     private let livechatSendFailure: ChatProvider.SendFailure?
@@ -21,6 +23,8 @@ final class StubChatProviding: ChatProviding, @unchecked Sendable {
     private(set) var resetCount = 0
     private(set) var expireCount = 0
     var resetError: Error?
+    /// Runs while an agent send is in flight, before it returns.
+    var whileSendingLivechat: (@MainActor () async -> Void)?
 
     init(sendFailure: ChatProvider.SendFailure? = nil, livechatSendFailure: ChatProvider.SendFailure? = nil) {
         self.sendFailure = sendFailure
@@ -61,6 +65,7 @@ final class StubChatProviding: ChatProviding, @unchecked Sendable {
 
     func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure) {
         self.lastLivechatSent = text
+        await self.whileSendingLivechat?()
         if let livechatSendFailure {
             throw livechatSendFailure
         }

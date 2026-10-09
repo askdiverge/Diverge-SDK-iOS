@@ -136,40 +136,12 @@ private extension ChatView {
         }
     }
 
-    /// Asks for a person, or ends the session; amber while queued, green with an agent, and dimmed
-    /// while livechat is offline.
     @ToolbarContentBuilder
     var livechatToolbarItem: some ToolbarContent {
-        let control = self.viewModel.livechatControl
-        if control != .hidden {
+        if self.viewModel.livechatControl != .hidden {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task { await self.viewModel.toggleLivechat() }
-                } label: {
-                    ChatAppearance.Symbol.livechat
-                }
-                .tint(self.livechatTint)
-                .help(self.livechatLabel(for: control))
-                .accessibilityLabel(self.livechatLabel(for: control))
-                .accessibilityIdentifier("livechat.control")
-                .disabled(self.viewModel.isLivechatBusy)
+                LivechatControlButton(viewModel: self.viewModel)
             }
-        }
-    }
-
-    var livechatTint: Color? {
-        switch self.viewModel.livechatStatus {
-        case .waiting: .orange
-        case .active: .green
-        default: self.viewModel.livechatControl == .offline ? .secondary : nil
-        }
-    }
-
-    func livechatLabel(for control: ViewModel.LivechatControl) -> Text {
-        switch control {
-        case .end: Text(L10n.livechatEnd)
-        case .offline: Text(L10n.livechatOffline)
-        case .start, .hidden: Text(L10n.livechatStart)
         }
     }
 

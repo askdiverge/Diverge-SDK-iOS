@@ -40,9 +40,6 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) private(set) var resetCallCount = 0
     nonisolated(unsafe) private(set) var deleteCallCount = 0
     nonisolated(unsafe) private(set) var livechatSyncCallCount = 0
-    /// Same as ``livechatSyncCallCount`` — kept for ViewModel tests written against the older
-    /// `GET /livechat/state` seam.
-    nonisolated var livechatStateCallCount: Int { self.livechatSyncCallCount }
     /// The `wait_ms` and `sync_cursor` of the last `syncLivechat` call.
     nonisolated(unsafe) private(set) var lastLivechatSyncWait: (waitMs: Int?, syncCursor: String?)
     nonisolated(unsafe) private(set) var livechatHandoverCallCount = 0
