@@ -150,6 +150,15 @@ package actor LivechatSession {
         } catch .sessionExpired {
             self.expire(generation: gen)
             throw .sessionExpired
+        } catch .conflict {
+            throw .conflict
+        } catch {
+            // The server may have opened the session even though its response was lost; polling
+            // finds it, and stops by itself when there is none.
+            if gen == self.generation {
+                self.startPolling(immediate: true)
+            }
+            throw error
         }
     }
 
@@ -171,18 +180,18 @@ package actor LivechatSession {
         }
     }
 
-    /// Adopts an active session this device wasn't polling, which a 409 on the AI send reveals.
-    /// Publishes `active` at once so the next send can go to the agent, then ticks for the rest.
-    package func resumeActive() {
+    /// Reads the state after a 409 on the AI send, which a session this device wasn't polling
+    /// causes, and returns whether an agent session is active. An open session is published with
+    /// its messages and polled from then on, and so is one that closed meanwhile with its last
+    /// messages. A read that fails leaves the poller retrying it.
+    package func resumeActive() async -> Bool {
         self.bumpGeneration()
         self.sessionExpired = false
         self.consecutiveFailures = 0
-        if !self.lastStatus.isInSession {
-            // A session this device wasn't tracking numbers its messages from the start.
-            self.afterSequence = 0
-            self.publishTransition(to: LivechatState(status: .active), messages: [])
-        }
-        self.startPolling(immediate: true)
+        await self.tick(waiting: false, recovering: true)
+        guard self.lastStatus.isInSession || self.consecutiveFailures > 0 else { return false }
+        self.startPolling()
+        return self.lastStatus == .active
     }
 
     /// Ticks once now, for example after a livechat send was rejected with 409.
@@ -303,8 +312,9 @@ private extension LivechatSession {
     }
 
     /// Syncs once. `waiting` lets the request wait on the last `sync_cursor`; `confirming` marks
-    /// the fresh read that follows a lower `state_version`.
-    func tick(waiting: Bool, confirming: Bool = false) async {
+    /// the fresh read that follows a lower `state_version`; `recovering` marks a read for a session
+    /// this device wasn't tracking, whose closing messages it hasn't shown.
+    func tick(waiting: Bool, confirming: Bool = false, recovering: Bool = false) async {
         let gen = self.generation
         let previous = self.lastStatus
         do {
@@ -335,7 +345,7 @@ private extension LivechatSession {
             if !previous.isInSession && sync.state.isInSession {
                 self.afterSequence = 0
             }
-            let closedNow = previous.isInSession && sync.state.status == .closed
+            let closedNow = (previous.isInSession || recovering) && sync.state.status == .closed
             let messages = sync.state.isInSession || closedNow ? sync.messages : []
             self.publishTransition(to: sync.state, messages: messages, generation: gen)
             if !sync.state.isInSession {
