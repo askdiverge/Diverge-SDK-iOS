@@ -20,13 +20,6 @@ package struct LivechatMessage: Decodable, Sendable, Equatable {
     package let sequenceNumber: Int64
 }
 
-/// A page of livechat messages from `GET /livechat/messages`, oldest first.
-/// [API ref](https://docs.askdiverge.ai/api#model/livechatmessagepage)
-package struct LivechatMessagePage: Decodable, Sendable, Equatable {
-    package let messages: [LivechatMessage]
-    package let hasMore: Bool
-}
-
 /// The `POST /livechat/messages` response. Only the nested `message` is read; the API repeats
 /// its fields at the top level for older clients.
 /// [API ref](https://docs.askdiverge.ai/api#model/livechatvisitormessageresponse)

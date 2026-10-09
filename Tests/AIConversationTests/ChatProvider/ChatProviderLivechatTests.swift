@@ -60,6 +60,39 @@ struct ChatProviderLivechatTests {
         #expect(await snapshots.next()?.user.isEmpty == true)
     }
 
+    @Test("a timed-out livechat send that the log holds stays on screen and isn't shown twice")
+    func timedOutSendFoundInLog() async throws {
+        let mock = MockChatService(.init(
+            livechatState: LivechatState(status: .active),
+            livechatMessagePages: [LivechatFixtures.page(LivechatFixtures.message("u1", role: .user, text: "hi", sequence: 4))],
+            livechatSendError: .transport(.connection(URLError(.timedOut)))
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+
+        try await provider.sendLivechat("hi")
+        await provider.appendLivechat([LivechatFixtures.message("u1", role: .user, text: "hi", sequence: 4)])
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.user.map(\.model) == [[AttributedString("hi")]])
+    }
+
+    @Test("a timed-out livechat send that the log doesn't hold is popped for retry")
+    func timedOutSendMissingFromLog() async {
+        let mock = MockChatService(.init(
+            livechatState: LivechatState(status: .active),
+            livechatSendError: .transport(.connection(URLError(.timedOut)))
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: "hi", body: nil)) {
+            try await provider.sendLivechat("hi")
+        }
+
+        #expect(await snapshots.next()?.user.isEmpty == true)
+        #expect(mock.livechatSyncCallCount == 1)
+    }
+
     @Test("a 409 on a livechat send surfaces livechatInactive and pops the echo")
     func sendConflict() async {
         let mock = MockChatService(.init(livechatSendError: .conflict))

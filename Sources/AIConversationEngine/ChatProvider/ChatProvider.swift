@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AIConversationCore
 
 /// Stateful session data layer between the facade (`ChatServicing`, pure wire I/O)
 /// and the view model.
@@ -56,6 +57,9 @@ package actor ChatProvider: ChatProviding {
     /// Set when the poller saw the session end during an operation; the conversation clears when
     /// the operation finishes, so a streaming reply never writes into emptied panes.
     private var expiresAfterOperation = false
+    /// The highest livechat sequence number in the panes; a check for a send that may have been
+    /// stored reads the log after it.
+    private var lastLivechatSequence: Int64?
 
     /// Snapshot channel the view model observes. Latest-wins — the VM only ever
     /// cares about the current conversation, never a backlog.
@@ -285,6 +289,7 @@ extension ChatProvider {
         do {
             let stored = try await self.service.sendLivechatMessage(text, page: page)
             self.livechatMessageIDs.insert(stored.messageId)
+            self.noteLivechatSequence(stored.sequenceNumber)
         } catch ChatServiceError.sessionExpired {
             self.clear()
             self.publish()
@@ -293,6 +298,13 @@ extension ChatProvider {
             self.popLastUserBubble()
             self.publish()
             throw .livechatInactive(popped: text)
+        } catch let error where Self.mayHaveBeenStored(error) {
+            // The message stays on screen while the log is checked for it; only a send that isn't
+            // there is offered for retry.
+            if await self.adoptStoredCopy(of: text) { return }
+            self.popLastUserBubble()
+            self.publish()
+            throw .retry(popped: text, body: nil)
         } catch {
             self.popLastUserBubble()
             self.publish()
@@ -394,6 +406,7 @@ private extension ChatProvider {
     func ingestLivechat(_ messages: [LivechatMessage]) {
         var changed = false
         for message in messages {
+            self.noteLivechatSequence(message.sequenceNumber)
             guard self.livechatMessageIDs.insert(message.messageId).inserted else { continue }
             if message.role == .user {
                 let bubbles = message.parts.compactMap(Self.user)
@@ -418,6 +431,53 @@ private extension ChatProvider {
         self.streamingTurnID = nil
         self.livechatMessageIDs = []
         self.deferredLivechatMessages = []
+        self.lastLivechatSequence = nil
+    }
+
+    func noteLivechatSequence(_ sequenceNumber: Int64) {
+        self.lastLivechatSequence = max(self.lastLivechatSequence ?? 0, sequenceNumber)
+    }
+
+    /// Whether a failed livechat send may still have been stored: the connection dropped or timed
+    /// out after the request went out, or the response couldn't be read.
+    static func mayHaveBeenStored(_ error: ChatServiceError) -> Bool {
+        switch error {
+        case .transport(.connection(let error)):
+            [.timedOut, .networkConnectionLost, .badServerResponse, .cannotParseResponse].contains(error.code)
+        case .transport(.decoding):
+            true
+        default:
+            false
+        }
+    }
+
+    /// Looks for `text` among the visitor's messages after the newest one shown. When it is there,
+    /// the send went through, and its id is recorded so the poller's copy isn't shown again.
+    func adoptStoredCopy(of text: String) async -> Bool {
+        // A failed check leaves the send unconfirmed, and the caller offers a retry.
+        guard let sync = try? await self.service.syncLivechat(
+            after: self.lastLivechatSequence,
+            waitMs: nil,
+            syncCursor: nil
+        ) else { return false }
+        let wanted = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let stored = sync.messages.last { message in
+            message.role == .user
+                && !self.livechatMessageIDs.contains(message.messageId)
+                && Self.plainText(of: message) == wanted
+        }
+        guard let stored else { return false }
+        self.livechatMessageIDs.insert(stored.messageId)
+        self.noteLivechatSequence(stored.sequenceNumber)
+        return true
+    }
+
+    static func plainText(of message: LivechatMessage) -> String {
+        message.parts
+            .compactMap(Self.user)
+            .map { String($0.characters) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Buckets a history page into the two panes and prepends it (older turns go

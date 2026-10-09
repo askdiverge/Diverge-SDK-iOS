@@ -23,11 +23,12 @@ final class MockChatService: ChatServicing {
         var deleteError: ChatServiceError?
         var livechatState = LivechatState(status: .inactive)
         var livechatStateError: ChatServiceError?
-        /// Thrown by the `fetchLivechatState` calls at these zero-based indices only.
+        /// Thrown by the `syncLivechat` calls at these zero-based indices only.
         var livechatStateFailingCalls: [Int: ChatServiceError] = [:]
         var livechatHandoverError: ChatServiceError?
         var livechatHandoverStatus: LivechatState.Status = .waiting
-        var livechatMessagePages: [LivechatMessagePage] = []
+        /// The messages of each `syncLivechat` call, by call index; later calls return none.
+        var livechatMessagePages: [LivechatFixtures.Page] = []
         var livechatSendResponse: LivechatMessage?
         var livechatSendError: ChatServiceError?
         var livechatCloseError: ChatServiceError?
@@ -38,17 +39,23 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) private(set) var historyCallCount = 0
     nonisolated(unsafe) private(set) var resetCallCount = 0
     nonisolated(unsafe) private(set) var deleteCallCount = 0
-    nonisolated(unsafe) private(set) var livechatStateCallCount = 0
+    nonisolated(unsafe) private(set) var livechatSyncCallCount = 0
+    /// Same as ``livechatSyncCallCount`` — kept for ViewModel tests written against the older
+    /// `GET /livechat/state` seam.
+    nonisolated var livechatStateCallCount: Int { self.livechatSyncCallCount }
+    /// The `wait_ms` and `sync_cursor` of the last `syncLivechat` call.
+    nonisolated(unsafe) private(set) var lastLivechatSyncWait: (waitMs: Int?, syncCursor: String?)
     nonisolated(unsafe) private(set) var livechatHandoverCallCount = 0
     nonisolated(unsafe) private(set) var lastLivechatHandoverClientContext: LivechatClientContext?
-    nonisolated(unsafe) private(set) var livechatMessagesCallCount = 0
     nonisolated(unsafe) private(set) var lastLivechatAfterSequence: Int64?
     nonisolated(unsafe) private(set) var livechatCloseCallCount = 0
     nonisolated(unsafe) private(set) var lastLivechatCloseReason: String?
 
     nonisolated(unsafe) var livechatState: LivechatState
     nonisolated(unsafe) var livechatStateError: ChatServiceError?
-    nonisolated(unsafe) var livechatMessagePages: [LivechatMessagePage]
+    nonisolated(unsafe) var livechatMessagePages: [LivechatFixtures.Page]
+    /// The `sync_cursor` every `syncLivechat` response carries.
+    nonisolated(unsafe) var livechatSyncCursor: String?
     /// Awaited after `sendEvents` and before the reply stream finishes.
     nonisolated(unsafe) var sendHold: (@Sendable () async -> Void)?
     /// Awaited inside `sendLivechatMessage`, so a test can act while the POST is in flight.
@@ -125,13 +132,25 @@ final class MockChatService: ChatServicing {
         throw .provider(Unstubbed())
     }
 
-    func fetchLivechatState() async throws(ChatServiceError) -> LivechatState {
-        let index = self.livechatStateCallCount
-        self.livechatStateCallCount += 1
+    func syncLivechat(
+        after sequenceNumber: Int64?,
+        waitMs: Int?,
+        syncCursor: String?
+    ) async throws(ChatServiceError) -> LivechatSync {
+        let index = self.livechatSyncCallCount
+        self.livechatSyncCallCount += 1
+        self.lastLivechatAfterSequence = sequenceNumber
+        self.lastLivechatSyncWait = (waitMs, syncCursor)
         if let error = self.stub.livechatStateFailingCalls[index] ?? self.livechatStateError {
             throw error
         }
-        return self.livechatState
+        let page = index < self.livechatMessagePages.count ? self.livechatMessagePages[index] : .init(messages: [])
+        return LivechatSync(
+            state: self.livechatState,
+            messages: page.messages,
+            hasMore: page.hasMore,
+            syncCursor: self.livechatSyncCursor
+        )
     }
 
     func requestLivechatHandover(
@@ -145,15 +164,6 @@ final class MockChatService: ChatServicing {
             throw error
         }
         return self.stub.livechatHandoverStatus
-    }
-
-    func fetchLivechatMessages(after sequenceNumber: Int64?) async throws(ChatServiceError) -> LivechatMessagePage {
-        let index = self.livechatMessagesCallCount
-        self.livechatMessagesCallCount += 1
-        self.lastLivechatAfterSequence = sequenceNumber
-        return index < self.livechatMessagePages.count
-        ? self.livechatMessagePages[index]
-        : LivechatMessagePage(messages: [], hasMore: false)
     }
 
     func sendLivechatMessage(_ text: String, page _: String?) async throws(ChatServiceError) -> LivechatMessage {

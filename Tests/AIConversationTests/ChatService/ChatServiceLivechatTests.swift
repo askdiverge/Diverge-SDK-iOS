@@ -11,57 +11,29 @@ import Testing
 @Suite("ChatService — livechat on the wire")
 struct ChatServiceLivechatTests {
 
-    @Test("GET /livechat/state decodes the spec example")
-    func fetchState() async throws {
+    @Test("GET /livechat/sync decodes the state and messages from one snapshot")
+    func syncDecodes() async throws {
         let (sut, script) = ChatServiceFixtures.makeSUT(responses: [.init(body: Data("""
         {
-          "environment": "live",
-          "status": "active",
-          "platform": "website",
-          "active_agent": {
-            "agent_id": "00000000-0000-4000-8000-0000000000a1",
-            "display_name": "Alice Jensen",
-            "avatar_url": "https://cdn.example.com/agents/alice.png"
+          "state": {
+            "environment": "live",
+            "status": "active",
+            "platform": "website",
+            "active_agent": {
+              "agent_id": "00000000-0000-4000-8000-0000000000a1",
+              "display_name": "Alice Jensen",
+              "avatar_url": "https://cdn.example.com/agents/alice.png"
+            },
+            "is_agent_typing": true,
+            "language": "english",
+            "feedback": { "status": "not_available", "submitted_at": null },
+            "updated_at": "2025-06-15T14:31:20Z",
+            "agent_joined_at": "2025-06-15T14:31:00Z",
+            "closed_at": null,
+            "closed_by": null,
+            "closed_by_agent_id": null,
+            "close_reason": null
           },
-          "is_agent_typing": true,
-          "language": "english",
-          "feedback": { "status": "not_available", "submitted_at": null },
-          "updated_at": "2025-06-15T14:31:20Z",
-          "agent_joined_at": "2025-06-15T14:31:00Z",
-          "closed_at": null,
-          "closed_by": null,
-          "closed_by_agent_id": null,
-          "close_reason": null
-        }
-        """.utf8))])
-
-        let state = try await sut.fetchLivechatState()
-
-        #expect(script.requests.first?.url?.path() == "/api/v1/chat/livechat/state")
-        #expect(script.requests.first?.header("Authorization") == "Bearer host-token")
-        #expect(state.status == .active)
-        #expect(state.activeAgent?.displayName == "Alice Jensen")
-        #expect(state.isAgentTyping)
-        #expect(state.feedback.status == .notAvailable)
-        #expect(state.closedBy == nil)
-        #expect(state.stateVersion == nil)
-    }
-
-    @Test("a 401 on a livechat call surfaces as session expiry")
-    func unauthorizedExpires() async {
-        let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 401)])
-
-        await #expect {
-            _ = try await sut.fetchLivechatState()
-        } throws: { error in
-            if case ChatServiceError.sessionExpired = error { true } else { false }
-        }
-    }
-
-    @Test("GET /livechat/messages asks for messages after the cursor once it has one")
-    func fetchMessagesCursor() async throws {
-        let page = Data("""
-        {
           "messages": [{
             "message_id": "livechat_msg_2",
             "role": "agent",
@@ -69,20 +41,48 @@ struct ChatServiceLivechatTests {
             "created_at": "2025-06-15T14:31:00Z",
             "sequence_number": 2
           }],
-          "has_more": false
+          "has_more": false,
+          "sync_cursor": "\(String(repeating: "a", count: 64))"
         }
-        """.utf8)
-        let (sut, script) = ChatServiceFixtures.makeSUT(responses: [.init(body: page)])
+        """.utf8))])
 
-        let first = try await sut.fetchLivechatMessages(after: nil)
-        _ = try await sut.fetchLivechatMessages(after: 2)
+        let sync = try await sut.syncLivechat(after: nil, waitMs: nil, syncCursor: nil)
 
-        #expect(script.requests[0].url?.path() == "/api/v1/chat/livechat/messages")
-        #expect(script.requests[0].url?.query() == nil)
-        #expect(script.requests[1].url?.query() == "after_sequence_number=2")
+        #expect(script.requests.first?.url?.path() == "/api/v1/chat/livechat/sync")
+        #expect(script.requests.first?.url?.query() == nil)
+        #expect(script.requests.first?.header("Authorization") == "Bearer host-token")
+        #expect(sync.state.status == .active)
+        #expect(sync.state.activeAgent?.displayName == "Alice Jensen")
+        #expect(sync.state.isAgentTyping)
+        #expect(sync.messages.map(\.sequenceNumber) == [2])
+        #expect(sync.hasMore == false)
+        #expect(sync.syncCursor == String(repeating: "a", count: 64))
+    }
+
+    @Test("a sync sends the cursor, and waits only with a sync cursor")
+    func syncQuery() async throws {
+        let body = Data(#"{"state":{"status":"waiting","is_agent_typing":false,"feedback":{"status":"not_available"}},"messages":[],"has_more":false}"#.utf8)
+        let (sut, script) = ChatServiceFixtures.makeSUT(responses: [.init(body: body)])
+
+        _ = try await sut.syncLivechat(after: 2, waitMs: 20_000, syncCursor: nil)
+        _ = try await sut.syncLivechat(after: 2, waitMs: 20_000, syncCursor: "abc")
+
+        #expect(script.requests[0].url?.query() == "after_sequence_number=2")
+        #expect(script.requests[1].url?.query() == "after_sequence_number=2&wait_ms=20000&sync_cursor=abc")
         #expect(ChatService.livechatAfterSequenceQueryItem == "after_sequence_number")
-        #expect(first.messages.map(\.sequenceNumber) == [2])
-        #expect(first.messages.first?.role == .agent)
+        #expect(ChatService.livechatWaitQueryItem == "wait_ms")
+        #expect(ChatService.livechatSyncCursorQueryItem == "sync_cursor")
+    }
+
+    @Test("a 401 on a livechat call surfaces as session expiry")
+    func unauthorizedExpires() async {
+        let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 401)])
+
+        await #expect {
+            _ = try await sut.syncLivechat(after: nil, waitMs: nil, syncCursor: nil)
+        } throws: { error in
+            if case ChatServiceError.sessionExpired = error { true } else { false }
+        }
     }
 
     @Test("POST /livechat/handover sends the platform, source and client context, and returns the status")
@@ -179,28 +179,6 @@ struct ChatServiceLivechatTests {
 
         await #expect {
             _ = try await sut.sendLivechatMessage("hi", page: nil)
-        } throws: { error in
-            if case ChatServiceError.conflict = error { true } else { false }
-        }
-    }
-
-    @Test("a 409 on an assistant send, while an agent session is active, surfaces as conflict")
-    func assistantSendConflict() async {
-        let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409)])
-
-        await #expect {
-            try await ChatServiceFixtures.drain(sut.sendMessage("hi", page: nil))
-        } throws: { error in
-            if case ChatServiceError.conflict = error { true } else { false }
-        }
-    }
-
-    @Test("a 409 on close, with no open session, surfaces as conflict")
-    func closeConflict() async {
-        let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409)])
-
-        await #expect {
-            try await sut.closeLivechat(reason: nil)
         } throws: { error in
             if case ChatServiceError.conflict = error { true } else { false }
         }

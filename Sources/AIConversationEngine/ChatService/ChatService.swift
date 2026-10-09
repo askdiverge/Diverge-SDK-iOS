@@ -200,17 +200,34 @@ extension ChatService: ChatServicing {
 
 extension ChatService {
 
-    /// The `GET /livechat/messages` query item carrying the poll cursor: the highest sequence
+    /// The `GET /livechat/sync` query item carrying the message cursor: the highest sequence
     /// number already published, so the API returns only newer messages.
     package static let livechatAfterSequenceQueryItem = "after_sequence_number"
+    /// The `GET /livechat/sync` query item asking the server to hold the request until the state
+    /// or the log changes, for at most this many milliseconds.
+    package static let livechatWaitQueryItem = "wait_ms"
+    /// The `GET /livechat/sync` query item carrying the change hint from the previous response,
+    /// which the server waits on.
+    package static let livechatSyncCursorQueryItem = "sync_cursor"
 
-    package func fetchLivechatState() async throws(ChatServiceError) -> LivechatState {
-        try await self.mappingErrors {
+    package func syncLivechat(
+        after sequenceNumber: Int64?,
+        waitMs: Int?,
+        syncCursor: String?
+    ) async throws(ChatServiceError) -> LivechatSync {
+        var queryItems: [URLQueryItem] = []
+        if let sequenceNumber {
+            queryItems.append(URLQueryItem(name: Self.livechatAfterSequenceQueryItem, value: String(sequenceNumber)))
+        }
+        if let waitMs, let syncCursor {
+            queryItems.append(URLQueryItem(name: Self.livechatWaitQueryItem, value: String(waitMs)))
+            queryItems.append(URLQueryItem(name: Self.livechatSyncCursorQueryItem, value: syncCursor))
+        }
+        let base = self.url(for: .livechatSync)
+        let url = queryItems.isEmpty ? base : base.appending(queryItems: queryItems)
+        return try await self.mappingErrors {
             try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(
-                    url: self.url(for: .livechatState),
-                    headers: self.headers(token: token)
-                )
+                try await self.network.get(url: url, headers: self.headers(token: token))
             }
         }
     }
@@ -234,20 +251,6 @@ extension ChatService {
             return response.status
         } catch .transport(.http(.unhandled(status: 409, body: _))) {
             throw .conflict
-        }
-    }
-
-    package func fetchLivechatMessages(
-        after sequenceNumber: Int64?
-    ) async throws(ChatServiceError) -> LivechatMessagePage {
-        let base = self.url(for: .livechatMessages)
-        let url = sequenceNumber.map {
-            base.appending(queryItems: [URLQueryItem(name: Self.livechatAfterSequenceQueryItem, value: String($0))])
-        } ?? base
-        return try await self.mappingErrors {
-            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
-                try await self.network.get(url: url, headers: self.headers(token: token))
-            }
         }
     }
 
@@ -346,7 +349,7 @@ private extension ChatService {
         case messages = "api/v1/chat/messages"
         case actions = "api/v1/chat/actions"
         case forms = "api/v1/chat/forms"
-        case livechatState = "api/v1/chat/livechat/state"
+        case livechatSync = "api/v1/chat/livechat/sync"
         case livechatHandover = "api/v1/chat/livechat/handover"
         case livechatMessages = "api/v1/chat/livechat/messages"
         case livechatTyping = "api/v1/chat/livechat/typing"

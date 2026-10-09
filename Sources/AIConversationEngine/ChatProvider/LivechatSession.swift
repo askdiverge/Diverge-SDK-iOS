@@ -19,10 +19,12 @@ package enum LivechatBootstrapOutcome: Sendable, Equatable {
 /// Polls the visitor's livechat state, and the message log while a session is open, and
 /// publishes every change as a ``LivechatSnapshot``.
 ///
-/// Each tick reads `GET /livechat/state`, then every page of `GET /livechat/messages` after the
-/// last sequence number published. Ticks run every 2 s while queued and every 3 s with an agent;
-/// consecutive failures back off exponentially up to 30 s. Polling pauses while the scene is
-/// inactive or the chat is off screen, and ticks as soon as both hold again. The session stops
+/// Each tick reads `GET /livechat/sync`: the state and every page of messages after the last
+/// sequence number published, from one snapshot. When the server returns a `sync_cursor`, the next
+/// tick waits on it for up to 20 s, so a change arrives as soon as it happens; otherwise ticks run
+/// every 2 s while queued and every 3 s with an agent. Consecutive failures back off exponentially
+/// up to 30 s. Polling pauses while the scene is inactive or the chat is off screen, and ticks as
+/// soon as both hold again; a wait already in flight finishes first. The session stops
 /// polling by itself when a read shows no open session, on a 401, and on ``teardown()``. The poll
 /// loop holds the session only while it ticks, so dropping the last reference ends it. It never
 /// takes ``ChatProvider``'s busy flag, so polling can't block an AI send.
@@ -46,6 +48,8 @@ package actor LivechatSession {
     private var afterSequence: Int64 = 0
     private var consecutiveFailures = 0
     private var lastStatus: LivechatState.Status = .inactive
+    /// The change hint from the last sync; the next tick waits on it.
+    private var syncCursor: String?
     /// The state in the last published snapshot; a tick that changes nothing publishes nothing.
     private var lastPublishedState: LivechatState?
     /// Highest `state_version` applied in this generation; older responses are dropped.
@@ -56,6 +60,10 @@ package actor LivechatSession {
 
     private static let waitingInterval: Duration = .seconds(2)
     private static let activeInterval: Duration = .seconds(3)
+    /// How long a sync may wait for a change, the API's maximum.
+    private static let maxWaitMs = 20_000
+    /// The pause between waiting syncs, so a server that answers at once can't spin the loop.
+    private static let waitGap: Duration = .milliseconds(250)
 
     private var shouldPoll: Bool {
         self.isSceneActive && self.isVisible && !self.sessionExpired
@@ -90,17 +98,16 @@ package actor LivechatSession {
         let gen = self.generation
         self.sessionExpired = false
         do {
-            let state = try await self.service.fetchLivechatState()
-            guard gen == self.generation, !self.isStale(state) else { return self.currentOutcome }
+            let sync = try await self.sync(after: 0, waiting: false)
+            guard gen == self.generation else { return self.currentOutcome }
             self.consecutiveFailures = 0
-            guard state.isInSession else {
-                self.publishTransition(to: state, messages: [])
+            self.syncCursor = sync.syncCursor
+            guard sync.state.isInSession else {
+                self.publishTransition(to: sync.state, messages: [])
                 return .notInSession
             }
             self.afterSequence = 0
-            let messages = try await self.fetchNewMessages()
-            guard gen == self.generation else { return self.currentOutcome }
-            self.publishTransition(to: state, messages: messages)
+            self.publishTransition(to: sync.state, messages: sync.messages)
             self.startPolling()
             return .inSession
         } catch .sessionExpired {
@@ -145,21 +152,16 @@ package actor LivechatSession {
     }
 
     /// Closes the session from the visitor's side, publishes the messages that arrived before
-    /// the close, and stops polling. A 409 (no open session) fails with ``ChatServiceError/conflict``.
+    /// the close, and stops polling.
     package func close(reason: String?) async throws(ChatServiceError) {
         self.bumpGeneration()
         let gen = self.generation
         let wasInSession = self.lastStatus.isInSession
         do {
             try await self.service.closeLivechat(reason: reason)
-            var messages: [LivechatMessage] = []
-            // The close already succeeded; messages that fail to load here still arrive with history.
-            if wasInSession, let remaining = try? await self.fetchNewMessages() {
-                messages = remaining
-            }
-            let state = await self.fetchStateAfterClose()
+            let sync = await self.syncAfterClose(after: wasInSession ? self.afterSequence : 0)
             guard gen == self.generation else { return }
-            self.publishTransition(to: state, messages: messages)
+            self.publishTransition(to: sync.state, messages: wasInSession ? sync.messages : [])
             self.stopPolling()
         } catch .sessionExpired {
             self.expire(generation: gen)
@@ -183,7 +185,7 @@ package actor LivechatSession {
 
     /// Ticks once now, for example after a livechat send was rejected with 409.
     package func refresh() async {
-        await self.tick()
+        await self.tick(waiting: false)
     }
 
     /// Stops polling, rewinds the cursor and publishes `inactive`. Called on reset and delete.
@@ -263,13 +265,14 @@ private extension LivechatSession {
     func bumpGeneration() {
         self.generation += 1
         self.lastStateVersion = nil
+        self.syncCursor = nil
     }
 
     /// Waits until polling may run, then ticks. `false` once the loop should end.
     func pollOnce() async -> Bool {
         await self.waitUntilShouldPoll()
         guard !Task.isCancelled, !self.sessionExpired else { return false }
-        await self.tick()
+        await self.tick(waiting: true)
         return !Task.isCancelled && !self.sessionExpired
     }
 
@@ -291,66 +294,80 @@ private extension LivechatSession {
         }
     }
 
-    func tick() async {
+    /// Syncs once. `waiting` lets the request wait on the last `sync_cursor`.
+    func tick(waiting: Bool) async {
         let gen = self.generation
+        let previous = self.lastStatus
         do {
-            let state = try await self.service.fetchLivechatState()
+            // A session this device wasn't tracking numbers its messages from the start.
+            let after = previous.isInSession ? self.afterSequence : 0
+            let sync = try await self.sync(after: after, waiting: waiting)
             guard gen == self.generation else { return }
             self.consecutiveFailures = 0
-            // Checked before `/messages`, so a stale state costs no message read.
-            if self.isStale(state) { return }
+            self.syncCursor = sync.syncCursor
+            if self.isStale(sync.state) { return }
 
-            let previous = self.lastStatus
-            let closedNow = previous.isInSession && state.status == .closed
-            if !previous.isInSession && state.isInSession {
-                // A session this device wasn't tracking numbers its messages from the start.
+            if !previous.isInSession && sync.state.isInSession {
                 self.afterSequence = 0
             }
-            var messages: [LivechatMessage] = []
-            if state.isInSession || closedNow {
-                messages = try await self.fetchNewMessages()
-                guard gen == self.generation else { return }
-            }
-
-            self.publishTransition(to: state, messages: messages, generation: gen)
-            if !state.isInSession {
+            let closedNow = previous.isInSession && sync.state.status == .closed
+            let messages = sync.state.isInSession || closedNow ? sync.messages : []
+            self.publishTransition(to: sync.state, messages: messages, generation: gen)
+            if !sync.state.isInSession {
                 self.stopPolling()
             }
         } catch .sessionExpired {
             self.expire(generation: gen)
         } catch {
             guard gen == self.generation else { return }
+            self.syncCursor = nil
             self.consecutiveFailures += 1
         }
     }
 
-    /// The close already succeeded, so a failed read retries once. If that fails too, the
-    /// session is reported closed with feedback pending, so the visitor can still rate it.
-    func fetchStateAfterClose() async -> LivechatState {
-        if let state = try? await self.service.fetchLivechatState() {
-            return state
+    /// The state and every page of messages after `after`. The first request waits on the last
+    /// `sync_cursor` when `waiting` is true. The message cursor moves only when
+    /// ``publishTransition(to:messages:expired:generation:)`` publishes the messages.
+    func sync(after: Int64, waiting: Bool) async throws(ChatServiceError) -> LivechatSync {
+        var messages: [LivechatMessage] = []
+        var cursor = after
+        var waitOn = waiting ? self.syncCursor : nil
+        while true {
+            let sync = try await self.service.syncLivechat(
+                after: cursor > 0 ? cursor : nil,
+                waitMs: waitOn == nil ? nil : Self.maxWaitMs,
+                syncCursor: waitOn
+            )
+            messages += sync.messages
+            guard sync.hasMore, let last = sync.messages.last else {
+                return LivechatSync(state: sync.state, messages: messages, hasMore: false, syncCursor: sync.syncCursor)
+            }
+            cursor = last.sequenceNumber
+            waitOn = nil
         }
-        if let state = try? await self.service.fetchLivechatState() {
-            return state
-        }
-        return LivechatState(status: .closed, feedback: .pending)
     }
 
-    /// Every page of messages after the cursor. The cursor itself moves only when
-    /// ``publishTransition(to:messages:expired:generation:)`` publishes them.
-    func fetchNewMessages() async throws(ChatServiceError) -> [LivechatMessage] {
-        var messages: [LivechatMessage] = []
-        var cursor = self.afterSequence
-        while true {
-            let page = try await self.service.fetchLivechatMessages(after: cursor > 0 ? cursor : nil)
-            messages += page.messages
-            guard page.hasMore, let last = page.messages.last else { return messages }
-            cursor = last.sequenceNumber
+    /// The close already succeeded, so a failed sync retries once. If that fails too, the
+    /// session is reported closed with feedback pending, so the visitor can still rate it; the
+    /// messages it missed still arrive with history.
+    func syncAfterClose(after: Int64) async -> LivechatSync {
+        if let sync = try? await self.sync(after: after, waiting: false) {
+            return sync
         }
+        if let sync = try? await self.sync(after: after, waiting: false) {
+            return sync
+        }
+        return LivechatSync(
+            state: LivechatState(status: .closed, feedback: .pending),
+            messages: [],
+            hasMore: false,
+            syncCursor: nil
+        )
     }
 
     func nextDelay() -> Duration {
         guard self.consecutiveFailures > 0 else {
+            if self.syncCursor != nil { return Self.waitGap }
             return self.lastStatus == .active ? Self.activeInterval : Self.waitingInterval
         }
         // 2, 4, 8, 16, then 30 s.

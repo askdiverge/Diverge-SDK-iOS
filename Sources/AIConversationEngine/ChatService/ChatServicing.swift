@@ -21,8 +21,7 @@ package protocol ChatServicing: Sendable {
     /// response as SSE events until `done`/`error` terminates it.
     /// `page` is per-message context .
     /// every failure (transport, 401, or a stream `error` event) is delivered on the stream's throwing channel as
-    /// `ChatServiceError`. A 409 means a livechat session is active, so the text belongs to the agent;
-    /// it surfaces as ``ChatServiceError/conflict``.
+    /// `ChatServiceError`.
     func sendMessage(
         _ text: String,
         page: String?
@@ -47,8 +46,10 @@ package protocol ChatServicing: Sendable {
     // MARK: Livechat
     // Session-bound: a 401 surfaces as ``ChatServiceError/sessionExpired``.
 
-    /// The visitor's current livechat state.
-    func fetchLivechatState() async throws(ChatServiceError) -> LivechatState
+    /// The visitor's livechat state and the messages after `sequenceNumber` (from the start when
+    /// `nil`), read from one snapshot. With a `waitMs` and the previous response's `syncCursor`,
+    /// the server holds the request until something changes or the wait ends.
+    func syncLivechat(after sequenceNumber: Int64?, waitMs: Int?, syncCursor: String?) async throws(ChatServiceError) -> LivechatSync
 
     /// Queues the visitor for a human agent and returns the session's status: `waiting`, or
     /// `active` when the API hands back a session that is already open. A 409 means livechat is
@@ -58,9 +59,6 @@ package protocol ChatServicing: Sendable {
         partId: String?,
         clientContext: LivechatClientContext?
     ) async throws(ChatServiceError) -> LivechatState.Status
-
-    /// The session's messages after `sequenceNumber`, or from the start when it is `nil`.
-    func fetchLivechatMessages(after sequenceNumber: Int64?) async throws(ChatServiceError) -> LivechatMessagePage
 
     /// Sends the visitor's text to the agent and returns the stored message. A 409 means the
     /// session is no longer active and surfaces as ``ChatServiceError/conflict``.

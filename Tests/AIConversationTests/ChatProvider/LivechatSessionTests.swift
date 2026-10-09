@@ -27,6 +27,25 @@ struct LivechatSessionTests {
         #expect(log.values.contains(.seconds(2)))
     }
 
+    @Test("a sync cursor makes the next tick wait on the server instead of polling")
+    func waitsOnSyncCursor() async throws {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .waiting)))
+        service.livechatSyncCursor = "cursor"
+        let log = Log<Duration>()
+        let session = LivechatSession(service: service) { duration in
+            log.append(duration)
+            if log.count >= 2 { throw CancellationError() }
+        }
+
+        await session.startPolling(immediate: true)
+        try await Task.sleep(for: .milliseconds(80))
+        await session.stopPolling()
+
+        #expect(log.values.first == .milliseconds(250))
+        #expect(service.lastLivechatSyncWait.waitMs == 20_000)
+        #expect(service.lastLivechatSyncWait.syncCursor == "cursor")
+    }
+
     @Test("polls every 3 s once active")
     func activeCadence() async throws {
         let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
@@ -85,7 +104,7 @@ struct LivechatSessionTests {
         }
         #expect(await session.bootstrap() == .notInSession)
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == 1)
+        #expect(service.livechatSyncCallCount == 1)
     }
 
     @Test("bootstrap that can't read the state reports no session yet and retries with the poller")
@@ -142,9 +161,9 @@ struct LivechatSessionTests {
 
         let snapshot = await expired.value
         #expect(snapshot?.state.status == .inactive)
-        let calls = service.livechatStateCallCount
+        let calls = service.livechatSyncCallCount
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == calls)
+        #expect(service.livechatSyncCallCount == calls)
     }
 
     @Test("when the session closes, the last messages are fetched and polling stops")
@@ -173,9 +192,9 @@ struct LivechatSessionTests {
         #expect(closed?.state.status == .closed)
         #expect(closed?.previousStatus == .active)
         #expect(closed?.messages.map(\.messageId) == ["thanks"])
-        let calls = service.livechatStateCallCount
+        let calls = service.livechatSyncCallCount
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == calls)
+        #expect(service.livechatSyncCallCount == calls)
     }
 
     @Test("teardown publishes inactive and stops polling")
@@ -189,9 +208,9 @@ struct LivechatSessionTests {
         await session.teardown()
 
         #expect(await snapshots.next()?.state.status == .inactive)
-        let calls = service.livechatStateCallCount
+        let calls = service.livechatSyncCallCount
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == calls)
+        #expect(service.livechatSyncCallCount == calls)
     }
 
     @Test("handover publishes the status the server returns, then polls for the agent")
@@ -258,7 +277,7 @@ struct LivechatSessionTests {
         let service = MockChatService(.init(
             livechatState: LivechatState(status: .active),
             livechatMessagePages: [
-                LivechatMessagePage(messages: [LivechatFixtures.message("m1", role: .agent, sequence: 1)], hasMore: true),
+                LivechatFixtures.Page(messages: [LivechatFixtures.message("m1", role: .agent, sequence: 1)], hasMore: true),
                 LivechatFixtures.page(LivechatFixtures.message("m2", role: .agent, sequence: 2))
             ]
         ))
@@ -302,10 +321,10 @@ struct LivechatSessionTests {
 
         session = nil
         try await Task.sleep(for: .milliseconds(30))
-        let calls = service.livechatStateCallCount
+        let calls = service.livechatSyncCallCount
         try await Task.sleep(for: .milliseconds(40))
 
-        #expect(service.livechatStateCallCount == calls)
+        #expect(service.livechatSyncCallCount == calls)
     }
 
     @Test("a 409 on handover surfaces as conflict and publishes nothing")
@@ -324,7 +343,7 @@ struct LivechatSessionTests {
         try await Task.sleep(for: .milliseconds(20))
         collector.cancel()
         #expect(log.values.isEmpty)
-        #expect(service.livechatStateCallCount == 0)
+        #expect(service.livechatSyncCallCount == 0)
     }
 
     @Test("an older state_version is dropped; a state without a version applies")
@@ -348,22 +367,23 @@ struct LivechatSessionTests {
         #expect(log.values.map(\.state.status) == [.active, .closed])
     }
 
-    @Test("a stale state doesn't fetch messages or move the cursor")
+    @Test("a stale snapshot is dropped without moving the cursor")
     func staleTickKeepsCursor() async throws {
         let service = MockChatService(.init(
             livechatState: LivechatFixtures.state(.active, version: 5),
-            livechatMessagePages: [LivechatFixtures.page(LivechatFixtures.message("m10", role: .agent, sequence: 10))]
+            livechatMessagePages: [
+                LivechatFixtures.page(LivechatFixtures.message("m10", role: .agent, sequence: 10)),
+                LivechatFixtures.page(LivechatFixtures.message("m11", role: .agent, sequence: 11))
+            ]
         ))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
 
         await session.bootstrap()
-        let messageCalls = service.livechatMessagesCallCount
         service.livechatState = LivechatFixtures.state(.active, version: 4)
         await session.refresh()
-
-        #expect(service.livechatMessagesCallCount == messageCalls)
         service.livechatState = LivechatFixtures.state(.active, version: 6)
         await session.refresh()
+
         #expect(service.lastLivechatAfterSequence == 10)
         await session.stopPolling()
     }
@@ -393,11 +413,11 @@ struct LivechatSessionTests {
         await session.setSceneActive(false)
         await session.startPolling(immediate: true)
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == 0)
+        #expect(service.livechatSyncCallCount == 0)
 
         await session.setSceneActive(true)
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == 1)
+        #expect(service.livechatSyncCallCount == 1)
         await session.stopPolling()
     }
 
@@ -409,11 +429,11 @@ struct LivechatSessionTests {
         await session.setVisible(false)
         await session.startPolling(immediate: true)
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == 0)
+        #expect(service.livechatSyncCallCount == 0)
 
         await session.setVisible(true)
         try await Task.sleep(for: .milliseconds(40))
-        #expect(service.livechatStateCallCount == 1)
+        #expect(service.livechatSyncCallCount == 1)
         await session.stopPolling()
     }
 
@@ -429,7 +449,7 @@ struct LivechatSessionTests {
         await session.setVisible(true)
         try await Task.sleep(for: .milliseconds(40))
 
-        #expect(service.livechatStateCallCount == 0)
+        #expect(service.livechatSyncCallCount == 0)
     }
 
     @Test("close retries the state read once when it fails")
@@ -452,7 +472,7 @@ struct LivechatSessionTests {
         let snapshot = await snapshots.next()
         #expect(snapshot?.state.status == .closed)
         #expect(snapshot?.state.feedback.status == .pending)
-        #expect(service.livechatStateCallCount == 2)
+        #expect(service.livechatSyncCallCount == 2)
         #expect(service.livechatCloseCallCount == 1)
     }
 
@@ -467,7 +487,7 @@ struct LivechatSessionTests {
         let snapshot = await snapshots.next()
         #expect(snapshot?.state.status == .closed)
         #expect(snapshot?.state.feedback.status == .pending)
-        #expect(service.livechatStateCallCount == 2)
+        #expect(service.livechatSyncCallCount == 2)
     }
 }
 

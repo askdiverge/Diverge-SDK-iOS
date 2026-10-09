@@ -64,7 +64,13 @@ enum LivechatFixtures {
         )
     }
 
-    static func page(_ messages: LivechatMessage...) -> LivechatMessagePage {
-        LivechatMessagePage(messages: messages, hasMore: false)
+    /// The messages one `syncLivechat` call returns from ``MockChatService``.
+    struct Page: Sendable {
+        var messages: [LivechatMessage]
+        var hasMore = false
+    }
+
+    static func page(_ messages: LivechatMessage...) -> Page {
+        Page(messages: messages)
     }
 }
