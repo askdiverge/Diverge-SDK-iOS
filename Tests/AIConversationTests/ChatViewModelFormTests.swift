@@ -38,6 +38,29 @@ struct ChatViewModelFormTests {
         #expect(self.draft(in: viewModel)?.phase == .submitted(confirmation: "Got it!"))
     }
 
+    @Test("a submit reads the livechat session, since a contact form can route a handover")
+    func submitReadsLivechat() async throws {
+        let provider = StubChatProviding()
+        let service = MockChatService(.init(livechatState: LivechatState(status: .inactive)))
+        let viewModel = ChatView.ViewModel.forTesting(
+            provider: provider,
+            submitAction: { _ in SubmitActionResponse(submissionId: "sub_1", confirmationText: nil) },
+            livechat: LivechatSession(service: service) { _ in throw CancellationError() }
+        )
+        viewModel.startLivechat(with: try LivechatFixtures.decoder.decode(
+            LivechatConfig.self,
+            from: Data(#"{"enabled":true,"configured":true,"availability_status":"live"}"#.utf8)
+        ))
+        try await eventually { service.livechatSyncCallCount == 1 }
+        service.livechatState = LivechatState(status: .waiting)
+        try await self.show(self.contact, on: provider, in: viewModel)
+        self.fillContact(in: viewModel)
+
+        try await viewModel.submitForm(partId: self.contact.partId)
+
+        try await eventually { viewModel.livechatStatus == .waiting }
+    }
+
     @Test("a transport failure leaves the form editable with a card-level error")
     func submitFailure() async throws {
         let provider = StubChatProviding()

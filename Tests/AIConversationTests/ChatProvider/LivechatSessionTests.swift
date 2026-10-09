@@ -266,10 +266,19 @@ struct LivechatSessionTests {
 
         service.livechatState = LivechatState(status: .closed)
         await session.refresh()
-        await session.resumeActive()
-        try await Task.sleep(for: .milliseconds(40))
+        service.livechatState = LivechatState(status: .active)
+        #expect(await session.resumeActive())
         #expect(service.lastLivechatAfterSequence == nil)
         await session.stopPolling()
+    }
+
+    @Test("a 409 hint with no session open adopts nothing")
+    func resumeWithoutSession() async {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .inactive)))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+
+        #expect(await session.resumeActive() == false)
+        #expect(service.livechatSyncCallCount == 1)
     }
 
     @Test("messages are fetched page by page while has_more holds")
@@ -551,6 +560,54 @@ struct LivechatSessionTests {
         #expect(before.map { $0.generation < generation } == true)
         #expect(after?.generation == generation)
         #expect(after?.state.status == .inactive)
+    }
+
+    @Test("a recovery read that fails after a 409 leaves the poller retrying it")
+    func failedRecoveryReadKeepsPolling() async throws {
+        let service = MockChatService(.init(livechatStateError: Self.serverError))
+        let log = Log<Duration>()
+        let session = LivechatSession(service: service) { duration in
+            log.append(duration)
+            throw CancellationError()
+        }
+
+        #expect(await session.resumeActive() == false)
+        try await Task.sleep(for: .milliseconds(40))
+
+        #expect(log.count == 1)
+    }
+
+    @Test("a recovery read that finds the session closed publishes its last messages")
+    func recoveryReadOfClosedSession() async {
+        let service = MockChatService(.init(
+            livechatState: LivechatState(status: .closed),
+            livechatMessagePages: [LivechatFixtures.page(LivechatFixtures.message("bye", role: .agent, sequence: 3))]
+        ))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        var snapshots = session.stream.makeAsyncIterator()
+
+        #expect(await session.resumeActive() == false)
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.state.status == .closed)
+        #expect(snapshot?.messages.map(\.messageId) == ["bye"])
+    }
+
+    @Test("a handover whose response was lost polls for the session it may have opened")
+    func lostHandoverResponsePolls() async throws {
+        let service = MockChatService(.init(
+            livechatState: LivechatState(status: .waiting),
+            livechatHandoverError: .transport(.connection(URLError(.timedOut)))
+        ))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        var snapshots = session.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await session.handover(source: .manualButton, partId: nil)
+        }
+
+        #expect(await snapshots.next()?.state.status == .waiting)
+        #expect(service.livechatSyncCallCount == 1)
     }
 
     @Test("close reports feedback pending when both state reads fail")
