@@ -13,6 +13,8 @@ package struct Message: Decodable, Sendable, Equatable {
 
     package let messageId: String
     package let role: Role
+    /// Livechat agent identity for `role: agent` messages. Absent for other roles.
+    package let agent: LivechatAgent?
     package let parts: [Part]
     /// ISO 8601 date-time with fractional seconds.
     package let createdAt: String

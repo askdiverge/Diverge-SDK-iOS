@@ -57,7 +57,7 @@ package final class ChatService: Sendable {
             onDeleteData: onDeleteData
         )
         self.network = NetworkManager(
-            decoder: Self.decoder,
+            decoder: Self.decoder(baseURL: baseURL),
             encoder: Self.encoder,
             session: session
         )
@@ -225,9 +225,11 @@ private extension ChatService {
         return URLSession(configuration: configuration)
     }
 
-    static var decoder: JSONDecoder {
+    /// Relative attachment paths in responses resolve against `baseURL`; see ``AttachmentURL``.
+    static func decoder(baseURL: URL) -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.userInfo[AttachmentURL.baseURLKey] = baseURL
         return decoder
     }
 
