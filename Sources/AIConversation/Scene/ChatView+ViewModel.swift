@@ -143,6 +143,11 @@ extension ChatView {
                     self.currentMessage = lastMessage
                     self.present(Notice(edge: .bottom, message: body ?? L10n.noticeSendFailed.string, autoDismiss: nil))
 
+                case .livechatInactive(popped: let lastMessage):
+                    // Only a livechat send fails this way; restore the text as for a retry.
+                    self.currentMessage = lastMessage
+                    self.present(Notice(edge: .bottom, message: L10n.noticeSendFailed.string, autoDismiss: nil))
+
                 case .sessionExpired:
                     throw SessionEnded()
                 }

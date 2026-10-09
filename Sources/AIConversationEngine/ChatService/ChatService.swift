@@ -191,6 +191,95 @@ extension ChatService: ChatServicing {
     }
 }
 
+// MARK: - Livechat
+
+extension ChatService {
+
+    /// The `GET /livechat/messages` query item carrying the poll cursor: the highest sequence
+    /// number already published, so the API returns only newer messages.
+    package static let livechatAfterSequenceQueryItem = "after_sequence_number"
+
+    package func fetchLivechatState() async throws(ChatServiceError) -> LivechatState {
+        try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                try await self.network.get(
+                    url: self.url(for: .livechatState),
+                    headers: self.headers(token: token)
+                )
+            }
+        }
+    }
+
+    package func requestLivechatHandover(
+        source: LivechatHandoverRequest.Source,
+        partId: String?,
+        clientContext: LivechatClientContext?
+    ) async throws(ChatServiceError) -> LivechatState.Status {
+        let request = LivechatHandoverRequest(source: source, partId: partId, clientContext: clientContext)
+        do {
+            let response: LivechatSessionResponse = try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.post(
+                        url: self.url(for: .livechatHandover),
+                        payload: request,
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+            return response.status
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
+    }
+
+    package func fetchLivechatMessages(
+        after sequenceNumber: Int64?
+    ) async throws(ChatServiceError) -> LivechatMessagePage {
+        let base = self.url(for: .livechatMessages)
+        let url = sequenceNumber.map {
+            base.appending(queryItems: [URLQueryItem(name: Self.livechatAfterSequenceQueryItem, value: String($0))])
+        } ?? base
+        return try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                try await self.network.get(url: url, headers: self.headers(token: token))
+            }
+        }
+    }
+
+    package func sendLivechatMessage(
+        _ text: String,
+        page: String?
+    ) async throws(ChatServiceError) -> LivechatMessage {
+        // Same body as `POST /messages`.
+        let payload = SendMessageRequest(
+            message: .init(parts: [.text(text)]),
+            context: page.map { .init(page: $0) }
+        )
+        do {
+            let response: LivechatVisitorMessageResponse = try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.post(
+                        url: self.url(for: .livechatMessages),
+                        payload: payload,
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+            return response.message
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
+    }
+
+    package func sendLivechatTyping(isTyping: Bool) async throws(ChatServiceError) {
+        try await self.postLivechat(LivechatTypingRequest(isTyping: isTyping), to: .livechatTyping)
+    }
+
+    package func closeLivechat(reason: String?) async throws(ChatServiceError) {
+        try await self.postLivechat(LivechatCloseRequest(reason: reason), to: .livechatClose)
+    }
+}
+
 private extension ChatService {
 
     /// Messages per history page
@@ -248,10 +337,31 @@ private extension ChatService {
         case messages = "api/v1/chat/messages"
         case actions = "api/v1/chat/actions"
         case forms = "api/v1/chat/forms"
+        case livechatState = "api/v1/chat/livechat/state"
+        case livechatHandover = "api/v1/chat/livechat/handover"
+        case livechatMessages = "api/v1/chat/livechat/messages"
+        case livechatTyping = "api/v1/chat/livechat/typing"
+        case livechatClose = "api/v1/chat/livechat/close"
     }
 
     func url(for endpoint: Endpoint) -> URL {
         self.baseURL.appending(path: endpoint.rawValue)
+    }
+
+    /// Session-bound POST to a livechat endpoint whose response the client doesn't need.
+    func postLivechat(
+        _ payload: some Encodable & Sendable,
+        to endpoint: Endpoint
+    ) async throws(ChatServiceError) {
+        try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                try await self.network.post(
+                    url: self.url(for: endpoint),
+                    payload: payload,
+                    headers: self.headers(token: token)
+                )
+            }
+        }
     }
 }
 

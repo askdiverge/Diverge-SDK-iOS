@@ -45,6 +45,18 @@ package actor ChatProvider: ChatProviding {
     /// Serializes send/reset/delete — they must not interleave.
     private var isBusy = false
 
+    /// Message ids already in the panes, from history and from livechat, so the poller's copy of
+    /// a message history or this device already shows isn't shown twice. The livechat log and
+    /// history share message ids.
+    private var livechatMessageIDs: Set<String> = []
+    /// Livechat messages that arrived while an operation was in flight. A streaming reply owns
+    /// the newest bot turn, and a livechat send's id isn't known until its POST returns, so they
+    /// are folded in when the operation finishes.
+    private var deferredLivechatMessages: [LivechatMessage] = []
+    /// Set when the poller saw the session end during an operation; the conversation clears when
+    /// the operation finishes, so a streaming reply never writes into emptied panes.
+    private var expiresAfterOperation = false
+
     /// Snapshot channel the view model observes. Latest-wins — the VM only ever
     /// cares about the current conversation, never a backlog.
     package let stream: ChatStream
@@ -93,7 +105,7 @@ extension ChatProvider {
         guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
 
         self.isBusy = true
-        defer { self.isBusy = false }
+        defer { self.finishOperation() }
 
         // Mint the in-flight turn and mark it live before the first suspension, so concurrent
         // sends bounce and the view can flag exactly this turn from the snapshot.
@@ -104,7 +116,7 @@ extension ChatProvider {
         let page = await self.pageContext()
 
         // Optimistic echo — the user turn shows immediately.
-        self.user.append(Identified(model: [AttributedString(text)]))
+        self.appendUser([AttributedString(text)])
         self.publish()
 
         // In-flight assistant turn, the thinking placeholder fills the pre-delta gap
@@ -216,7 +228,7 @@ extension ChatProvider {
     package func reset() async throws {
         guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
         self.isBusy = true
-        defer { self.isBusy = false }
+        defer { self.finishOperation() }
 
         try await self.service.resetConversation()
         self.clear()
@@ -233,9 +245,63 @@ extension ChatProvider {
     package func delete() async throws {
         guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
         self.isBusy = true
-        defer { self.isBusy = false }
+        defer { self.finishOperation() }
 
         try await self.service.deleteData()
+        self.clear()
+        self.publish()
+    }
+}
+
+// MARK: - Livechat
+
+extension ChatProvider {
+
+    /// Folds messages from the livechat poller into the panes, skipping ids already shown.
+    package func appendLivechat(_ messages: [LivechatMessage]) {
+        guard !self.isBusy else {
+            self.deferredLivechatMessages.append(contentsOf: messages)
+            return
+        }
+        self.ingestLivechat(messages)
+    }
+
+    /// Sends the visitor's text to the agent while a livechat session is active. The text shows
+    /// at once, and the stored message's id is recorded so the poller's copy isn't shown again.
+    package func sendLivechat(_ text: String) async throws(SendFailure) {
+        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
+        self.isBusy = true
+        defer { self.finishOperation() }
+
+        let page = await self.pageContext()
+        self.appendUser([AttributedString(text)])
+        self.publish()
+
+        do {
+            let stored = try await self.service.sendLivechatMessage(text, page: page)
+            self.livechatMessageIDs.insert(stored.messageId)
+        } catch ChatServiceError.sessionExpired {
+            self.clear()
+            self.publish()
+            throw SendFailure.sessionExpired
+        } catch ChatServiceError.conflict {
+            self.popLastUserBubble()
+            self.publish()
+            throw .livechatInactive(popped: text)
+        } catch {
+            self.popLastUserBubble()
+            self.publish()
+            throw .retry(popped: text, body: nil)
+        }
+    }
+
+    /// Clears the conversation after the livechat poller saw the session end (401). During a send,
+    /// reset or delete the clear waits until the operation finishes.
+    package func expireSession() {
+        guard !self.isBusy else {
+            self.expiresAfterOperation = true
+            return
+        }
         self.clear()
         self.publish()
     }
@@ -261,8 +327,81 @@ private extension ChatProvider {
     func discardInFlight() -> String {
         self.streamingTurnID = nil
         self.incoming.removeLast()
-        let userText = self.user.removeLast().model.last ?? ""
-        return String(userText.characters)
+        return self.popLastUserBubble()
+    }
+
+    /// Adds a visitor turn, or a bubble on the newest one when a new turn would break the pairing.
+    func appendUser(_ bubbles: [AttributedString]) {
+        let leads = !self.showsWelcome
+        if Self.startsTurn(count: self.user.count, otherCount: self.incoming.count, leads: leads) {
+            self.user.append(Identified(model: bubbles))
+        } else {
+            let last = self.user[self.user.count - 1]
+            self.user[self.user.count - 1] = Identified(id: last.id, model: last.model + bubbles)
+        }
+    }
+
+    /// Adds a bot turn, or a bubble on the newest one when a new turn would break the pairing.
+    func appendIncoming(_ responses: [ChatResponse]) {
+        let leads = self.showsWelcome
+        if Self.startsTurn(count: self.incoming.count, otherCount: self.user.count, leads: leads) {
+            self.incoming.append(Identified(model: responses))
+        } else {
+            let last = self.incoming[self.incoming.count - 1]
+            self.incoming[self.incoming.count - 1] = Identified(id: last.id, model: last.model + responses)
+        }
+    }
+
+    /// Whether new content starts a turn in a pane of `count` turns. Turns pair up by index across
+    /// the panes, leading pane first, so the leading pane may start a turn only when the panes are
+    /// level, and the other only to catch up. A pane that runs two turns ahead loses one from
+    /// ``ConversationSnapshot/turns``.
+    static func startsTurn(count: Int, otherCount: Int, leads: Bool) -> Bool {
+        count == 0 || (leads ? count == otherCount : count < otherCount)
+    }
+
+    /// Removes the newest visitor bubble, and its turn when nothing is left, returning its text.
+    @discardableResult
+    func popLastUserBubble() -> String {
+        guard let last = self.user.popLast() else { return "" }
+        var bubbles = last.model
+        let text = bubbles.popLast().map { String($0.characters) } ?? ""
+        if !bubbles.isEmpty {
+            self.user.append(Identified(id: last.id, model: bubbles))
+        }
+        return text
+    }
+
+    /// Ends a send, reset or delete, then folds in the livechat messages held back meanwhile.
+    func finishOperation() {
+        self.isBusy = false
+        if self.expiresAfterOperation {
+            self.expiresAfterOperation = false
+            self.clear()
+            self.publish()
+            return
+        }
+        let deferred = self.deferredLivechatMessages
+        self.deferredLivechatMessages = []
+        self.ingestLivechat(deferred)
+    }
+
+    func ingestLivechat(_ messages: [LivechatMessage]) {
+        var changed = false
+        for message in messages {
+            guard self.livechatMessageIDs.insert(message.messageId).inserted else { continue }
+            if message.role == .user {
+                let bubbles = message.parts.compactMap(Self.user)
+                guard !bubbles.isEmpty else { continue }
+                self.appendUser(bubbles)
+            } else {
+                let responses = message.parts.compactMap(Self.incoming)
+                guard !responses.isEmpty else { continue }
+                self.appendIncoming(responses)
+            }
+            changed = true
+        }
+        if changed { self.publish() }
     }
 
     /// Drops all conversation state and resets pagination — after a successful reset
@@ -272,6 +411,8 @@ private extension ChatProvider {
         self.incoming = []
         self.paginator = Paginator()
         self.streamingTurnID = nil
+        self.livechatMessageIDs = []
+        self.deferredLivechatMessages = []
     }
 
     /// Buckets a history page into the two panes and prepends it (older turns go
@@ -279,6 +420,7 @@ private extension ChatProvider {
     /// turn's adjacent bubbles. Selecting the parser for each part is the caller's
     /// job here — `RichTextParser` only ever sees a `RichText`.
     func prepend(_ messages: [Message]) {
+        self.livechatMessageIDs.formUnion(messages.map(\.messageId))
         var olderUser: [Identified<[AttributedString]>] = []
         var olderIncoming: [Identified<[ChatResponse]>] = []
 
