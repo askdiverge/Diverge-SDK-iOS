@@ -14,6 +14,31 @@ package struct ChatConfig: Decodable, Sendable, Equatable {
 
     package let display: Display
     package let theme: Theme
+    /// Livechat handover settings. Defaults disabled when absent (older deployments).
+    /// [API ref](https://docs.askdiverge.ai/api#model/livechatconfig)
+    package let livechat: LivechatConfig
+    /// Dynamic form references (`session_start` / `livechat_waiting` / `llm`). Empty when absent.
+    package let forms: [ChatFormReference]
+
+    package init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.display = try container.decode(Display.self, forKey: .display)
+        self.theme = try container.decode(Theme.self, forKey: .theme)
+        self.livechat =
+            try container.decodeIfPresent(LivechatConfig.self, forKey: .livechat) ?? .serverDefaults
+        self.forms =
+            try container.decodeIfPresent(LossyArray<ChatFormReference>.self, forKey: .forms)?
+            .elements ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case display, theme, livechat, forms
+    }
+
+    /// First configured waiting-room form id, if any.
+    package var livechatWaitingFormId: String? {
+        self.forms.first { $0.trigger == .livechatWaiting }?.formId
+    }
 }
 
 extension ChatConfig {
