@@ -106,7 +106,7 @@ struct ChatViewModelLivechatTests {
             "livechat.waitingStatus", "livechat.activeStatus",
             "livechat.talkToPerson", "livechat.humanAgentPrompt", "livechat.humanAgentHint",
             "livechat.queuedNote", "livechat.endedNote", "livechat.agentJoinedNote",
-            "livechat.agentFallback"
+            "livechat.agentFallback", "livechat.agentTyping", "livechat.agentTypingNamed"
         ])
     }
 
@@ -133,6 +133,42 @@ struct ChatViewModelLivechatTests {
         service.livechatState = LivechatState(status: .closed)
         await viewModel.livechat.refresh()
         try await eventually { provider.notes.contains { $0.kind == .ended } }
+    }
+
+    @Test("an active agent's typing flag shows on the view model")
+    func agentTypingFlag() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        var state = try LivechatFixtures.activeState(agentName: "Alice")
+        // Re-decode with typing on — activeState is typed off.
+        state = try LivechatFixtures.decoder.decode(LivechatState.self, from: Data("""
+        {
+          "status": "active",
+          "active_agent": { "agent_id": "a", "display_name": "Alice", "avatar_url": null },
+          "is_agent_typing": true,
+          "feedback": { "status": "not_available" }
+        }
+        """.utf8))
+        service.livechatState = state
+        await viewModel.livechat.refresh()
+
+        try await eventually { viewModel.isAgentTyping }
+        #expect(viewModel.livechatAgentName == "Alice")
+    }
+
+    @Test("while an agent is connected, typing posts true once, and sending posts false")
+    func visitorTypingPosts() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+
+        viewModel.visitorTypingChanged(isEmpty: false)
+        viewModel.visitorTypingChanged(isEmpty: false)
+        try await eventually { service.livechatTypingEvents == [true] }
+
+        viewModel.currentMessage = "hi"
+        try await viewModel.send()
+
+        try await eventually { service.livechatTypingEvents == [true, false] }
     }
 
     @Test("an open session found at start mints no notes")

@@ -653,6 +653,59 @@ struct LivechatSessionTests {
         #expect(snapshot?.isRestored == false)
         await session.stopPolling()
     }
+
+    // MARK: Visitor typing
+
+    @Test("typing posts true once per burst, and false after the idle pause")
+    func typingBurst() async throws {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
+        let session = LivechatSession(service: service, sleep: Self.typingIdleOnly)
+        await session.bootstrap()
+
+        await session.visitorTyping(isEmpty: false)
+        await session.visitorTyping(isEmpty: false)
+
+        try await eventually { service.livechatTypingEvents == [true, false] }
+    }
+
+    @Test("a false post waits for the true post before it, so they arrive in order")
+    func typingPostsInOrder() async throws {
+        let service = MockChatService(.init(
+            livechatState: LivechatState(status: .active),
+            livechatTypingStartDelay: .milliseconds(30)
+        ))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        await session.bootstrap()
+
+        await session.visitorTyping(isEmpty: false)
+        await session.endTyping()
+
+        try await eventually { service.livechatTypingEvents == [true, false] }
+    }
+
+    @Test("leaving the active state ends typing, and typing outside a session posts nothing")
+    func typingEndsWithSession() async throws {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        await session.bootstrap()
+        await session.visitorTyping(isEmpty: false)
+
+        service.livechatState = LivechatState(status: .closed)
+        await session.refresh()
+        await session.visitorTyping(isEmpty: false)
+
+        try await eventually { service.livechatTypingEvents == [true, false] }
+    }
+}
+
+private extension LivechatSessionTests {
+
+    /// Waits a short real interval for the typing idle pause and ends every other sleep, so the
+    /// poll loop stops at its first wait.
+    static let typingIdleOnly: @Sendable (Duration) async throws -> Void = { duration in
+        guard duration == LivechatSession.typingIdle else { throw CancellationError() }
+        try await Task.sleep(for: .milliseconds(20))
+    }
 }
 
 /// Values appended from the poller's tasks and read by the test.
