@@ -48,9 +48,22 @@ private extension ChatView {
     @ViewBuilder
     var content: some View {
         switch self.viewModel.phase {
-        case .loading: self.loadingView
+        case .loading: self.closable(self.loadingView)
         case .ready: self.readyView
-        case .failed: self.failedView
+        case .failed: self.closable(self.failedView)
+        }
+    }
+
+    /// Gives a screen shown before the chat window the host's close control, because a full-screen
+    /// presentation has no other way out while `/config` is slow or after it fails.
+    @ViewBuilder
+    func closable(_ screen: some View) -> some View {
+        if self.viewModel.showsCloseButton {
+            NavigationStack {
+                screen.toolbar { self.closeToolbarItem }
+            }
+        } else {
+            screen
         }
     }
 
@@ -83,7 +96,7 @@ private extension ChatView {
                 self.viewModel.backgroundSessionEnded = false
                 self.showSessionEndedAlert = true
             }
-            .sheet(isPresented: self.isRatingPresented) {
+            .sheet(isPresented: self.isLivechatRatingPresented) {
                 if let model = self.viewModel.rating.model {
                     LivechatRatingView(
                         model: model,
@@ -95,6 +108,22 @@ private extension ChatView {
                     .environment(\.appearance, self.appearance)
                 }
             }
+            .sheet(
+                isPresented: self.isConversationRatingPresented,
+                onDismiss: { self.viewModel.ratingDidDismiss() },
+                content: {
+                    if let model = self.viewModel.conversationRating.model {
+                        LivechatRatingView(
+                            model: model,
+                            onSubmit: { score, feedback in
+                                Task { await self.viewModel.submitRating(score: score, feedback: feedback) }
+                            },
+                            onSkip: { self.viewModel.skipRating() }
+                        )
+                        .environment(\.appearance, self.appearance)
+                    }
+                }
+            )
             .onChange(of: self.viewModel.livechatSessionEnded) { _, ended in
                 guard ended else { return }
                 self.viewModel.livechatSessionEnded = false
@@ -107,13 +136,26 @@ private extension ChatView {
             .onDisappear { Task { await self.viewModel.setVisible(false) } }
     }
 
-    /// The rating prompt is up while the rating controller holds a draft; swiping it away skips.
-    var isRatingPresented: Binding<Bool> {
+    /// Livechat CSAT is up while its controller holds a draft; swiping it away skips.
+    var isLivechatRatingPresented: Binding<Bool> {
         Binding(
             get: { self.viewModel.rating.model != nil },
             set: { isPresented in
                 if !isPresented, self.viewModel.rating.model != nil {
                     self.viewModel.rating.dismiss()
+                }
+            }
+        )
+    }
+
+    /// The conversation rating is up while its controller holds a draft; swiping it away skips.
+    /// The host hears the close from the sheet's `onDismiss`, once the prompt has gone.
+    var isConversationRatingPresented: Binding<Bool> {
+        Binding(
+            get: { self.viewModel.conversationRating.model != nil },
+            set: { isPresented in
+                if !isPresented, self.viewModel.conversationRating.model != nil {
+                    self.viewModel.skipRating()
                 }
             }
         )
@@ -145,6 +187,7 @@ private extension ChatView {
             .navigationTitle(self.viewModel.name)
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
+                self.closeToolbarItem
                 self.livechatToolbarItem
                 self.resetToolbarItem
             }
@@ -156,6 +199,22 @@ private extension ChatView {
         .onChange(of: self.inputFocused) { _, focused in
             if focused, self.viewModel.notice?.edge == .bottom {
                 self.viewModel.dismissNotice()
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    var closeToolbarItem: some ToolbarContent {
+        if self.viewModel.showsCloseButton {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    self.inputFocused = false
+                    self.viewModel.close()
+                } label: {
+                    ChatAppearance.Symbol.close
+                }
+                .accessibilityLabel(L10n.chatClose.string)
+                .accessibilityIdentifier("chat.close")
             }
         }
     }

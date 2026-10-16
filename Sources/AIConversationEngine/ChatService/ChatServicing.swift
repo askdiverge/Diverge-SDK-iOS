@@ -99,4 +99,8 @@ package protocol ChatServicing: Sendable {
     /// ``ChatServiceError/conflict``. Session-bound — a 401 surfaces as
     /// ``ChatServiceError/sessionExpired``.
     func submitLivechatFeedback(_ request: LivechatFeedbackRequest) async throws(ChatServiceError)
+
+    /// Rates the active conversation 1–5 with optional feedback. Session-bound — a 401 surfaces as
+    /// ``ChatServiceError/sessionExpired``. The response is an empty 200.
+    func rateConversation(_ request: RateConversationRequest) async throws(ChatServiceError)
 }

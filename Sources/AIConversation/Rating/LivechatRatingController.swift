@@ -27,8 +27,8 @@ final class LivechatRatingController {
     @ObservationIgnored private var sawClose = false
     /// The visitor rated or skipped this close.
     @ObservationIgnored private var isDone = false
-    /// The last snapshot said the closed session's feedback is pending.
-    @ObservationIgnored private var feedbackPending = false
+    /// The latest session is closed with feedback still to give.
+    @ObservationIgnored private(set) var hasPendingFeedback = false
     /// The chat is visible and the app active.
     @ObservationIgnored private var isOnScreen = true
     /// Bumped when a new session replaces the closed one, so a rating sent for the old one can't
@@ -53,10 +53,10 @@ final class LivechatRatingController {
     /// and goes away when a snapshot shows the feedback no longer pending or a new session starts.
     /// After a close the poller stops, so a rating given elsewhere shows when a send is refused.
     func update(previous: LivechatState.Status, state: LivechatState, isRestored: Bool) {
+        self.hasPendingFeedback = state.status == .closed && state.feedback.status == .pending
         guard state.status == .closed else {
             self.sawClose = false
             self.isDone = false
-            self.feedbackPending = false
             self.epoch += 1
             self.dropModel()
             return
@@ -64,8 +64,7 @@ final class LivechatRatingController {
         if previous.isInSession, !isRestored {
             self.sawClose = true
         }
-        self.feedbackPending = state.feedback.status == .pending
-        if self.feedbackPending {
+        if self.hasPendingFeedback {
             self.offerIfReady()
         } else if self.model?.isSubmitting == false {
             self.dropModel()
@@ -90,6 +89,7 @@ final class LivechatRatingController {
             try await self.submitFeedback(LivechatFeedbackRequest(rating: score, feedback: feedback))
             guard epoch == self.epoch else { return }
             self.isDone = true
+            self.hasPendingFeedback = false
             self.dropModel()
         } catch {
             guard epoch == self.epoch else { return }
@@ -99,6 +99,7 @@ final class LivechatRatingController {
                 await self.onSessionExpired?()
             case ChatServiceError.conflict:
                 self.isDone = true
+                self.hasPendingFeedback = false
                 self.dropModel()
             default:
                 model.markFailed(message: L10n.noticeSendFailed.string)
@@ -114,7 +115,7 @@ final class LivechatRatingController {
     }
 
     private func offerIfReady() {
-        guard self.isOnScreen, self.feedbackPending, self.sawClose, !self.isDone, self.model == nil else { return }
+        guard self.isOnScreen, self.hasPendingFeedback, self.sawClose, !self.isDone, self.model == nil else { return }
         self.model = RatingSubmissionModel()
     }
 
