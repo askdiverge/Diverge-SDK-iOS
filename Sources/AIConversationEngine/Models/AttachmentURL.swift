@@ -52,6 +52,18 @@ package enum AttachmentURL {
         return url
     }
 
+    /// The bytes a `data:` URL carries: base64 when its header says so, percent-encoded text
+    /// otherwise. `nil` when the URL has no payload or the payload does not decode.
+    static func payload(ofDataURL url: URL) -> Data? {
+        let raw = url.absoluteString
+        guard let comma = raw.firstIndex(of: ",") else { return nil }
+        let body = raw[raw.index(after: comma)...]
+        if raw[..<comma].lowercased().hasSuffix(";base64") {
+            return Data(base64Encoded: String(body))
+        }
+        return body.removingPercentEncoding.map { Data($0.utf8) }
+    }
+
     /// Case-insensitive `data:` scheme check on the first five bytes only — a data URL can be
     /// megabytes long, and lowercasing the whole string copies all of it on every decode.
     static func isDataURL(_ raw: String) -> Bool {

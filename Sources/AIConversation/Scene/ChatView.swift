@@ -488,11 +488,17 @@ private extension ChatView {
             .modifier(ThinkingBorderEffect(isActive: isStreaming, shape: Rectangle()))
     }
 
-    func userTurn(_ bubbles: [AttributedString]) -> some View {
+    func userTurn(_ bubbles: [UserContent]) -> some View {
         VStack(alignment: .trailing, spacing: self.appearance.spacing.units(2)) {
-            ForEach(Array(bubbles.enumerated()), id: \.offset) { _, text in
-                UserBubble(text: text)
-                    .modifier(RelativeWidth(0.70, alignment: .trailing))
+            ForEach(Array(bubbles.enumerated()), id: \.offset) { _, content in
+                switch content {
+                case .text(let text):
+                    UserBubble(text: text)
+                        .modifier(RelativeWidth(0.70, alignment: .trailing))
+                case .attachment:
+                    // Rendered by photo-upload-ui.
+                    EmptyView()
+                }
             }
         }
     }

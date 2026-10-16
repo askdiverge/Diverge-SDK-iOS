@@ -28,7 +28,7 @@ struct ChatServiceHeaderTests {
     func sendCarriesHeaders() async throws {
         let (sut, recorder) = makeSUT(body: "", contentType: "text/event-stream")
 
-        for try await _ in sut.sendMessage("hello", page: nil) {}
+        for try await _ in sut.sendMessage("hello", attachments: [], page: nil) {}
 
         let request = try #require(recorder.requests.first)
         #expect(request.header("Authorization") == "Bearer token-1")

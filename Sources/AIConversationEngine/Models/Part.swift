@@ -7,17 +7,19 @@
 
 /// An ordered part of a message, discriminated on `type`.
 ///
-/// Supports `rich_text`, `table`, `products`, `file`, `request_human_agent`, and the
-/// contact / support / custom form markers. All other variants decode to `.unknown` and are
-/// skipped at render time. Malformed marker payloads also fall back to `.unknown` so a bad
-/// part cannot abort sibling parts.
+/// Supports `rich_text`, `table`, `products`, `image`, `file`, `request_image_upload`,
+/// `request_human_agent`, and the contact / support / custom form markers. All other variants
+/// decode to `.unknown` and are skipped at render time. Malformed marker payloads also fall
+/// back to `.unknown` so a bad part cannot abort sibling parts.
 /// [API ref](https://docs.askdiverge.ai/api#model/messagepart)
 package enum Part: Decodable, Sendable, Equatable {
 
     case richText(RichText)
     case table(Table)
     case products(Products)
+    case image(MessageImage)
     case file(MessageFile)
+    case requestImageUpload(RequestImageUpload)
     case requestHumanAgent(RequestHumanAgent)
     case showContactForm(ShowContactForm)
     case showSupportTicket(ShowSupportTicket)
@@ -32,7 +34,9 @@ package enum Part: Decodable, Sendable, Equatable {
         case richText = "rich_text"
         case table
         case products
+        case image
         case file
+        case requestImageUpload = "request_image_upload"
         case requestHumanAgent = "request_human_agent"
         case showContactForm = "show_contact_form"
         case showSupportTicket = "show_support_ticket"
@@ -45,8 +49,12 @@ package enum Part: Decodable, Sendable, Equatable {
         case .richText: .richText(try RichText(from: decoder))
         case .table: .table(try Table(from: decoder))
         case .products: .products(try Products(from: decoder))
+        case .image:
+            (try? MessageImage(from: decoder)).map(Part.image) ?? .unknown
         case .file:
             (try? MessageFile(from: decoder)).map(Part.file) ?? .unknown
+        case .requestImageUpload:
+            (try? RequestImageUpload(from: decoder)).map(Part.requestImageUpload) ?? .unknown
         case .requestHumanAgent:
             (try? RequestHumanAgent(from: decoder)).map(Part.requestHumanAgent) ?? .unknown
         case .showContactForm:

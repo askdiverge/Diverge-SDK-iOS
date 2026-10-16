@@ -28,6 +28,9 @@
   `rating: .enabled` (the default) the visitor is asked to rate the conversation (`POST /rate`)
   before the host is called. Livechat CSAT still takes precedence while a session is closed with
   pending feedback. Pass `rating: .disabled` to close without asking.
+- Photo upload wire: `request_image_upload` markers and `MessageImage` parts decode from history
+  and stream `done`, and visitor image/file parts travel on `POST /messages` and
+  `POST /livechat/messages`. Composer attach UI ships in a follow-up.
 
 ### Fixed
 
