@@ -610,6 +610,33 @@ struct LivechatSessionTests {
         #expect(service.livechatSyncCallCount == 1)
     }
 
+    @Test("a 401 for a link refresh started before a teardown doesn't end the new session")
+    func staleRefreshExpiryIsIgnored() async throws {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        service.livechatSyncHold = {
+            await entered.open()
+            await release.wait()
+        }
+        let log = Log<LivechatSnapshot>()
+        let collector = Task {
+            for await snapshot in session.stream { log.append(snapshot) }
+        }
+
+        let refresh = Task { await session.freshFile(attachmentId: "att_1") }
+        await entered.wait()
+        await session.teardown()
+        service.livechatStateError = .sessionExpired
+        await release.open()
+        _ = await refresh.value
+        try await Task.sleep(for: .milliseconds(20))
+        collector.cancel()
+
+        #expect(!log.values.contains { $0.sessionExpired })
+    }
+
     @Test("close reports feedback pending when both state reads fail")
     func closeFallsBackToPending() async throws {
         let service = MockChatService(.init(livechatStateError: Self.serverError))
@@ -652,6 +679,39 @@ struct LivechatSessionTests {
         #expect(snapshot?.state.status == .waiting)
         #expect(snapshot?.isRestored == false)
         await session.stopPolling()
+    }
+
+    // MARK: Attachment links
+
+    @Test("a fresh file read finds the newest copy of the attachment in the log, without publishing")
+    func freshFileReadsTheLog() async throws {
+        let stale = try LivechatFixtures.file(attachmentId: "att_1", expiresAt: "2000-01-01T00:00:00Z")
+        let fresh = try LivechatFixtures.file(
+            url: "https://cdn.example.com/order.pdf?token=new",
+            attachmentId: "att_1",
+            expiresAt: "2099-01-01T00:00:00Z"
+        )
+        let service = MockChatService(.init(
+            livechatState: LivechatState(status: .active),
+            livechatMessagePages: [LivechatFixtures.Page(messages: [
+                LivechatFixtures.fileMessage("m1", file: stale, sequence: 1),
+                LivechatFixtures.fileMessage("m2", file: fresh, sequence: 2)
+            ])]
+        ))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+
+        let found = await session.freshFile(attachmentId: "att_1")
+
+        #expect(found == fresh)
+        #expect(service.lastLivechatAfterSequence == nil)
+    }
+
+    @Test("a fresh file read finds nothing when the log no longer holds the attachment")
+    func freshFileMissing() async {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+
+        #expect(await session.freshFile(attachmentId: "att_1") == nil)
     }
 
     // MARK: Visitor typing

@@ -251,6 +251,30 @@ package actor LivechatSession {
         self.postTyping(false)
     }
 
+    /// Reads the message log again for a freshly signed copy of attachment `attachmentId`, whose
+    /// stored link may have expired. Nil when the log can't be read or no longer holds it. The
+    /// read publishes nothing and leaves the message cursor where it is.
+    package func freshFile(attachmentId: String) async -> MessageFile? {
+        let gen = self.generation
+        let sync: LivechatSync
+        do {
+            sync = try await self.sync(after: 0, waiting: false)
+        } catch .sessionExpired {
+            // A 401 for a read started before a reset or delete belongs to the replaced visitor.
+            self.expire(generation: gen)
+            return nil
+        } catch {
+            // The caller opens the stored link instead, and the server serves or refuses it.
+            return nil
+        }
+        for message in sync.messages.reversed() {
+            for case .file(let file) in message.parts where file.attachmentId == attachmentId {
+                return file
+            }
+        }
+        return nil
+    }
+
     /// Stops polling, rewinds the cursor and publishes `inactive`. Called on reset and delete.
     /// Returns the generation that starts here: snapshots of an older one still in ``stream``
     /// belong to the session being replaced.

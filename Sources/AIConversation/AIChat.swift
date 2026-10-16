@@ -162,8 +162,9 @@ public extension AIChat {
         ///     `nil` → no context sent. Intended for non-identifying context (SKU, category, screen
         ///     name); it is forwarded verbatim to the backend, so the host must not pass PII through
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
-        ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
-        ///     → default OS open.
+        ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
+        ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
+        ///     them out of the browser's history. Absent → default OS open.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
@@ -190,8 +191,9 @@ public extension AIChat {
         ///     `nil` → no context sent. Intended for non-identifying context (SKU, category, screen
         ///     name); it is forwarded verbatim to the backend, so the host must not pass PII through
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
-        ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
-        ///     → default OS open.
+        ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
+        ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
+        ///     them out of the browser's history. Absent → default OS open.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
         public init(
