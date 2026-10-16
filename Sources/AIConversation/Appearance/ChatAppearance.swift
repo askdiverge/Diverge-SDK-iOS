@@ -115,6 +115,9 @@ extension ChatAppearance {
         /// toolbar — asks for a person, or ends the livechat session.
         static let livechat = Image(systemName: "headset")
 
+        /// talk-to-a-person card — the handoff CTA.
+        static let person = Image(systemName: "person")
+
         /// leading control & opens Privacy & Data.
         static let privacy = Image(systemName: "checkmark.shield")
 

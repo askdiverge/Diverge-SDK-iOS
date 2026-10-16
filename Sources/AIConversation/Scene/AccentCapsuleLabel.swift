@@ -14,6 +14,8 @@ struct AccentCapsuleLabel: View {
     @Environment(\.appearance) private var appearance
 
     let title: String
+    /// Optional leading glyph (for example the talk-to-a-person card).
+    var symbol: Image?
     /// Stretch to the container's width (form Submit) instead of hugging the title.
     var fillsWidth = false
     /// Shows a spinner before the title while an action is in flight.
@@ -24,6 +26,8 @@ struct AccentCapsuleLabel: View {
             if self.isBusy {
                 ProgressView()
                     .tint(self.appearance.theme.accentForeground)
+            } else if let symbol {
+                symbol.font(.system(size: 14))
             }
             Text(self.title)
                 .font(self.appearance.font(size: 13, weight: .bold))

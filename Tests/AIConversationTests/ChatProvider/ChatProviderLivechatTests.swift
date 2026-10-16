@@ -140,6 +140,131 @@ struct ChatProviderLivechatTests {
         #expect(snapshot?.incoming.isEmpty == true)
     }
 
+    @Test("notes join the newest bot turn, so the panes stay paired and the next visitor message follows them")
+    func notesKeepPairing() async {
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        await provider.appendLivechat([
+            LivechatFixtures.message("u1", role: .user, text: "hi", sequence: 1),
+            LivechatFixtures.message("a1", role: .assistant, text: "hello", sequence: 2)
+        ])
+
+        await provider.note(LivechatNote(kind: .queued))
+        await provider.note(LivechatNote(kind: .agentJoined(displayName: "Alice")))
+        await provider.appendLivechat([LivechatFixtures.message("u2", role: .user, text: "my order", sequence: 3)])
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            .user([AttributedString("hi")]),
+            .bot([
+                .text(AttributedString("hello")),
+                .livechatNote(.init(kind: .queued)),
+                .livechatNote(.init(kind: .agentJoined(displayName: "Alice")))
+            ]),
+            .user([AttributedString("my order")])
+        ])
+    }
+
+    @Test("a note before anything is sent keeps the welcome on screen")
+    func noteKeepsWelcome() async throws {
+        let provider: any ChatProviding = ChatProvider(
+            service: MockChatService(),
+            pageContext: { nil },
+            welcomeMessage: "welcome"
+        )
+        try await provider.loadOlder()
+
+        await provider.note(LivechatNote(kind: .queued))
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            .bot([.text(AttributedString("welcome")), .livechatNote(.init(kind: .queued))])
+        ])
+    }
+
+    @Test("notes and agent messages during a streaming reply wait, in order, until the reply settles")
+    func noteWaitsForStream() async throws {
+        let mock = MockChatService(.init(sendEvents: [Self.textPart("reply")]))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        mock.sendHold = {
+            await entered.open()
+            await release.wait()
+        }
+        let send = Task { try await provider.send("hi") }
+        await entered.wait()
+
+        await provider.note(LivechatNote(kind: .agentJoined(displayName: "Alice")))
+        await provider.appendLivechat([LivechatFixtures.message("a1", role: .agent, text: "agent")])
+        await release.open()
+        try await send.value
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.incoming.map(\.model) == [[
+            .text(AttributedString("reply")),
+            .livechatNote(.init(kind: .agentJoined(displayName: "Alice"))),
+            .text(AttributedString("agent"))
+        ]])
+    }
+
+    @Test("a bot turn of notes only leaves the turn before it as the newest, so its forms stay fillable")
+    func noteTurnKeepsFormTurn() {
+        let reply = Identified<[ChatResponse]>(model: [.text(AttributedString("form here"))])
+        let notes = Identified<[ChatResponse]>(model: [.livechatNote(.init(kind: .queued))])
+        let snapshot = ConversationSnapshot(
+            user: [Identified(model: [AttributedString("hi")]), Identified(model: [AttributedString("again")])],
+            incoming: [reply, notes],
+            isUserInitiatedConversation: true,
+            streamingTurnID: nil
+        )
+
+        #expect(snapshot.lastBotTurnID == reply.id)
+    }
+
+    @Test("a request_human_agent part becomes the prompt card, and a file part is skipped")
+    func fileAndHandoffParts() async throws {
+        let file = try LivechatFixtures.decoder.decode(MessageFile.self, from: Data("""
+        {
+          "filename": "order.pdf",
+          "url": "https://cdn.example.com/order.pdf",
+          "mime_type": "application/pdf",
+          "size_bytes": 1200
+        }
+        """.utf8))
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await provider.appendLivechat([
+            LivechatMessage(
+                messageId: "a_file",
+                role: .agent,
+                agent: nil,
+                parts: [
+                    .file(file),
+                    .requestHumanAgent(RequestHumanAgent(partId: "part_human_1"))
+                ],
+                createdAt: "2026-01-01T00:00:00Z",
+                sequenceNumber: 1
+            )
+        ])
+
+        let incoming = await snapshots.next()?.incoming.map(\.model)
+        #expect(incoming == [[.requestHumanAgent(.init(partId: "part_human_1"))]])
+    }
+
+    @Test("system-role text becomes a centred system note")
+    func systemRoleIsNote() async {
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await provider.appendLivechat([
+            LivechatFixtures.message("sys_1", role: .system, text: "An agent will join soon")
+        ])
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.incoming.map(\.model) == [[.systemNote(AttributedString("An agent will join soon"))]])
+    }
+
     @Test("visitor messages go to the user pane and every other role to the bot pane")
     func roleMapping() async {
         let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
@@ -153,7 +278,10 @@ struct ChatProviderLivechatTests {
 
         let snapshot = await snapshots.next()
         #expect(snapshot?.user.map(\.model) == [[AttributedString("hi")]])
-        #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("hello")), .text(AttributedString("closed"))]])
+        #expect(snapshot?.incoming.map(\.model) == [[
+            .text(AttributedString("hello")),
+            .systemNote(AttributedString("closed"))
+        ]])
     }
 
     @Test("agent messages in a row join the bot turn, so none drops out of the turns")
@@ -282,6 +410,25 @@ struct ChatProviderLivechatTests {
             .user([AttributedString("hi")]),
             .bot([.text(AttributedString("reply"))]),
             .user([AttributedString("again")]),
+            .bot([.text(AttributedString("reply"))])
+        ])
+    }
+
+    @Test("a note that opens an empty conversation leads it, so every AI reply after it stays")
+    func noteOpensConversation() async throws {
+        let mock = MockChatService(.init(sendEvents: [Self.textPart("reply")]))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+
+        await provider.note(LivechatNote(kind: .queued))
+        try await provider.send("one")
+        try await provider.send("two")
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            .bot([.livechatNote(LivechatNote(kind: .queued))]),
+            .user([AttributedString("one")]),
+            .bot([.text(AttributedString("reply"))]),
+            .user([AttributedString("two")]),
             .bot([.text(AttributedString("reply"))])
         ])
     }
