@@ -16,7 +16,9 @@
   the visitor joins the queue, an agent joins or the session ends, system messages, agent typing,
   and tappable agent file attachments, opened through `onOpenLink` with a freshly signed link on
   each tap. While an agent is connected, the SDK tells the agent when the visitor is typing
-  (`POST /livechat/typing`); it never sends the draft itself.
+  (`POST /livechat/typing`); it never sends the draft itself. While queued, a configured
+  `livechat_waiting` form lets the visitor add details for the agent (`GET /session`,
+  `PATCH /forms/{id}/values`).
 
 ### Fixed
 

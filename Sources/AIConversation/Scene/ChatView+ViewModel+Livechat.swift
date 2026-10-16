@@ -42,13 +42,15 @@ extension ChatView.ViewModel {
         }
     }
 
-    /// Pauses livechat polling while the app is in the background.
+    /// Pauses livechat polling and waiting-form retries while the app is in the background.
     func setSceneActive(_ active: Bool) async {
+        self.waitingForm.setSceneActive(active)
         await self.livechat.setSceneActive(active)
     }
 
-    /// Pauses livechat polling while the chat is off screen.
+    /// Pauses livechat polling and waiting-form retries while the chat is off screen.
     func setVisible(_ visible: Bool) async {
+        self.waitingForm.setVisible(visible)
         await self.livechat.setVisible(visible)
     }
 

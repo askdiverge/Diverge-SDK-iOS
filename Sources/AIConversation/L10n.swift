@@ -100,6 +100,13 @@ enum L10n {
     static let mediaOpenHint = string("media.openHint")
     static let mediaUnavailable = string("media.unavailable")
 
+    static let sessionFormTitle = string("sessionForm.title")
+    static let sessionFormDescription = string("sessionForm.description")
+    static let sessionFormSave = string("sessionForm.save")
+    static let sessionFormSaving = string("sessionForm.saving")
+    static let sessionFormSaved = string("sessionForm.saved")
+    static let sessionFormFailed = string("sessionForm.failed")
+
     private static func string(_ key: String.LocalizationValue) -> LocalizedStringResource {
         LocalizedStringResource(key, bundle: .atURL(Bundle.module.bundleURL))
     }

@@ -38,6 +38,7 @@ struct FormValidationErrorTests {
         #expect(FormServerErrors.fieldKey("action.values.orderNumber") == "orderNumber")
         #expect(FormServerErrors.fieldKey("action.files.photo") == "photo")
         #expect(FormServerErrors.fieldKey("action.email") == "email")
+        #expect(FormServerErrors.fieldKey("values.email") == "email")
         #expect(FormServerErrors.fieldKey("email") == "email")
     }
 
