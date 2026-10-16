@@ -36,6 +36,8 @@ final class MockChatService: ChatServicing {
         /// Thrown by the `sendLivechatMessage` calls at these zero-based indices only.
         var livechatSendFailingCalls: [Int: ChatServiceError] = [:]
         var livechatCloseError: ChatServiceError?
+        /// Delays each `true` typing post, so a test can check that the `false` after it waits.
+        var livechatTypingStartDelay: Duration?
     }
 
     private let stub: Stub
@@ -55,6 +57,7 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) private(set) var lastLivechatCloseReason: String?
     /// The operation id of each `sendLivechatMessage` call, in order.
     nonisolated(unsafe) private(set) var livechatSendOperationIds: [String] = []
+    nonisolated(unsafe) private(set) var livechatTypingEvents: [Bool] = []
 
     nonisolated(unsafe) var livechatState: LivechatState
     nonisolated(unsafe) var livechatStateError: ChatServiceError?
@@ -187,7 +190,12 @@ final class MockChatService: ChatServicing {
         return self.stub.livechatSendResponse ?? LivechatFixtures.message("stored", role: .user, text: text)
     }
 
-    func sendLivechatTyping(isTyping _: Bool) async throws(ChatServiceError) {}
+    func sendLivechatTyping(isTyping: Bool) async throws(ChatServiceError) {
+        if isTyping, let delay = self.stub.livechatTypingStartDelay {
+            try? await Task.sleep(for: delay)
+        }
+        self.livechatTypingEvents.append(isTyping)
+    }
 
     func closeLivechat(reason: String?) async throws(ChatServiceError) {
         self.livechatCloseCallCount += 1

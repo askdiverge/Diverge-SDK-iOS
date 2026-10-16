@@ -73,6 +73,11 @@ extension ChatView.ViewModel {
         }
     }
 
+    /// Tells the session the visitor's draft changed, so a connected agent sees them typing.
+    func visitorTypingChanged(isEmpty: Bool) {
+        Task { [livechat = self.livechat] in await livechat.visitorTyping(isEmpty: isEmpty) }
+    }
+
     /// Whether the `request_human_agent` card in bot turn `turnID` can hand over: it is in the
     /// newest bot turn, like a fillable form, no session is open, nothing is in flight and the
     /// reply it came in has finished.

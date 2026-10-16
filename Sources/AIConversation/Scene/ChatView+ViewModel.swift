@@ -34,6 +34,8 @@ extension ChatView {
         private(set) var livechatStatus = LivechatState.Status.inactive
         /// Display name of the connected agent, when the poller last reported one.
         private(set) var livechatAgentName: String?
+        /// Whether the connected agent is typing.
+        private(set) var isAgentTyping = false
         /// A handover or close is in flight; the header control and reset wait for it.
         private(set) var isLivechatBusy = false
         /// Set when the poller sees the visitor session end (401). The view shows the session-ended
@@ -171,6 +173,7 @@ extension ChatView {
 
             do {
                 self.currentMessage = ""
+                await self.livechat.endTyping()
                 try await self.deliver(text, via: provider)
 
             } catch {
@@ -478,6 +481,7 @@ extension ChatView.ViewModel {
         let status = snapshot.state.status
         self.livechatStatus = status
         self.livechatAgentName = snapshot.state.activeAgent?.displayName
+        self.isAgentTyping = status == .active && snapshot.state.isAgentTyping
 
         if snapshot.sessionExpired {
             await self.provider?.expireSession()

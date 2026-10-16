@@ -60,6 +60,12 @@ package actor LivechatSession {
     /// Set once a state is published. Until then a published state is one the session found
     /// already in place, which its snapshot marks as restored.
     private var hasPublishedState = false
+    /// Whether the agent was last told the visitor is typing.
+    private var isTypingSent = false
+    /// Ends the typing burst after ``typingIdle`` without a draft change.
+    private var typingIdleTask: Task<Void, Never>?
+    /// The newest typing post; each post waits for the one before it, so they arrive in order.
+    private var typingPost: Task<Void, Never>?
 
     private static let waitingInterval: Duration = .seconds(2)
     private static let activeInterval: Duration = .seconds(3)
@@ -67,6 +73,8 @@ package actor LivechatSession {
     private static let maxWaitMs = 20_000
     /// The pause between waiting syncs, so a server that answers at once can't spin the loop.
     private static let waitGap: Duration = .milliseconds(250)
+    /// How long the visitor's draft may sit unchanged before the agent is told typing stopped.
+    static let typingIdle: Duration = .milliseconds(1500)
 
     private var shouldPoll: Bool {
         self.isSceneActive && self.isVisible && !self.sessionExpired
@@ -202,6 +210,34 @@ package actor LivechatSession {
     /// Ticks once now, for example after a livechat send was rejected with 409.
     package func refresh() async {
         await self.tick(waiting: false)
+    }
+
+    /// The visitor's draft changed. While an agent is connected, the agent is told the visitor is
+    /// typing once per burst, and that they stopped after ``typingIdle`` without a change or when
+    /// the draft empties.
+    package func visitorTyping(isEmpty: Bool) {
+        self.typingIdleTask?.cancel()
+        guard self.lastStatus == .active, !isEmpty else {
+            self.endTyping()
+            return
+        }
+        self.postTyping(true)
+        let sleep = self.sleep
+        self.typingIdleTask = Task { [weak self] in
+            do {
+                try await sleep(Self.typingIdle)
+            } catch {
+                return
+            }
+            await self?.endTyping()
+        }
+    }
+
+    /// Tells the agent the visitor stopped typing, if they were last told otherwise.
+    package func endTyping() {
+        self.typingIdleTask?.cancel()
+        self.typingIdleTask = nil
+        self.postTyping(false)
     }
 
     /// Stops polling, rewinds the cursor and publishes `inactive`. Called on reset and delete.
@@ -447,6 +483,9 @@ private extension LivechatSession {
         self.lastStatus = state.status
         let isRestored = !self.hasPublishedState
         self.hasPublishedState = true
+        if state.status != .active {
+            self.endTyping()
+        }
         self.continuation.yield(
             LivechatSnapshot(
                 previousStatus: previous,
@@ -457,6 +496,18 @@ private extension LivechatSession {
                 isRestored: isRestored
             )
         )
+    }
+
+    /// Posts the typing state when it changed, once the post before it has gone out.
+    func postTyping(_ isTyping: Bool) {
+        guard isTyping != self.isTypingSent else { return }
+        self.isTypingSent = isTyping
+        let previous = self.typingPost
+        self.typingPost = Task { [service = self.service] in
+            await previous?.value
+            // Typing is best-effort; a lost post is corrected by the next one.
+            try? await service.sendLivechatTyping(isTyping: isTyping)
+        }
     }
 
     func expire(generation: UInt64) {
