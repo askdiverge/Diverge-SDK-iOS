@@ -6,12 +6,15 @@
 //
 
 import Foundation
+import Synchronization
 @testable import AIConversationEngine
 
 /// Drives `ChatProvider` with a scripted facade. The provider serializes every call —
 /// one actor, each op awaited in turn — so the `nonisolated(unsafe)` call counters never
 /// race: each write happens-before the test's read across the `await`. `LivechatSession`
 /// tests change the livechat stubs only while the poller is suspended in its sleep seam.
+/// Typing posts run on the session's own task while tests poll for them, so their log and
+/// failure count sit behind a `Mutex`.
 final class MockChatService: ChatServicing {
 
     struct Stub {
@@ -36,8 +39,10 @@ final class MockChatService: ChatServicing {
         /// Thrown by the `sendLivechatMessage` calls at these zero-based indices only.
         var livechatSendFailingCalls: [Int: ChatServiceError] = [:]
         var livechatCloseError: ChatServiceError?
-        /// Delays each `true` typing post, so a test can check that the `false` after it waits.
-        var livechatTypingStartDelay: Duration?
+        /// The first this many typing posts fail with a connection error.
+        var livechatTypingFailures = 0
+        /// Thrown by every typing post after the `livechatTypingFailures`.
+        var livechatTypingError: ChatServiceError?
     }
 
     private let stub: Stub
@@ -57,7 +62,13 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) private(set) var lastLivechatCloseReason: String?
     /// The operation id of each `sendLivechatMessage` call, in order.
     nonisolated(unsafe) private(set) var livechatSendOperationIds: [String] = []
-    nonisolated(unsafe) private(set) var livechatTypingEvents: [Bool] = []
+    /// The typing posts that succeeded, in order.
+    var livechatTypingEvents: [Bool] { self.typingLog.withLock { $0 } }
+    private let typingLog = Mutex<[Bool]>([])
+    private let typingFailuresLeft: Mutex<Int>
+    /// Every typing post, failed or not.
+    var livechatTypingAttempts: Int { self.typingAttemptCount.withLock { $0 } }
+    private let typingAttemptCount = Mutex(0)
 
     nonisolated(unsafe) var livechatState: LivechatState
     nonisolated(unsafe) var livechatStateError: ChatServiceError?
@@ -68,12 +79,16 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) var sendHold: (@Sendable () async -> Void)?
     /// Awaited inside `sendLivechatMessage`, so a test can act while the POST is in flight.
     nonisolated(unsafe) var livechatSendHold: (@Sendable () async -> Void)?
+    /// Awaited at the start of each typing post with its value, so a test can act while it is
+    /// in flight.
+    nonisolated(unsafe) var livechatTypingHold: (@Sendable (Bool) async -> Void)?
 
     init(_ stub: Stub = .init()) {
         self.stub = stub
         self.livechatState = stub.livechatState
         self.livechatStateError = stub.livechatStateError
         self.livechatMessagePages = stub.livechatMessagePages
+        self.typingFailuresLeft = Mutex(stub.livechatTypingFailures)
     }
 
     func sendMessage(_ text: String, page: String?) -> AsyncThrowingStream<StreamEvent, any Error> {
@@ -191,10 +206,19 @@ final class MockChatService: ChatServicing {
     }
 
     func sendLivechatTyping(isTyping: Bool) async throws(ChatServiceError) {
-        if isTyping, let delay = self.stub.livechatTypingStartDelay {
-            try? await Task.sleep(for: delay)
+        self.typingAttemptCount.withLock { $0 += 1 }
+        await self.livechatTypingHold?(isTyping)
+        let fails = self.typingFailuresLeft.withLock { left in
+            defer { left = max(0, left - 1) }
+            return left > 0
         }
-        self.livechatTypingEvents.append(isTyping)
+        if fails {
+            throw .transport(.connection(URLError(.networkConnectionLost)))
+        }
+        if let error = self.stub.livechatTypingError {
+            throw error
+        }
+        self.typingLog.withLock { $0.append(isTyping) }
     }
 
     func closeLivechat(reason: String?) async throws(ChatServiceError) {
