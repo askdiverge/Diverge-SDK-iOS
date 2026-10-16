@@ -18,7 +18,12 @@
   each tap. While an agent is connected, the SDK tells the agent when the visitor is typing
   (`POST /livechat/typing`); it never sends the draft itself. While queued, a configured
   `livechat_waiting` form lets the visitor add details for the agent (`GET /session`,
-  `PATCH /forms/{id}/values`).
+  `PATCH /forms/{id}/values`). When a session ends while the chat is open and feedback is
+  pending, the visitor is asked to rate it (`POST /livechat/feedback`).
+- `AIChat.Configuration` `onLivechatSessionChange` and `AIChat.LivechatSessionInfo`: the host hears
+  when the visitor is queued, talking to an agent (with the agent's name) or the session ends,
+  while the chat is on screen, so it can show the agent in its own UI and offer to reopen a chat
+  the visitor closed mid-session.
 
 ### Fixed
 

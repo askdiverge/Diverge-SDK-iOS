@@ -99,7 +99,8 @@ public extension AIChat {
             viewModel: .init(
                 service: self.service,
                 contextProvider: self.configuration.contextProvider,
-                conversationFlow: self.configuration.conversationFlow
+                conversationFlow: self.configuration.conversationFlow,
+                onLivechatSessionChange: self.configuration.onLivechatSessionChange
             )
         )
         .environment(\.openURL, self.openURL)
@@ -141,7 +142,8 @@ public extension AIChat {
     /// the SDK is not correctly configured without them (Control Plane: Identity, Minting, Invalidation).
     /// SDK is pure (Data plane) to avoid split Token Ownership, Distributed State with Async Reconciliation and Structural Inversion.
     ///
-    /// The two enhancement hooks (`contextProvider`, `onOpenLink`) are optional and degrade gracefully when omitted.
+    /// The enhancement hooks (`contextProvider`, `onOpenLink`, `onLivechatSessionChange`) are
+    /// optional and degrade gracefully when omitted.
     struct Configuration {
 
         let tokenProvider: @Sendable () async throws -> String
@@ -149,6 +151,9 @@ public extension AIChat {
         let deleteData: @Sendable () async throws -> Void
         let contextProvider: (@Sendable () async -> String?)?
         let onOpenLink: ((URL) -> Void)?
+        /// Called on the main actor when the livechat status or the connected agent changes while
+        /// the chat is on screen.
+        let onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)?
         let conversationFlow: ConversationFlow
         /// Which Diverge backend to talk to. Defaults to ``DivergeAPI/Environment/production``.
         let environment: DivergeAPI.Environment
@@ -165,6 +170,9 @@ public extension AIChat {
         ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
         ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
         ///     them out of the browser's history. Absent → default OS open.
+        ///   - onLivechatSessionChange: Called on the main actor when the livechat status or the
+        ///     connected agent changes while the chat is on screen, so the host can show the agent
+        ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
@@ -172,6 +180,7 @@ public extension AIChat {
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
+            onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             environment: DivergeAPI.Environment = .production
         ) {
             self.tokenProvider = tokenProvider
@@ -179,6 +188,7 @@ public extension AIChat {
             self.deleteData = deleteData
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
+            self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = .bottomUp
             self.environment = environment
         }
@@ -194,6 +204,9 @@ public extension AIChat {
         ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
         ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
         ///     them out of the browser's history. Absent → default OS open.
+        ///   - onLivechatSessionChange: Called on the main actor when the livechat status or the
+        ///     connected agent changes while the chat is on screen, so the host can show the agent
+        ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
         public init(
@@ -202,6 +215,7 @@ public extension AIChat {
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
+            onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             conversationFlow: ConversationFlow = .topDown,
             environment: DivergeAPI.Environment = .production
         ) {
@@ -210,6 +224,7 @@ public extension AIChat {
             self.deleteData = deleteData
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
+            self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = conversationFlow
             self.environment = environment
         }

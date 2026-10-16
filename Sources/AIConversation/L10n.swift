@@ -107,6 +107,20 @@ enum L10n {
     static let sessionFormSaved = string("sessionForm.saved")
     static let sessionFormFailed = string("sessionForm.failed")
 
+    static let ratingTitle = string("rating.title")
+    static let ratingFeedbackPrompt = string("rating.feedbackPrompt")
+    static let ratingFeedbackPlaceholder = string("rating.feedbackPlaceholder")
+    static let ratingSend = string("rating.send")
+    static let ratingSkip = string("rating.skip")
+
+    static func ratingScore(_ score: Int) -> LocalizedStringResource {
+        LocalizedStringResource(
+            "rating.score",
+            defaultValue: "\(score) out of 5",
+            bundle: .atURL(Bundle.module.bundleURL)
+        )
+    }
+
     private static func string(_ key: String.LocalizationValue) -> LocalizedStringResource {
         LocalizedStringResource(key, bundle: .atURL(Bundle.module.bundleURL))
     }

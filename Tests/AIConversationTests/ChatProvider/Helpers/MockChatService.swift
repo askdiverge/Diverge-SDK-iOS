@@ -240,6 +240,10 @@ final class MockChatService: ChatServicing {
         }
     }
 
+    func submitLivechatFeedback(_: LivechatFeedbackRequest) async throws(ChatServiceError) {
+        throw .provider(Unstubbed())
+    }
+
     /// Thrown by calls `ChatProvider` does not make yet, so an unexpected call fails loudly.
     private struct Unstubbed: Error {}
 }

@@ -83,6 +83,18 @@ private extension ChatView {
                 self.viewModel.backgroundSessionEnded = false
                 self.showSessionEndedAlert = true
             }
+            .sheet(isPresented: self.isRatingPresented) {
+                if let model = self.viewModel.rating.model {
+                    LivechatRatingView(
+                        model: model,
+                        onSubmit: { score, feedback in
+                            Task { await self.viewModel.rating.submit(score: score, feedback: feedback) }
+                        },
+                        onSkip: { self.viewModel.rating.dismiss() }
+                    )
+                    .environment(\.appearance, self.appearance)
+                }
+            }
             .onChange(of: self.viewModel.livechatSessionEnded) { _, ended in
                 guard ended else { return }
                 self.viewModel.livechatSessionEnded = false
@@ -93,6 +105,18 @@ private extension ChatView {
             }
             .onAppear { Task { await self.viewModel.setVisible(true) } }
             .onDisappear { Task { await self.viewModel.setVisible(false) } }
+    }
+
+    /// The rating prompt is up while the rating controller holds a draft; swiping it away skips.
+    var isRatingPresented: Binding<Bool> {
+        Binding(
+            get: { self.viewModel.rating.model != nil },
+            set: { isPresented in
+                if !isPresented, self.viewModel.rating.model != nil {
+                    self.viewModel.rating.dismiss()
+                }
+            }
+        )
     }
 
     var failedView: some View {

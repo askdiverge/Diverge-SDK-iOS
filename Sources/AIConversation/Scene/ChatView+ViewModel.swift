@@ -53,6 +53,16 @@ extension ChatView {
         @ObservationIgnored let livechat: LivechatSession
         /// The livechat waiting-room form shown above the composer while the visitor is queued.
         @ObservationIgnored let waitingForm: WaitingFormController
+        /// Asks the visitor to rate a livechat session that ended while the chat was on screen.
+        @ObservationIgnored let rating: LivechatRatingController
+        /// The host's `onLivechatSessionChange` hook.
+        @ObservationIgnored private let onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)?
+        /// The last session info delivered to the host, so an unchanged one isn't delivered again.
+        @ObservationIgnored private var lastReportedLivechatSession: AIChat.LivechatSessionInfo?
+        /// The chat is visible, and the app is active. The host hears about the session, and the
+        /// visitor is asked for a rating, only while both hold; see ``screenChanged()``.
+        @ObservationIgnored var isChatVisible = true
+        @ObservationIgnored var isSceneActive = true
         /// A send is in flight. The provider refuses a reset until it finishes, and a handover waits
         /// for it so the agent's context holds the reply.
         private(set) var isSending = false
@@ -86,15 +96,18 @@ extension ChatView {
             service: ChatService,
             contextProvider: (@Sendable () async -> String?)?,
             conversationFlow: AIChat.ConversationFlow,
+            onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
             submitAction: ActionSubmitter? = nil,
             fetchForm: FormFetcher? = nil,
             fetchSession: WaitingFormController.SessionFetcher? = nil,
             patchFormValues: WaitingFormController.ValuesPatcher? = nil,
+            submitLivechatFeedback: LivechatRatingController.Submitter? = nil,
             livechat: LivechatSession? = nil
         ) {
             self.service = service
             self.pageContext = { await contextProvider?() }
             self.conversationFlow = conversationFlow
+            self.onLivechatSessionChange = onLivechatSessionChange
             self.submitAction = submitAction ?? { request in
                 try await service.submitAction(request)
             }
@@ -102,6 +115,9 @@ extension ChatView {
                 try await service.fetchForm(id: id)
             }
             self.fetchForm = fetchForm
+            self.rating = LivechatRatingController(submitFeedback: submitLivechatFeedback ?? { request in
+                try await service.submitLivechatFeedback(request)
+            })
             self.livechat = livechat ?? LivechatSession(service: service)
             self.waitingForm = WaitingFormController(
                 fetchForm: fetchForm,
@@ -114,6 +130,10 @@ extension ChatView {
             self.imageLoader = ImageLoader(maxPixelSize: 800) { try await service.fetchData($0) }
             self.observeLivechat()
             self.waitingForm.bind(onSessionExpired: { [weak self] in await self?.endExpiredSession() })
+            self.rating.bind(
+                onSessionExpired: { [weak self] in await self?.endExpiredSession() },
+                refresh: { [weak self] in await self?.livechat.refresh() }
+            )
         }
 
         /// A livechat loop parked while the chat is off screen holds its session; this ends it.
@@ -510,9 +530,11 @@ extension ChatView.ViewModel {
         self.livechatStatus = status
         self.livechatAgentName = snapshot.state.activeAgent?.displayName
         self.isAgentTyping = status == .active && snapshot.state.isAgentTyping
+        self.reportLivechatSessionIfChanged()
 
         if snapshot.sessionExpired {
             self.waitingForm.clear()
+            self.rating.update(previous: previous, state: snapshot.state, isRestored: snapshot.isRestored)
             await self.provider?.expireSession()
             self.livechatSessionEnded = true
             return
@@ -531,6 +553,25 @@ extension ChatView.ViewModel {
         if notesChanges, previous.isInSession, status == .closed {
             await self.provider?.note(LivechatNote(kind: .ended))
         }
+        self.rating.update(previous: previous, state: snapshot.state, isRestored: snapshot.isRestored)
+    }
+
+    /// Follows the chat going on or off screen: the rating prompt waits for it, and the host hears
+    /// the session's latest state when it comes back.
+    func screenChanged() {
+        let onScreen = self.isChatVisible && self.isSceneActive
+        self.rating.setOnScreen(onScreen)
+        self.reportLivechatSessionIfChanged()
+    }
+
+    /// Delivers the session to the host's `onLivechatSessionChange` when it changed, while the chat
+    /// is on screen.
+    private func reportLivechatSessionIfChanged() {
+        guard self.isChatVisible, self.isSceneActive else { return }
+        let info = AIChat.LivechatSessionInfo(self.livechatStatus, agentName: self.livechatAgentName)
+        guard info != self.lastReportedLivechatSession else { return }
+        self.lastReportedLivechatSession = info
+        self.onLivechatSessionChange?(info)
     }
 
     /// Notes the visitor joining the queue and an agent joining, ahead of the messages that follow.
