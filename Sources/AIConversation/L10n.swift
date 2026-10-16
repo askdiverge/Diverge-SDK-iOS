@@ -107,6 +107,8 @@ enum L10n {
     static let sessionFormSaved = string("sessionForm.saved")
     static let sessionFormFailed = string("sessionForm.failed")
 
+    static let chatClose = string("chat.close")
+
     static let ratingTitle = string("rating.title")
     static let ratingFeedbackPrompt = string("rating.feedbackPrompt")
     static let ratingFeedbackPlaceholder = string("rating.feedbackPlaceholder")

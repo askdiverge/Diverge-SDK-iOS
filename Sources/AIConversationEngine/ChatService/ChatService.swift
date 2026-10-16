@@ -335,6 +335,22 @@ extension ChatService {
             throw .conflict
         }
     }
+
+    /// Rates the active conversation 1–5 with optional feedback. The response is an empty 200;
+    /// subsequent calls overwrite the previous rating.
+    package func rateConversation(
+        _ request: RateConversationRequest
+    ) async throws(ChatServiceError) {
+        try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                try await self.network.post(
+                    url: self.url(for: .rate),
+                    payload: request,
+                    headers: self.headers(token: token)
+                )
+            }
+        }
+    }
 }
 
 private extension ChatService {
@@ -401,6 +417,7 @@ private extension ChatService {
         case livechatTyping = "api/v1/chat/livechat/typing"
         case livechatClose = "api/v1/chat/livechat/close"
         case livechatFeedback = "api/v1/chat/livechat/feedback"
+        case rate = "api/v1/chat/rate"
     }
 
     func url(for endpoint: Endpoint) -> URL {

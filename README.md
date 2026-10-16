@@ -89,6 +89,22 @@ onLivechatSessionChange: { session in
 }
 ```
 
+**`onClose`** — shows an SDK close control. After an optional conversation rating (`POST /rate`), the
+host receives the close so it can dismiss the chat. Omit it when the host owns dismissal alone
+(no close button).
+
+```swift
+onClose: { dismissChat() }
+```
+
+**`rating`** — whether close asks for a conversation rating first. Defaults to `.enabled`. Pass
+`.disabled` to call `onClose` immediately. Livechat CSAT is separate and still offered when the
+server marks feedback pending after a session ends on screen.
+
+```swift
+rating: .disabled
+```
+
 **`conversationFlow`** — how arriving turns are laid out.
 
 | | |

@@ -59,6 +59,7 @@ public final class AIChat {
 
     private let configuration: Configuration
     private let service: ChatService
+    private let ratingSession: RatingSession
 
     /// Registers shared configuration for the no-argument ``init()``. Stores the config
     /// only — it neither returns nor retains an instance. Call once, typically at launch.
@@ -69,6 +70,7 @@ public final class AIChat {
     /// Direct initialisation — equivalent to ``configure(_:)`` followed by ``init()``.
     public init(_ configuration: Configuration) {
         self.configuration = configuration
+        self.ratingSession = RatingSession()
         // The  hooks wire straight to the service / token store.
         self.service = ChatService(
             tokenProvider: configuration.tokenProvider,
@@ -100,7 +102,10 @@ public extension AIChat {
                 service: self.service,
                 contextProvider: self.configuration.contextProvider,
                 conversationFlow: self.configuration.conversationFlow,
-                onLivechatSessionChange: self.configuration.onLivechatSessionChange
+                onClose: self.configuration.onClose,
+                onLivechatSessionChange: self.configuration.onLivechatSessionChange,
+                conversationRatingMode: self.configuration.rating,
+                ratingSession: self.ratingSession
             )
         )
         .environment(\.openURL, self.openURL)
@@ -135,6 +140,17 @@ public extension AIChat {
         case bottomUp
     }
 
+    /// Whether closing the chat first asks the visitor to rate the conversation (`POST /rate`).
+    /// The close control shows when ``Configuration`` has `onClose`. A livechat session with
+    /// feedback pending is rated through its own prompt, and closing then goes straight to the host.
+    enum Rating: Sendable {
+        /// Ask for a 1–5 rating on close once the visitor has written in the conversation and
+        /// hasn't rated it yet.
+        case enabled
+        /// Close without asking.
+        case disabled
+    }
+
     /// The host-provided hooks the SDK is configured with. This is the single injection
     /// surface,  both ``AIChat/configure(_:)`` and ``AIChat/init(_:)`` take it.
     ///
@@ -142,8 +158,8 @@ public extension AIChat {
     /// the SDK is not correctly configured without them (Control Plane: Identity, Minting, Invalidation).
     /// SDK is pure (Data plane) to avoid split Token Ownership, Distributed State with Async Reconciliation and Structural Inversion.
     ///
-    /// The enhancement hooks (`contextProvider`, `onOpenLink`, `onLivechatSessionChange`) are
-    /// optional and degrade gracefully when omitted.
+    /// The enhancement hooks (`contextProvider`, `onOpenLink`, `onClose`, `onLivechatSessionChange`)
+    /// are optional and degrade gracefully when omitted.
     struct Configuration {
 
         let tokenProvider: @Sendable () async throws -> String
@@ -151,12 +167,17 @@ public extension AIChat {
         let deleteData: @Sendable () async throws -> Void
         let contextProvider: (@Sendable () async -> String?)?
         let onOpenLink: ((URL) -> Void)?
+        /// Called on the main actor when the visitor closes the chat, after the rating prompt when
+        /// one is shown. When set, the chat shows a close control.
+        let onClose: (@MainActor () -> Void)?
         /// Called on the main actor when the livechat status or the connected agent changes while
         /// the chat is on screen.
         let onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)?
         let conversationFlow: ConversationFlow
         /// Which Diverge backend to talk to. Defaults to ``DivergeAPI/Environment/production``.
         let environment: DivergeAPI.Environment
+        /// Whether to prompt for a conversation rating on close. Defaults to ``Rating/enabled``.
+        let rating: Rating
 
 #if os(macOS)
         /// - Parameters:
@@ -170,27 +191,35 @@ public extension AIChat {
         ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
         ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
         ///     them out of the browser's history. Absent → default OS open.
+        ///   - onClose: Called on the main actor when the visitor closes the chat, after the rating
+        ///     prompt when one is shown. When set, the chat shows a close control.
         ///   - onLivechatSessionChange: Called on the main actor when the livechat status or the
         ///     connected agent changes while the chat is on screen, so the host can show the agent
         ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
+        ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
+        ///     Defaults to ``Rating/enabled``.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
+            onClose: (@MainActor () -> Void)? = nil,
             onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
-            environment: DivergeAPI.Environment = .production
+            environment: DivergeAPI.Environment = .production,
+            rating: Rating = .enabled
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
             self.deleteData = deleteData
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
+            self.onClose = onClose
             self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = .bottomUp
             self.environment = environment
+            self.rating = rating
         }
 #else
         /// - Parameters:
@@ -204,29 +233,37 @@ public extension AIChat {
         ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
         ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
         ///     them out of the browser's history. Absent → default OS open.
+        ///   - onClose: Called on the main actor when the visitor closes the chat, after the rating
+        ///     prompt when one is shown. When set, the chat shows a close control.
         ///   - onLivechatSessionChange: Called on the main actor when the livechat status or the
         ///     connected agent changes while the chat is on screen, so the host can show the agent
         ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
+        ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
+        ///     Defaults to ``Rating/enabled``.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
+            onClose: (@MainActor () -> Void)? = nil,
             onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             conversationFlow: ConversationFlow = .topDown,
-            environment: DivergeAPI.Environment = .production
+            environment: DivergeAPI.Environment = .production,
+            rating: Rating = .enabled
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
             self.deleteData = deleteData
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
+            self.onClose = onClose
             self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = conversationFlow
             self.environment = environment
+            self.rating = rating
         }
 #endif
     }

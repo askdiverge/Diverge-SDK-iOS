@@ -24,6 +24,10 @@
   when the visitor is queued, talking to an agent (with the agent's name) or the session ends,
   while the chat is on screen, so it can show the agent in its own UI and offer to reopen a chat
   the visitor closed mid-session.
+- Conversation rating on close: when the host sets `onClose`, a close control appears; with
+  `rating: .enabled` (the default) the visitor is asked to rate the conversation (`POST /rate`)
+  before the host is called. Livechat CSAT still takes precedence while a session is closed with
+  pending feedback. Pass `rating: .disabled` to close without asking.
 
 ### Fixed
 
