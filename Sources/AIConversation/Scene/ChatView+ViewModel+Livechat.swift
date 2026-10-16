@@ -73,8 +73,12 @@ extension ChatView.ViewModel {
         }
     }
 
-    /// Tells the session the visitor's draft changed, so a connected agent sees them typing.
-    func visitorTypingChanged(isEmpty: Bool) {
+    /// The visitor edited the draft. While an agent is connected, the session tells the agent
+    /// they are typing; the view model's own writes to ``currentMessage`` report nothing.
+    func editDraft(_ text: String) {
+        self.currentMessage = text
+        guard self.livechatStatus == .active else { return }
+        let isEmpty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         Task { [livechat = self.livechat] in await livechat.visitorTyping(isEmpty: isEmpty) }
     }
 
