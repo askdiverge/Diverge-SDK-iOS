@@ -90,6 +90,21 @@ extension ChatView.ViewModel {
             && !self.isReplyInFlight
     }
 
+    /// The link to open for `file`, or nil when there is none. A temporary signed link is re-read
+    /// from the livechat log on every tap, so a link past its expiry still opens. When the log
+    /// can't supply one, a stored link that hasn't expired is opened and the server serves or
+    /// refuses it; an expired one is nil, since the server refuses it. A tap whose task was
+    /// cancelled, because the chat closed while the log was read, is nil too.
+    func url(toOpen file: MessageFile) async -> URL? {
+        guard file.urlExpiresAt != nil, let id = file.attachmentId else { return file.url }
+        let fresh = await self.livechat.freshFile(attachmentId: id)
+        guard !Task.isCancelled else { return nil }
+        if let fresh {
+            return fresh.url
+        }
+        return file.isExpired() ? nil : file.url
+    }
+
     /// Ends the session from the visitor's side.
     func endLivechat() async {
         do {

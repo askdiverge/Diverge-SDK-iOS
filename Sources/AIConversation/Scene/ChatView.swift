@@ -375,6 +375,10 @@ private extension ChatView {
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
                 .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
 
+        case .file(let file):
+            MessageFileView(file: file, resolveURL: { await self.viewModel.url(toOpen: $0) })
+                .modifier(RelativeWidth(0.70, alignment: .leading))
+
         case .requestHumanAgent(let marker):
             HumanAgentPromptView(viewModel: self.viewModel, partId: marker.partId, turnID: turnID)
                 .modifier(RelativeWidth(0.70, alignment: .leading))

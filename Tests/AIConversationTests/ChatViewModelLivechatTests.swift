@@ -106,7 +106,8 @@ struct ChatViewModelLivechatTests {
             "livechat.waitingStatus", "livechat.activeStatus",
             "livechat.talkToPerson", "livechat.humanAgentPrompt", "livechat.humanAgentHint",
             "livechat.queuedNote", "livechat.endedNote", "livechat.agentJoinedNote",
-            "livechat.agentFallback", "livechat.agentTyping", "livechat.agentTypingNamed"
+            "livechat.agentFallback", "livechat.agentTyping", "livechat.agentTypingNamed",
+            "media.openHint", "media.unavailable"
         ])
     }
 
@@ -193,6 +194,61 @@ struct ChatViewModelLivechatTests {
 
         #expect(viewModel.currentMessage == "hello")
         #expect(service.livechatTypingEvents.isEmpty)
+    }
+
+    // MARK: Attachment links
+
+    @Test("a temporary attachment link is re-signed from the livechat log when tapped")
+    func expiredLinkIsResigned() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        let stale = try LivechatFixtures.file(attachmentId: "att_1", expiresAt: "2000-01-01T00:00:00Z")
+        let fresh = try LivechatFixtures.file(
+            url: "https://cdn.example.com/order.pdf?token=new",
+            attachmentId: "att_1",
+            expiresAt: "2099-01-01T00:00:00Z"
+        )
+        service.livechatMessagePages = [LivechatFixtures.page(LivechatFixtures.fileMessage("m1", file: fresh))]
+
+        #expect(await viewModel.url(toOpen: stale) == fresh.url)
+    }
+
+    @Test("a lasting link opens as stored, and a valid link the log can't re-sign falls back to the stored one")
+    func storedLinkFallbacks() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        let lasting = try LivechatFixtures.file()
+        let unknown = try LivechatFixtures.file(attachmentId: "att_gone", expiresAt: "2099-01-01T00:00:00Z")
+
+        #expect(await viewModel.url(toOpen: lasting) == lasting.url)
+        #expect(service.livechatSyncCallCount == 0)
+        #expect(await viewModel.url(toOpen: unknown) == unknown.url)
+        #expect(service.livechatSyncCallCount == 1)
+    }
+
+    @Test("an expired link the log can't re-sign, from an earlier session, isn't opened")
+    func expiredUnresignedLinkIsNotOpened() async throws {
+        let (viewModel, _, _) = self.makeSUT()
+        let earlier = try LivechatFixtures.file(attachmentId: "att_earlier", expiresAt: "2000-01-01T00:00:00Z")
+
+        #expect(await viewModel.url(toOpen: earlier) == nil)
+    }
+
+    @Test("a tap whose chat closed while the log was read opens nothing")
+    func cancelledTapOpensNothing() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        let lasting = try LivechatFixtures.file(attachmentId: "att_1", expiresAt: "2099-01-01T00:00:00Z")
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        service.livechatSyncHold = {
+            await entered.open()
+            await release.wait()
+        }
+
+        let tap = Task { await viewModel.url(toOpen: lasting) }
+        await entered.wait()
+        tap.cancel()
+        await release.open()
+
+        #expect(await tap.value == nil)
     }
 
     @Test("an open session found at start mints no notes")

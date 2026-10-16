@@ -97,6 +97,9 @@ enum L10n {
         )
     }
 
+    static let mediaOpenHint = string("media.openHint")
+    static let mediaUnavailable = string("media.unavailable")
+
     private static func string(_ key: String.LocalizationValue) -> LocalizedStringResource {
         LocalizedStringResource(key, bundle: .atURL(Bundle.module.bundleURL))
     }

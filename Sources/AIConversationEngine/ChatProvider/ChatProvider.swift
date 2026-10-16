@@ -600,9 +600,8 @@ private extension ChatProvider {
             return ConversationForm.supportTicket(marker).map(ChatResponse.form)
         case .showForm(let marker):
             return .form(.custom(marker))
-        case .file:
-            // Rendered like an unknown part: the turn shows its other parts.
-            return nil
+        case .file(let file):
+            return .file(file)
         case .requestHumanAgent(let marker):
             return .requestHumanAgent(marker)
         case .unknown:

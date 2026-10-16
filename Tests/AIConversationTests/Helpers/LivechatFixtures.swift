@@ -65,6 +65,32 @@ enum LivechatFixtures {
         )
     }
 
+    /// A file part named `order.pdf`, decoded the way the wire sends it.
+    static func file(
+        url: String = "https://cdn.example.com/order.pdf",
+        attachmentId: String? = nil,
+        sizeBytes: Int? = nil,
+        expiresAt: String? = nil
+    ) throws -> MessageFile {
+        var json: [String: Any] = ["filename": "order.pdf", "url": url]
+        json["attachment_id"] = attachmentId
+        json["size_bytes"] = sizeBytes
+        json["url_expires_at"] = expiresAt
+        return try self.decoder.decode(MessageFile.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    /// An agent message at `sequence` carrying `file` as its only part.
+    static func fileMessage(_ id: String, file: MessageFile, sequence: Int64 = 1) -> LivechatMessage {
+        LivechatMessage(
+            messageId: id,
+            role: .agent,
+            agent: nil,
+            parts: [.file(file)],
+            createdAt: "2026-01-01T00:00:00Z",
+            sequenceNumber: sequence
+        )
+    }
+
     /// The messages one `syncLivechat` call returns from ``MockChatService``.
     struct Page: Sendable {
         var messages: [LivechatMessage]
