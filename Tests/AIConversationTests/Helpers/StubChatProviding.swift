@@ -23,6 +23,7 @@ final class StubChatProviding: ChatProviding {
     private(set) var resetCount = 0
     private(set) var expireCount = 0
     var resetError: Error?
+    var loadOlderError: Error?
     /// Runs while an agent send is in flight, before it returns.
     var whileSendingLivechat: (@MainActor () async -> Void)?
 
@@ -50,7 +51,9 @@ final class StubChatProviding: ChatProviding {
         }
     }
 
-    func loadOlder() async throws {}
+    func loadOlder() async throws {
+        if let loadOlderError { throw loadOlderError }
+    }
 
     func reset() async throws {
         self.resetCount += 1
@@ -94,6 +97,8 @@ extension ChatView.ViewModel {
         provider: StubChatProviding,
         submitAction: ActionSubmitter? = nil,
         fetchForm: FormFetcher? = nil,
+        fetchSession: WaitingFormController.SessionFetcher? = nil,
+        patchFormValues: WaitingFormController.ValuesPatcher? = nil,
         livechat: LivechatSession? = nil,
         contextProvider: (@Sendable () async -> String?)? = nil
     ) -> ChatView.ViewModel {
@@ -110,6 +115,8 @@ extension ChatView.ViewModel {
             conversationFlow: .topDown,
             submitAction: submitAction,
             fetchForm: fetchForm,
+            fetchSession: fetchSession,
+            patchFormValues: patchFormValues,
             livechat: livechat
         )
         viewModel.attachProviderForTesting(provider)

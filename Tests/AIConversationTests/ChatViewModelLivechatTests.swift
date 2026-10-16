@@ -107,7 +107,9 @@ struct ChatViewModelLivechatTests {
             "livechat.talkToPerson", "livechat.humanAgentPrompt", "livechat.humanAgentHint",
             "livechat.queuedNote", "livechat.endedNote", "livechat.agentJoinedNote",
             "livechat.agentFallback", "livechat.agentTyping", "livechat.agentTypingNamed",
-            "media.openHint", "media.unavailable"
+            "media.openHint", "media.unavailable",
+            "sessionForm.title", "sessionForm.description", "sessionForm.save",
+            "sessionForm.saving", "sessionForm.saved", "sessionForm.failed"
         ])
     }
 
