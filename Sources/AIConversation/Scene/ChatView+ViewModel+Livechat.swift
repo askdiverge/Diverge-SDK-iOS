@@ -139,7 +139,7 @@ extension ChatView.ViewModel {
             try await provider.send(text)
         } catch .livechatActive(let popped) {
             guard await self.livechat.resumeActive() else { throw .retry(popped: popped, body: nil) }
-            try await provider.sendLivechat(popped)
+            try await provider.sendLivechat(popped.text)
         }
     }
 }

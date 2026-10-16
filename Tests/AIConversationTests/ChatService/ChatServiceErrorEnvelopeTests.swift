@@ -26,7 +26,7 @@ struct ChatServiceErrorEnvelopeTests {
         let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 422, body: body)])
 
         do {
-            try await ChatServiceFixtures.drain(sut.sendMessage("", page: nil))
+            try await ChatServiceFixtures.drain(sut.sendMessage("", attachments: [], page: nil))
             Issue.record("expected validation")
         } catch ChatServiceError.validation(let message, let params) {
             #expect(message == "Validation failed")

@@ -79,8 +79,18 @@ extension ChatService {
     }
 
     package func fetchData(_ url: URL) async throws(ChatServiceError) -> Data {
+        // Inline data URLs (visitor uploads echoed by the API) decode without a network hop.
+        if url.scheme?.lowercased() == "data" {
+            guard let data = AttachmentURL.payload(ofDataURL: url) else {
+                throw .transport(.decoding(.dataCorrupted(.init(
+                    codingPath: [],
+                    debugDescription: "The data: URL payload does not decode."
+                ))))
+            }
+            return data
+        }
         // Unauthenticated — no bearer token is attached.
-        try await self.mappingErrors {
+        return try await self.mappingErrors {
             try await self.network.data(from: url)
         }
     }
@@ -102,10 +112,11 @@ extension ChatService: ChatServicing {
 
     package func sendMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page: String?
     ) -> AsyncThrowingStream<StreamEvent, any Error> {
         let payload = SendMessageRequest(
-            message: .init(parts: [.text(text)]),
+            message: .init(parts: SendMessageRequest.Part.make(text: text, attachments: attachments)),
             context: page.map { .init(page: $0) }
         )
 
@@ -292,11 +303,12 @@ extension ChatService {
 
     package func sendLivechatMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page: String?,
         operationId: String
     ) async throws(ChatServiceError) -> LivechatMessage {
         let payload = LivechatVisitorMessageRequest(
-            message: .init(parts: [.text(text)]),
+            message: .init(parts: SendMessageRequest.Part.make(text: text, attachments: attachments)),
             context: page.map { .init(page: $0) },
             clientOperationId: operationId
         )

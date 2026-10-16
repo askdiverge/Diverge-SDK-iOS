@@ -59,6 +59,8 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) private(set) var lastLivechatHandoverPartId: String?
     nonisolated(unsafe) private(set) var lastLivechatAfterSequence: Int64?
     nonisolated(unsafe) private(set) var livechatCloseCallCount = 0
+    /// The attachments of each assistant or livechat send, in call order.
+    nonisolated(unsafe) private(set) var sentAttachments: [[OutgoingAttachment]] = []
     nonisolated(unsafe) private(set) var lastLivechatCloseReason: String?
     /// The operation id of each `sendLivechatMessage` call, in order.
     nonisolated(unsafe) private(set) var livechatSendOperationIds: [String] = []
@@ -93,7 +95,12 @@ final class MockChatService: ChatServicing {
         self.typingFailuresLeft = Mutex(stub.livechatTypingFailures)
     }
 
-    func sendMessage(_ text: String, page: String?) -> AsyncThrowingStream<StreamEvent, any Error> {
+    func sendMessage(
+        _ text: String,
+        attachments: [OutgoingAttachment],
+        page: String?
+    ) -> AsyncThrowingStream<StreamEvent, any Error> {
+        self.sentAttachments.append(attachments)
         let events = self.stub.sendEvents
         let error = self.stub.sendError
         guard let hold = self.sendHold else {
@@ -204,9 +211,11 @@ final class MockChatService: ChatServicing {
 
     func sendLivechatMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page _: String?,
         operationId: String
     ) async throws(ChatServiceError) -> LivechatMessage {
+        self.sentAttachments.append(attachments)
         let index = self.livechatSendOperationIds.count
         self.livechatSendOperationIds.append(operationId)
         await self.livechatSendHold?()
