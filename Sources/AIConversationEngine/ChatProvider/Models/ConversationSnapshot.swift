@@ -56,10 +56,17 @@ extension ConversationSnapshot {
     }
 
     /// The newest bot turn's id — forms in that turn stay fillable; older `part_id`s are read-only.
+    /// A turn of SDK livechat notes only is skipped, since the server sees only real replies.
     package var lastBotTurnID: UUID? {
         for turn in self.turns.reversed() {
-            if case .bot = turn.model { return turn.id }
+            if case .bot(let responses) = turn.model, !Self.isNotesOnly(responses) {
+                return turn.id
+            }
         }
         return nil
+    }
+
+    private static func isNotesOnly(_ responses: [ChatResponse]) -> Bool {
+        !responses.isEmpty && responses.allSatisfy { if case .livechatNote = $0 { true } else { false } }
     }
 }

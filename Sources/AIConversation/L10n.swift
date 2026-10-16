@@ -73,6 +73,21 @@ enum L10n {
     static let livechatWaitingStatus = string("livechat.waitingStatus")
     static let livechatActiveStatus = string("livechat.activeStatus")
 
+    static let livechatTalkToPerson = string("livechat.talkToPerson")
+    static let livechatHumanAgentPrompt = string("livechat.humanAgentPrompt")
+    static let livechatHumanAgentHint = string("livechat.humanAgentHint")
+    static let livechatQueuedNote = string("livechat.queuedNote")
+    static let livechatEndedNote = string("livechat.endedNote")
+    static let livechatAgentFallback = string("livechat.agentFallback")
+
+    static func livechatAgentJoinedNote(_ name: String) -> LocalizedStringResource {
+        LocalizedStringResource(
+            "livechat.agentJoinedNote",
+            defaultValue: "\(name) joined the chat",
+            bundle: .atURL(Bundle.module.bundleURL)
+        )
+    }
+
     private static func string(_ key: String.LocalizationValue) -> LocalizedStringResource {
         LocalizedStringResource(key, bundle: .atURL(Bundle.module.bundleURL))
     }

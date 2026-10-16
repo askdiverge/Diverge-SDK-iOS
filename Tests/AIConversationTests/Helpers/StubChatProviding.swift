@@ -61,6 +61,16 @@ final class StubChatProviding: ChatProviding {
 
     func appendLivechat(_ messages: [LivechatMessage]) async {
         self.appendedLivechat += messages
+        self.livechatOrder += messages.map { "message:\($0.messageId)" }
+    }
+
+    private(set) var notes: [LivechatNote] = []
+    /// Livechat messages (`message:<id>`) and notes (`note:<kind>`) in the order they arrived.
+    private(set) var livechatOrder: [String] = []
+
+    func note(_ note: LivechatNote) async {
+        self.notes.append(note)
+        self.livechatOrder.append("note:\(note.kind)")
     }
 
     func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure) {

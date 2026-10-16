@@ -103,8 +103,124 @@ struct ChatViewModelLivechatTests {
         try StringCatalog.expectKeysInEveryLocale([
             "livechat.start", "livechat.end", "livechat.offline",
             "livechat.waitingPlaceholder", "livechat.activePlaceholder", "livechat.closedPlaceholder",
-            "livechat.waitingStatus", "livechat.activeStatus"
+            "livechat.waitingStatus", "livechat.activeStatus",
+            "livechat.talkToPerson", "livechat.humanAgentPrompt", "livechat.humanAgentHint",
+            "livechat.queuedNote", "livechat.endedNote", "livechat.agentJoinedNote",
+            "livechat.agentFallback"
         ])
+    }
+
+    // MARK: Notes, typing and the prompt card
+
+    @Test("joining the queue, an agent joining and the session ending each mint a note")
+    func statusChangesMintNotes() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        viewModel.startLivechat(with: try Self.config(configured: false))
+
+        service.livechatState = LivechatState(status: .waiting)
+        await viewModel.toggleLivechat()
+        try await eventually { provider.notes.contains { $0.kind == .queued } }
+
+        service.livechatState = try LivechatFixtures.activeState(agentName: "Alice")
+        await viewModel.livechat.refresh()
+        try await eventually {
+            provider.notes.contains {
+                if case .agentJoined(let name) = $0.kind { name == "Alice" } else { false }
+            }
+        }
+        #expect(viewModel.livechatAgentName == "Alice")
+
+        service.livechatState = LivechatState(status: .closed)
+        await viewModel.livechat.refresh()
+        try await eventually { provider.notes.contains { $0.kind == .ended } }
+    }
+
+    @Test("an open session found at start mints no notes")
+    func restoredSessionMintsNoNotes() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        service.livechatState = try LivechatFixtures.activeState(agentName: "Alice")
+
+        viewModel.startLivechat(with: try Self.config())
+
+        try await eventually { viewModel.livechatStatus == .active }
+        #expect(provider.notes.isEmpty)
+    }
+
+    @Test("the ended note follows the agent's last messages")
+    func endedNoteFollowsMessages() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        service.livechatState = LivechatState(status: .closed)
+        service.livechatMessagePages = [.init(messages: []), LivechatFixtures.page(LivechatFixtures.message("bye", role: .agent))]
+
+        await viewModel.livechat.refresh()
+
+        try await eventually { provider.livechatOrder == ["message:bye", "note:ended"] }
+    }
+
+    @Test("the talk-to-a-person card hands over once, and not again during the session")
+    func promptCardHandsOverOnce() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        service.livechatState = LivechatState(status: .waiting)
+        let turnID = try await self.showPrompt(on: provider, in: viewModel)
+
+        async let first: Void = viewModel.acceptHumanAgentPrompt(partId: "part_human_1", inBotTurn: turnID)
+        async let second: Void = viewModel.acceptHumanAgentPrompt(partId: "part_human_1", inBotTurn: turnID)
+        _ = await (first, second)
+        try await eventually { viewModel.livechatStatus == .waiting }
+        await viewModel.acceptHumanAgentPrompt(partId: "part_human_1", inBotTurn: turnID)
+
+        #expect(service.livechatHandoverCallCount == 1)
+        #expect(!viewModel.canAcceptHumanAgentPrompt(inBotTurn: turnID))
+    }
+
+    @Test("a card in an older bot turn can't hand over")
+    func olderPromptCardIsInert() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
+        provider.publish(ConversationSnapshot(
+            user: [Identified(model: [AttributedString("hi")])],
+            incoming: [card, Identified(model: [.text(AttributedString("later"))])],
+            isUserInitiatedConversation: false,
+            streamingTurnID: nil
+        ))
+        try await eventually { viewModel.snapshot != nil }
+
+        await viewModel.acceptHumanAgentPrompt(partId: "part_human_1", inBotTurn: card.id)
+
+        #expect(service.livechatHandoverCallCount == 0)
+    }
+
+    @Test("the talk-to-a-person card waits while the reply it came in streams")
+    func promptCardWaitsForReply() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
+        provider.publish(ConversationSnapshot(
+            user: [Identified(model: [AttributedString("hi")])],
+            incoming: [card],
+            isUserInitiatedConversation: true,
+            streamingTurnID: card.id
+        ))
+        try await eventually { viewModel.snapshot != nil }
+
+        #expect(!viewModel.canAcceptHumanAgentPrompt(inBotTurn: card.id))
+        await viewModel.acceptHumanAgentPrompt(partId: "part_human_1", inBotTurn: card.id)
+
+        #expect(service.livechatHandoverCallCount == 0)
+    }
+
+    @Test("the request_human_agent card hands over with the marker's part_id")
+    func promptHandoverUsesPartId() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        service.livechatState = LivechatState(status: .waiting)
+        viewModel.startLivechat(with: try Self.config(configured: false))
+
+        await viewModel.requestLivechat(partId: "part_human_1")
+
+        #expect(service.livechatHandoverCallCount == 1)
+        #expect(service.lastLivechatHandoverSource == .assistantMarker)
+        #expect(service.lastLivechatHandoverPartId == "part_human_1")
+        try await eventually { viewModel.livechatStatus == .waiting }
     }
 
     // MARK: Send routing
@@ -415,6 +531,19 @@ struct ChatViewModelLivechatTests {
 }
 
 private extension ChatViewModelLivechatTests {
+
+    /// Publishes a bot turn holding a `request_human_agent` card and returns the turn's id.
+    func showPrompt(on provider: StubChatProviding, in viewModel: ChatView.ViewModel) async throws -> UUID {
+        let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
+        provider.publish(ConversationSnapshot(
+            user: [],
+            incoming: [card],
+            isUserInitiatedConversation: false,
+            streamingTurnID: nil
+        ))
+        try await eventually { viewModel.snapshot?.lastBotTurnID == card.id }
+        return card.id
+    }
 
     func makeSUT(
         _ stub: MockChatService.Stub = .init(),

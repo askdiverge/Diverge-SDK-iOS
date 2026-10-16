@@ -32,6 +32,8 @@ extension ChatView {
         /// Livechat as `/config` describes it, and the session's status as the poller last saw it.
         private(set) var livechatConfig = LivechatConfig.serverDefaults
         private(set) var livechatStatus = LivechatState.Status.inactive
+        /// Display name of the connected agent, when the poller last reported one.
+        private(set) var livechatAgentName: String?
         /// A handover or close is in flight; the header control and reset wait for it.
         private(set) var isLivechatBusy = false
         /// Set when the poller sees the visitor session end (401). The view shows the session-ended
@@ -427,6 +429,15 @@ extension ChatView.ViewModel {
         }
     }
 
+    /// Hands over from the `request_human_agent` card in bot turn `turnID`, while
+    /// ``canAcceptHumanAgentPrompt(inBotTurn:)`` holds.
+    func acceptHumanAgentPrompt(partId: String, inBotTurn turnID: UUID) async {
+        guard self.canAcceptHumanAgentPrompt(inBotTurn: turnID) else { return }
+        self.isLivechatBusy = true
+        defer { self.isLivechatBusy = false }
+        await self.requestLivechat(partId: partId)
+    }
+
     func presentLivechatNotice(_ message: LocalizedStringResource) {
         self.present(Notice(edge: .top, message: message.string, autoDismiss: .seconds(4)))
     }
@@ -463,12 +474,44 @@ extension ChatView.ViewModel {
 
     private func apply(_ snapshot: LivechatSnapshot) async {
         guard snapshot.generation >= self.livechatFloor else { return }
-        self.livechatStatus = snapshot.state.status
+        let previous = snapshot.previousStatus
+        let status = snapshot.state.status
+        self.livechatStatus = status
+        self.livechatAgentName = snapshot.state.activeAgent?.displayName
+
         if snapshot.sessionExpired {
             await self.provider?.expireSession()
             self.livechatSessionEnded = true
-        } else if !snapshot.messages.isEmpty {
+            return
+        }
+
+        // Notes mark changes seen live; a restored session changed before this device looked.
+        let notesChanges = !snapshot.isRestored
+        if notesChanges {
+            await self.noteSessionStart(previous: previous, status: status, agentName: self.livechatAgentName)
+        }
+        if !snapshot.messages.isEmpty {
             await self.provider?.appendLivechat(snapshot.messages)
+        }
+        if notesChanges, previous.isInSession, status == .closed {
+            await self.provider?.note(LivechatNote(kind: .ended))
+        }
+    }
+
+    /// Notes the visitor joining the queue and an agent joining, ahead of the messages that follow.
+    private func noteSessionStart(
+        previous: LivechatState.Status,
+        status: LivechatState.Status,
+        agentName: String?
+    ) async {
+        if previous != .waiting, status == .waiting {
+            await self.provider?.note(LivechatNote(kind: .queued))
+        }
+        if previous != .active, status == .active {
+            let name = (agentName?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
+                $0.isEmpty ? nil : $0
+            } ?? L10n.livechatAgentFallback.string
+            await self.provider?.note(LivechatNote(kind: .agentJoined(displayName: name)))
         }
     }
 
