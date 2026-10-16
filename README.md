@@ -78,6 +78,17 @@ browser's history and the file out of Downloads.
 onOpenLink: { url in deepLinkRouter.handle(url) }
 ```
 
+**`onLivechatSessionChange`** — the visitor's livechat session, while the chat is on screen: queued,
+talking to an agent (with the agent's name), or ended. Use it to show the agent in your own UI, or to
+offer the visitor a way back to a chat they closed mid-session. After the chat is dismissed, the last
+value describes the session as it was then.
+
+```swift
+onLivechatSessionChange: { session in
+    chatBadge.isVisible = session.status == .waiting || session.status == .active
+}
+```
+
 **`conversationFlow`** — how arriving turns are laid out.
 
 | | |

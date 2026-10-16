@@ -42,14 +42,20 @@ extension ChatView.ViewModel {
         }
     }
 
-    /// Pauses livechat polling and waiting-form retries while the app is in the background.
+    /// Pauses livechat polling and waiting-form retries while the app is in the background; the
+    /// rating prompt and the host's updates wait for it to be active again.
     func setSceneActive(_ active: Bool) async {
+        self.isSceneActive = active
+        self.screenChanged()
         self.waitingForm.setSceneActive(active)
         await self.livechat.setSceneActive(active)
     }
 
-    /// Pauses livechat polling and waiting-form retries while the chat is off screen.
+    /// Pauses livechat polling and waiting-form retries while the chat is off screen; the rating
+    /// prompt and the host's updates wait for it to be back.
     func setVisible(_ visible: Bool) async {
+        self.isChatVisible = visible
+        self.screenChanged()
         self.waitingForm.setVisible(visible)
         await self.livechat.setVisible(visible)
     }

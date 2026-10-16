@@ -93,4 +93,10 @@ package protocol ChatServicing: Sendable {
     /// Closes the visitor's livechat session. A 409 means the visitor has no open session and
     /// surfaces as ``ChatServiceError/conflict``.
     func closeLivechat(reason: String?) async throws(ChatServiceError)
+
+    /// Sends the visitor's rating of the latest closed livechat session. A 409 means that session
+    /// has no rating left to give, because it holds one already or isn't closed, and surfaces as
+    /// ``ChatServiceError/conflict``. Session-bound — a 401 surfaces as
+    /// ``ChatServiceError/sessionExpired``.
+    func submitLivechatFeedback(_ request: LivechatFeedbackRequest) async throws(ChatServiceError)
 }
