@@ -28,6 +28,26 @@ package struct MessageImage: Decodable, Sendable, Equatable {
     /// Text shown with the image; `nil` when the sender gave none.
     package let caption: String?
 
+    /// Builds a display model from known fields — history decode, or a local echo from a
+    /// ``OutgoingAttachment/dataURL``.
+    package init(
+        url: URL,
+        attachmentId: String? = nil,
+        mimeType: String? = nil,
+        sizeBytes: Int? = nil,
+        urlExpiresAt: String? = nil,
+        thumbnailUrl: URL? = nil,
+        caption: String? = nil
+    ) {
+        self.url = url
+        self.attachmentId = attachmentId
+        self.mimeType = mimeType
+        self.sizeBytes = sizeBytes
+        self.urlExpiresAt = urlExpiresAt
+        self.thumbnailUrl = thumbnailUrl
+        self.caption = caption
+    }
+
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.url = try AttachmentURL.resolve(

@@ -105,12 +105,19 @@ extension ChatView.ViewModel {
     /// cancelled, because the chat closed while the log was read, is nil too.
     func url(toOpen file: MessageFile) async -> URL? {
         guard file.urlExpiresAt != nil, let id = file.attachmentId else { return file.url }
-        let fresh = await self.livechat.freshFile(attachmentId: id)
+        let fresh = await self.livechat.freshURL(attachmentId: id)
         guard !Task.isCancelled else { return nil }
         if let fresh {
-            return fresh.url
+            return fresh
         }
         return file.isExpired() ? nil : file.url
+    }
+
+    /// The link to open for `image`, re-signed from the livechat log the same way as a file's.
+    func url(toOpen image: MessageImage) async -> URL {
+        guard image.urlExpiresAt != nil, let id = image.attachmentId,
+              let fresh = await self.livechat.freshURL(attachmentId: id) else { return image.url }
+        return fresh
     }
 
     /// Ends the session from the visitor's side.
@@ -128,18 +135,26 @@ extension ChatView.ViewModel {
     }
 
     /// Sends to the agent while a session is active, otherwise to the assistant. A 409 on the
-    /// assistant send has the session read: the text goes to the agent when one is active, and is
+    /// assistant send has the session read: the draft goes to the agent when one is active, and is
     /// offered for retry otherwise.
-    func deliver(_ text: String, via provider: any ChatProviding) async throws(ChatProvider.SendFailure) {
+    func deliver(
+        _ text: String,
+        attachments: [OutgoingAttachment],
+        via provider: any ChatProviding
+    ) async throws(ChatProvider.SendFailure) {
         guard self.livechatStatus != .active else {
-            try await provider.sendLivechat(text)
+            try await provider.sendLivechat(text, attachments: attachments)
             return
         }
         do {
-            try await provider.send(text)
+            try await provider.send(text, attachments: attachments)
         } catch .livechatActive(let popped) {
             guard await self.livechat.resumeActive() else { throw .retry(popped: popped, body: nil) }
-            try await provider.sendLivechat(popped.text)
+            // An agent that refuses photos gets none: the draft comes back with the reason.
+            guard popped.attachments.isEmpty || self.livechatConfig.attachmentsEnabled else {
+                throw .retry(popped: popped, body: L10n.livechatAttachmentsDropped.string)
+            }
+            try await provider.sendLivechat(popped.text, attachments: popped.attachments)
         }
     }
 }

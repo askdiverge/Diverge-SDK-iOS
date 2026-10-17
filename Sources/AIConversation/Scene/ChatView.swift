@@ -7,6 +7,9 @@
 
 import SwiftUI
 import AIConversationEngine
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
 
 /// The SDK's main screen — the chat UI returned by `AIChat.makeView()`.
 struct ChatView: View {
@@ -23,6 +26,19 @@ struct ChatView: View {
     @State private var showSessionEndedAlert = false
     @State private var privacyDestination: PrivacyDataDestination?
     @State private var isLoading = false
+#if canImport(PhotosUI)
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var isPhotoPickerPresented = false
+    @State private var photoDestination: PhotoDestination = .composer
+#endif
+
+    /// Where a photo pick should land.
+    enum PhotoDestination: Equatable {
+        case composer
+        case formField(partID: String, key: String)
+        case ticketAttachment(partID: String)
+        case imageUpload(RequestImageUpload)
+    }
 
     private var appearance: ChatAppearance {
         self.viewModel.appearance ?? .default
@@ -38,6 +54,30 @@ struct ChatView: View {
             .task { await self.viewModel.start() }
             .environment(\.appearance, self.appearance)
             .environment(\.imageLoader, self.viewModel.imageLoader)
+#if canImport(PhotosUI)
+            .photosPicker(
+                isPresented: self.$isPhotoPickerPresented,
+                selection: self.$photoPickerItem,
+                matching: .images
+            )
+            .onChange(of: self.photoPickerItem) { _, item in
+                guard let item else { return }
+                self.photoPickerItem = nil
+                let destination = self.photoDestination
+                Task {
+                    await self.viewModel.preparingAttachment {
+                        await self.ingest(item, destination: destination)
+                    }
+                }
+            }
+#endif
+    }
+
+    private func pickPhoto(for destination: PhotoDestination) {
+#if canImport(PhotosUI)
+        self.photoDestination = destination
+        self.isPhotoPickerPresented = true
+#endif
     }
 }
 
@@ -429,9 +469,10 @@ private extension ChatView {
                 ConversationFormView(
                     model: model,
                     isEditable: self.viewModel.isFormEditable(inBotTurn: turnID),
+                    offersAttachments: self.viewModel.offersAttachments,
                     // The whole turn, not just this bubble: the backend saves the form when the
                     // reply's stream ends, so a submit before then is rejected.
-                    isBusy: self.viewModel.snapshot?.streamingTurnID == turnID,
+                    isBusy: self.viewModel.snapshot?.streamingTurnID == turnID || self.viewModel.isEncodingAttachment,
                     focus: self.$focusedFormField,
                     onChange: { key, value in
                         self.viewModel.setFormValue(value, for: key, inForm: form.partId)
@@ -447,7 +488,19 @@ private extension ChatView {
                             }
                         }
                     },
-                    onReload: { self.viewModel.reloadFormDefinition(partId: form.partId) }
+                    onReload: { self.viewModel.reloadFormDefinition(partId: form.partId) },
+                    onPickFile: { key in
+                        self.pickPhoto(for: .formField(partID: form.partId, key: key))
+                    },
+                    onRemoveFile: { key in
+                        self.viewModel.setFormFile(nil, for: key, inForm: form.partId)
+                    },
+                    onPickTicketAttachment: {
+                        self.pickPhoto(for: .ticketAttachment(partID: form.partId))
+                    },
+                    onRemoveTicketAttachment: {
+                        self.viewModel.setTicketAttachment(nil, inForm: form.partId)
+                    }
                 )
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
                 .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
@@ -458,9 +511,22 @@ private extension ChatView {
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
                 .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
 
+        case .image(let image):
+            MessageImageView(image: image, resolveURL: { await self.viewModel.url(toOpen: $0) })
+                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+
         case .file(let file):
             MessageFileView(file: file, resolveURL: { await self.viewModel.url(toOpen: $0) })
                 .modifier(RelativeWidth(0.70, alignment: .leading))
+
+        case .requestImageUpload(let marker):
+            ImageUploadPromptView {
+                self.pickPhoto(for: .imageUpload(marker))
+            }
+            .disabled(!self.viewModel.canAttachConsideringLivechat)
+            .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+            .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
 
         case .requestHumanAgent(let marker):
             HumanAgentPromptView(viewModel: self.viewModel, partId: marker.partId, turnID: turnID)
@@ -495,9 +561,12 @@ private extension ChatView {
                 case .text(let text):
                     UserBubble(text: text)
                         .modifier(RelativeWidth(0.70, alignment: .trailing))
-                case .attachment:
-                    // Rendered by photo-upload-ui.
-                    EmptyView()
+                case .attachment(let attachment):
+                    AttachmentEchoView(attachment: attachment)
+                        .modifier(RelativeWidth(0.70, alignment: .trailing))
+                case .image(let image):
+                    MessageImageView(image: image, resolveURL: { await self.viewModel.url(toOpen: $0) })
+                        .modifier(RelativeWidth(0.70, alignment: .trailing))
                 }
             }
         }
@@ -514,9 +583,17 @@ private extension ChatView {
                 get: { self.viewModel.currentMessage },
                 set: { self.viewModel.editDraft($0) }
             ),
+            pendingAttachments: .init(
+                get: { self.viewModel.pendingAttachments },
+                set: { self.viewModel.pendingAttachments = $0 }
+            ),
             placeholder: self.viewModel.inputPlaceholder,
             leadingIcon: ChatAppearance.Symbol.privacy,
+            showsAttachButton: self.viewModel.offersAttachments,
+            canAttach: self.viewModel.canAttachConsideringLivechat,
+            isEncodingAttachment: self.viewModel.isEncodingAttachment,
             onLeadingTap: { self.privacyDestination = .privacy },
+            onAttach: { self.pickPhoto(for: .composer) },
             onSend: self.send,
             inputFocus: self.$inputFocused
         )
@@ -541,4 +618,39 @@ private extension ChatView {
             }
         }
     }
+
+#if canImport(PhotosUI)
+    /// Loads the picked photo bytes and routes them to the composer, a prompt, or a form field.
+    func ingest(_ item: PhotosPickerItem, destination: PhotoDestination) async {
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            self.viewModel.presentAttachmentFailure()
+            return
+        }
+        switch destination {
+        case .composer:
+            await self.viewModel.ingestPickedPhoto(data)
+
+        case .imageUpload(let marker):
+            await self.viewModel.ingestPromptPhoto(data, marker: marker)
+
+        case .formField(let partID, let key):
+            guard let file = await self.viewModel.ingestFormPhoto(
+                data,
+                maxBytes: OutgoingAttachment.maxActionDecodedBytes,
+                filename: "\(key).jpg"
+            ) else { return }
+            self.viewModel.setFormFile(file, for: key, inForm: partID)
+
+        case .ticketAttachment(let partID):
+            let maxBytes = self.viewModel.formModels[partID]?.form.maxAttachmentSizeBytes
+                ?? OutgoingAttachment.maxActionDecodedBytes
+            guard let file = await self.viewModel.ingestFormPhoto(
+                data,
+                maxBytes: maxBytes,
+                filename: "attachment.jpg"
+            ) else { return }
+            self.viewModel.setTicketAttachment(file, inForm: partID)
+        }
+    }
+#endif
 }

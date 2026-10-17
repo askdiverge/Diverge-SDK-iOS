@@ -214,6 +214,31 @@ struct ChatViewModelLivechatTests {
         #expect(await viewModel.url(toOpen: stale) == fresh.url)
     }
 
+    @Test("an expired photo link is re-signed from the livechat log when tapped, as a file's is")
+    func expiredImageIsResigned() async {
+        let (viewModel, service, _) = self.makeSUT()
+        let stale = MessageImage(
+            url: URL(string: "https://cdn.example.com/a.jpg?token=old")!,
+            attachmentId: "img_1",
+            urlExpiresAt: "2000-01-01T00:00:00Z"
+        )
+        let fresh = MessageImage(
+            url: URL(string: "https://cdn.example.com/a.jpg?token=new")!,
+            attachmentId: "img_1",
+            urlExpiresAt: "2099-01-01T00:00:00Z"
+        )
+        service.livechatMessagePages = [LivechatFixtures.page(LivechatMessage(
+            messageId: "m1",
+            role: .agent,
+            agent: nil,
+            parts: [.image(fresh)],
+            createdAt: "2026-01-01T00:00:00Z",
+            sequenceNumber: 1
+        ))]
+
+        #expect(await viewModel.url(toOpen: stale) == fresh.url)
+    }
+
     @Test("a lasting link opens as stored, and a valid link the log can't re-sign falls back to the stored one")
     func storedLinkFallbacks() async throws {
         let (viewModel, service, _) = self.makeSUT()

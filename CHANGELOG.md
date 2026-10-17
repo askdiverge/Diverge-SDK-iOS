@@ -5,10 +5,10 @@
 ### Added
 
 - Contact, support-ticket and custom forms render in the conversation, validate locally, and
-  submit through `POST /actions`. File fields are shown as unavailable until photo attach ships,
-  and a form that requires one can't be sent. The privacy manifest now declares Name, Email
-  address, Phone number and Customer support, which these forms collect; update your App Store
-  privacy label.
+  submit through `POST /actions`. Custom-form file fields and support-ticket photos attach through
+  the same photo picker as the composer. The privacy manifest now declares Name, Email address,
+  Phone number and Customer support, which these forms collect; update your App Store privacy
+  label.
 - Livechat handover: when livechat is enabled, a header control asks for a person or ends the
   session, the composer sends to the agent while one is connected, and the agent's messages appear
   in the conversation. A reset closes an open session first.
@@ -30,7 +30,12 @@
   pending feedback. Pass `rating: .disabled` to close without asking.
 - Photo upload wire: `request_image_upload` markers and `MessageImage` parts decode from history
   and stream `done`, and visitor image/file parts travel on `POST /messages` and
-  `POST /livechat/messages`. Composer attach UI ships in a follow-up.
+  `POST /livechat/messages`.
+- Photos in the conversation: image parts from the assistant, an agent or the visitor's history
+  show as tiles that open full size, and an expired signed link is re-signed on tap.
+- Photo attach UI: `AIChat.Attachments` and `Configuration.attachments` (default `.photoLibrary`)
+  offer a PhotosPicker on the composer, on `request_image_upload` prompts, and on form/ticket
+  file fields. Pass `.disabled` to hide attach and drop upload prompts.
 
 ### Fixed
 

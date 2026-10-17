@@ -105,6 +105,16 @@ server marks feedback pending after a session ends on screen.
 rating: .disabled
 ```
 
+**`attachments`** — photo sources offered in the composer and on `request_image_upload` prompts.
+Defaults to `.photoLibrary` (SwiftUI `PhotosPicker`, no photo-library permission prompt and no
+`NSPhotoLibraryUsageDescription` needed in the host's Info.plist). Pass
+`.disabled` when the chatbot flow does not handle images — the attach control is hidden and upload
+prompts are dropped.
+
+```swift
+attachments: .disabled
+```
+
 **`conversationFlow`** — how arriving turns are laid out.
 
 | | |

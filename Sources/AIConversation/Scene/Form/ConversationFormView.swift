@@ -21,7 +21,10 @@ struct ConversationFormView: View {
     let model: FormSubmissionModel
     /// The permanent rule: the form sits in the newest bot turn. `false` renders read-only.
     let isEditable: Bool
-    /// The transient rule: streaming pauses the controls without the card turning read-only.
+    /// Whether the host offers photo attach for file fields and ticket attachments.
+    let offersAttachments: Bool
+    /// The transient rule: streaming or a photo encode pauses the controls without the card
+    /// turning read-only.
     let isBusy: Bool
     /// Shared focus for the form's text fields — see `ChatView.focusedFormField`.
     let focus: FocusState<String?>.Binding
@@ -30,6 +33,14 @@ struct ConversationFormView: View {
     let onSubmit: () -> Void
     /// Fetches a thin custom form's definition again after the first fetch failed.
     let onReload: () -> Void
+    /// Opens the photo picker for a custom-form file field (`FormField.key`).
+    let onPickFile: (String) -> Void
+    /// Clears a custom-form file field pick.
+    let onRemoveFile: (String) -> Void
+    /// Opens the photo picker for a support-ticket attachment.
+    let onPickTicketAttachment: () -> Void
+    /// Clears the support-ticket attachment.
+    let onRemoveTicketAttachment: () -> Void
 
     var body: some View {
         Group {
@@ -57,7 +68,7 @@ struct ConversationFormView: View {
                     .frame(maxWidth: .infinity)
             } else if self.model.hydrationFailed {
                 self.loadFailedRow
-            } else if !self.model.isCompletable {
+            } else if !self.model.isCompletable(offersFileFields: self.offersAttachments) {
                 // Nothing the visitor can do here completes the form, so say so before Submit.
                 Text(L10n.formUnavailable.string)
                     .font(self.appearance.font(size: 12))
@@ -72,8 +83,16 @@ struct ConversationFormView: View {
                     focus: self.focus,
                     focusID: "\(self.model.form.partId)/\(field.key)",
                     error: self.model.fieldErrors[field.key],
-                    isEnabled: self.controlsEnabled
+                    isEnabled: self.controlsEnabled,
+                    offersAttachments: self.offersAttachments && self.model.form.acceptsFileFields,
+                    pickedFile: self.model.files[field.key],
+                    onPickFile: { self.onPickFile(field.key) },
+                    onRemoveFile: { self.onRemoveFile(field.key) }
                 )
+            }
+
+            if self.model.form.attachmentsAccepted {
+                self.ticketAttachmentRow
             }
 
             if let formError = self.model.formError ?? self.failedMessage {
@@ -91,7 +110,7 @@ struct ConversationFormView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(!self.controlsEnabled || !self.model.hasFields || !self.model.isCompletable)
+                .disabled(!self.controlsEnabled || !self.model.hasFields || !self.model.isCompletable(offersFileFields: self.offersAttachments))
                 .accessibilityLabel(L10n.formSubmit.string)
                 .accessibilityIdentifier("form.submit")
             } else {
@@ -118,6 +137,22 @@ struct ConversationFormView: View {
         return self.visibleFields.lazy
             .compactMap { field in self.model.fieldErrors[field.key].map { "\(field.label): \($0)" } }
             .first
+    }
+
+    private var ticketAttachmentRow: some View {
+        VStack(alignment: .leading, spacing: self.appearance.spacing.units(1)) {
+            Text(L10n.formAddPhoto.string)
+                .font(self.appearance.font(size: 13, weight: .bold))
+                .foregroundStyle(self.appearance.theme.primaryText)
+
+            FormFileField(
+                picked: self.model.ticketAttachments.first,
+                offersAttachments: self.offersAttachments,
+                isEnabled: self.controlsEnabled,
+                onPick: self.onPickTicketAttachment,
+                onRemove: self.onRemoveTicketAttachment
+            )
+        }
     }
 
     private var loadFailedRow: some View {

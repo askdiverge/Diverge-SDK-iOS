@@ -35,7 +35,11 @@ struct LivechatWaitingFormView: View {
                     focus: self.focus,
                     focusID: "waiting.\(field.key)",
                     error: self.model.fieldErrors[field.key],
-                    isEnabled: !self.model.isSaving
+                    isEnabled: !self.model.isSaving,
+                    offersAttachments: false,
+                    pickedFile: nil,
+                    onPickFile: {},
+                    onRemoveFile: {}
                 )
             }
 

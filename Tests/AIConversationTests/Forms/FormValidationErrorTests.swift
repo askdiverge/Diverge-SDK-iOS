@@ -92,23 +92,32 @@ struct FormValidationErrorTests {
         #expect(model.formError == L10n.formSubmitFailed.string)
     }
 
-    @Test("a required field this app can't fill makes the form unavailable", arguments: [FormField.FieldType.file, .unknown])
-    func unfillableRequiredFieldBlocks(type: FormField.FieldType) {
-        let form = ConversationForm.custom(ShowForm(
-            partId: "part_form_1",
-            formId: "f",
-            name: "F",
-            fields: [
-                .init(key: "receipt", label: "Receipt", type: type, required: true),
-                .init(key: "note", label: "Note")
-            ]
-        ))
+    @Test("a required file field blocks submit until a photo is attached")
+    func requiredFileNeedsPick() {
+        let form = Self.receiptForm(type: .file)
+
+        let missing = FormValidator.validate(form: form, values: ["note": "hi"], files: [], offersFileFields: true)
+        let present = FormValidator.validate(form: form, values: ["note": "hi"], files: ["receipt"], offersFileFields: true)
+
+        #expect(missing.fieldErrors["receipt"] == L10n.formRequired.string)
+        #expect(present.isValid)
+    }
+
+    @Test(
+        "a required field this app can't fill makes the form unavailable",
+        arguments: zip([FormField.FieldType.file, .unknown], [false, true])
+    )
+    func unfillableRequiredFieldBlocks(type: FormField.FieldType, offersFileFields: Bool) {
+        let form = Self.receiptForm(type: type)
         var model = FormSubmissionModel(form: form)
         model.setValue("hi", for: "note")
 
-        #expect(FormValidator.blockingField(of: form, values: model.values)?.key == "receipt")
-        #expect(FormValidator.validate(form: form, values: model.values).formError == L10n.formUnavailable.string)
-        #expect(model.isCompletable == false)
+        #expect(FormValidator.blockingField(of: form, values: model.values, offersFileFields: offersFileFields)?.key == "receipt")
+        #expect(
+            FormValidator.validate(form: form, values: model.values, files: [], offersFileFields: offersFileFields).formError
+                == L10n.formUnavailable.string
+        )
+        #expect(model.isCompletable(offersFileFields: offersFileFields) == false)
     }
 
     @Test("an optional field this app can't fill is skipped")
@@ -123,8 +132,8 @@ struct FormValidationErrorTests {
             ]
         ))
 
-        #expect(FormValidator.blockingField(of: form, values: [:]) == nil)
-        #expect(FormValidator.validate(form: form, values: ["note": "hi"]).isValid)
+        #expect(FormValidator.blockingField(of: form, values: [:], offersFileFields: true) == nil)
+        #expect(FormValidator.validate(form: form, values: ["note": "hi"], files: [], offersFileFields: true).isValid)
     }
 
     @Test("an all-optional contact or custom form needs one answer before it sends")
@@ -134,14 +143,14 @@ struct FormValidationErrorTests {
             fields: [.init(key: "name", label: "Name"), .init(key: "phone", label: "Phone", type: .tel)]
         ))
 
-        #expect(FormValidator.validate(form: form, values: [:]).formError == L10n.formMinFilled(1).string)
-        #expect(FormValidator.validate(form: form, values: ["phone": "123"]).isValid)
+        #expect(FormValidator.validate(form: form, values: [:], files: [], offersFileFields: true).formError == L10n.formMinFilled(1).string)
+        #expect(FormValidator.validate(form: form, values: ["phone": "123"], files: [], offersFileFields: true).isValid)
     }
 
     @Test("an email answer must match the contract pattern")
     func emailPattern() {
-        let invalid = FormValidator.validate(form: self.contact, values: ["name": "Jane", "email": "jane@example"])
-        let valid = FormValidator.validate(form: self.contact, values: ["name": "Jane", "email": " jane@example.com "])
+        let invalid = FormValidator.validate(form: self.contact, values: ["name": "Jane", "email": "jane@example"], files: [], offersFileFields: true)
+        let valid = FormValidator.validate(form: self.contact, values: ["name": "Jane", "email": " jane@example.com "], files: [], offersFileFields: true)
 
         #expect(invalid.fieldErrors["email"] == L10n.formInvalidEmail.string)
         #expect(valid.isValid)
@@ -161,10 +170,30 @@ struct FormValidationErrorTests {
             minFilledFields: 2
         ))
 
-        let one = FormValidator.validate(form: form, values: ["a": "x", "b": "  ", "receipt": "x"])
-        let two = FormValidator.validate(form: form, values: ["a": "x", "b": "y"])
+        let one = FormValidator.validate(form: form, values: ["a": "x", "b": "  "], files: [], offersFileFields: true)
+        let withFile = FormValidator.validate(
+            form: form,
+            values: ["a": "x", "b": "  "],
+            files: ["receipt"],
+            offersFileFields: true
+        )
+        let two = FormValidator.validate(form: form, values: ["a": "x", "b": "y"], files: [], offersFileFields: true)
 
         #expect(one.formError == L10n.formMinFilled(2).string)
+        #expect(withFile.isValid)
         #expect(two.isValid)
+    }
+
+    /// A custom form with a required `receipt` field of `type` and an optional note.
+    private static func receiptForm(type: FormField.FieldType) -> ConversationForm {
+        ConversationForm.custom(ShowForm(
+            partId: "part_form_1",
+            formId: "f",
+            name: "F",
+            fields: [
+                .init(key: "receipt", label: "Receipt", type: type, required: true),
+                .init(key: "note", label: "Note")
+            ]
+        ))
     }
 }

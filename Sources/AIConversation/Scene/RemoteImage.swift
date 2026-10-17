@@ -17,6 +17,12 @@ import SwiftUI
 enum RemoteImage {
 
     static func decode(_ data: Data, maxPixelSize: CGFloat) -> Image? {
+        guard let image = Self.thumbnail(data, maxPixelSize: maxPixelSize) else { return nil }
+        return Image(decorative: image, scale: 1)
+    }
+
+    /// Shared ImageIO thumbnail — used by display decode and by the upload encoder.
+    static func thumbnail(_ data: Data, maxPixelSize: CGFloat) -> CGImage? {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -29,6 +35,6 @@ enum RemoteImage {
         else {
             return nil
         }
-        return Image(decorative: image, scale: 1)
+        return image
     }
 }
