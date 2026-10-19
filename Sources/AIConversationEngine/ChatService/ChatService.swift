@@ -159,6 +159,40 @@ extension ChatService: ChatServicing {
             try await self.tokenStore.delete()
         }
     }
+
+    package func submitAction(
+        _ request: SubmitActionRequest
+    ) async throws(ChatServiceError) -> SubmitActionResponse {
+        do {
+            return try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.post(
+                        url: self.url(for: .actions),
+                        payload: request,
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
+    }
+
+    package func fetchForm(id: String) async throws(ChatServiceError) -> ChatFormDefinition {
+        // Fetched while a conversation is on screen, so a 401 ends that session, as on `/actions`.
+        do {
+            return try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.get(
+                        url: self.url(for: .forms).appending(component: id),
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 404, body: _))) {
+            throw .notFound
+        }
+    }
 }
 
 private extension ChatService {
@@ -214,6 +248,8 @@ private extension ChatService {
     enum Endpoint: String {
         case config = "api/v1/chat/config"
         case messages = "api/v1/chat/messages"
+        case actions = "api/v1/chat/actions"
+        case forms = "api/v1/chat/forms"
     }
 
     func url(for endpoint: Endpoint) -> URL {

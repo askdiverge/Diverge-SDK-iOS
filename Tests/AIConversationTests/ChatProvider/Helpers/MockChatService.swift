@@ -71,4 +71,15 @@ final class MockChatService: ChatServicing {
             throw error
         }
     }
+
+    func submitAction(_: SubmitActionRequest) async throws(ChatServiceError) -> SubmitActionResponse {
+        throw .provider(Unstubbed())
+    }
+
+    func fetchForm(id _: String) async throws(ChatServiceError) -> ChatFormDefinition {
+        throw .provider(Unstubbed())
+    }
+
+    /// Thrown by calls `ChatProvider` does not make yet, so an unexpected call fails loudly.
+    private struct Unstubbed: Error {}
 }
