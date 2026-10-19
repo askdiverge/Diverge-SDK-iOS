@@ -27,6 +27,15 @@ package protocol ChatServicing: Sendable {
         page: String?
     ) -> AsyncThrowingStream<StreamEvent, any Error>
 
+    /// Submits a marker-triggered action (contact form, support ticket, custom form).
+    /// Session-bound — a 401 surfaces as ``ChatServiceError/sessionExpired``.
+    func submitAction(_ request: SubmitActionRequest) async throws(ChatServiceError) -> SubmitActionResponse
+
+    /// Full form definition for a `show_form` marker whose fields arrive empty. Session-bound —
+    /// a 401 surfaces as ``ChatServiceError/sessionExpired``, and a form the backend no longer
+    /// has as ``ChatServiceError/notFound``.
+    func fetchForm(id: String) async throws(ChatServiceError) -> ChatFormDefinition
+
     /// Rotates the session — invalidates the current token and obtains a fresh
     /// one via the host's reset hook. The caller clears local conversation state.
     func resetConversation() async throws(ChatServiceError)
