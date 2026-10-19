@@ -117,4 +117,19 @@ struct UnknownFallbackTests {
         )
         #expect(event == .status(.init(state: .unknown, message: nil)))
     }
+
+    @Test("a malformed form marker decodes to .unknown and does not fail siblings")
+    func malformedFormMarkerIsUnknown() throws {
+        let message = try self.decoder.decode(
+            Message.self,
+            from: Data("""
+                {"message_id":"m_1","role":"assistant","parts":[
+                    {"type":"show_contact_form"},
+                    {"type":"rich_text","part_id":"p_2","blocks":[]}
+                ],"created_at":"2026-01-01T00:00:00Z"}
+                """.utf8)
+        )
+        #expect(message.parts[0] == .unknown)
+        #expect(message.parts[1] != .unknown)
+    }
 }
