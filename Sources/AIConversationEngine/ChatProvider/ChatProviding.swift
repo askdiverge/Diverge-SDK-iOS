@@ -25,4 +25,8 @@ package protocol ChatProviding: Sendable {
 
     /// Wipes visitor data, ends the session, and clears the conversation.
     func delete() async throws
+
+    /// Clears the conversation after a call outside the provider saw the session end (401). During
+    /// a send, reset or delete the clear waits until the operation finishes.
+    func expireSession() async
 }
