@@ -10,6 +10,12 @@
   address, Phone number and Customer support, which these forms collect; update your App Store
   privacy label.
 
+### Fixed
+
+- Presenting `AIChat.makeView()` from a SwiftUI sheet no longer shows a blank card: the chat keeps
+  its state when the host's view re-renders. A failed first history page still shows the title and
+  composer, so the visitor can type when `GET /messages` fails.
+
 ## [1.0.0] - 2026-10-01
 
 First stable release. Upgrading from 0.1.0: see

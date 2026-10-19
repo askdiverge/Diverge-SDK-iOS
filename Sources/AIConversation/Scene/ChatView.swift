@@ -11,7 +11,9 @@ import AIConversationEngine
 /// The SDK's main screen — the chat UI returned by `AIChat.makeView()`.
 struct ChatView: View {
 
-    private let viewModel: ViewModel
+    /// Held as state so a host re-render, which builds a new `ChatView` and a new model, keeps the
+    /// model this view already bootstrapped. A new presentation starts a model of its own.
+    @State private var viewModel: ViewModel
 
     @Environment(\.openURL) private var openURL
     @FocusState private var inputFocused: Bool
@@ -26,7 +28,7 @@ struct ChatView: View {
     }
 
     init(viewModel: ViewModel) {
-        self.viewModel = viewModel
+        self._viewModel = State(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -54,6 +56,7 @@ private extension ChatView {
     var loadingView: some View {
         ProgressView()
             .tint(self.appearance.theme.accent)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     var readyView: some View {
@@ -99,8 +102,11 @@ private extension ChatView {
             Group {
                 if let snapshot = self.viewModel.snapshot {
                     self.chat(from: snapshot)
+                } else {
+                    Color.clear
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(self.viewModel.name)
             .toolbarTitleDisplayMode(.inline)
             .toolbar { self.resetToolbarItem }
