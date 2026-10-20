@@ -221,7 +221,7 @@ struct ChatViewModelRatingTests {
 
     private static func snapshotWithUserTurn() -> ConversationSnapshot {
         ConversationSnapshot(
-            user: [Identified(model: [AttributedString("hello")])],
+            user: [Identified(model: [.text(AttributedString("hello"))])],
             incoming: [Identified(model: [.text(AttributedString("Hi"))])],
             isUserInitiatedConversation: true,
             streamingTurnID: nil

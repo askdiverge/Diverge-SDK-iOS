@@ -285,17 +285,17 @@ extension ChatView {
                     self.present(Notice(edge: .bottom, message: L10n.noticeBusy.string, autoDismiss: .seconds(1)))
 
                 case .retry(popped: let lastMessage, body: let body):
-                    self.currentMessage = lastMessage
+                    self.currentMessage = lastMessage.text
                     self.present(Notice(edge: .bottom, message: body ?? L10n.noticeSendFailed.string, autoDismiss: nil))
 
                 case .livechatInactive(popped: let lastMessage):
                     // The agent session ended; the restored text goes to the assistant next time.
-                    self.currentMessage = lastMessage
+                    self.currentMessage = lastMessage.text
                     self.present(Notice(edge: .bottom, message: L10n.noticeLivechatEnded.string, autoDismiss: nil))
                     await self.livechat.refresh()
 
                 case .livechatActive(popped: let lastMessage):
-                    self.currentMessage = lastMessage
+                    self.currentMessage = lastMessage.text
                     self.present(Notice(edge: .bottom, message: L10n.noticeSendFailed.string, autoDismiss: nil))
 
                 case .sessionExpired:

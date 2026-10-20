@@ -17,14 +17,15 @@ package protocol ChatServicing: Sendable {
     /// Pass the previous page's `nextCursor` to fetch the next page; `nil` for the first.
     func fetchHistory(cursor: String?) async throws(ChatServiceError) -> MessagePage
 
-    /// sends a text message and streams the
+    /// Sends a visitor message (text and/or attachments) and streams the
     /// response as SSE events until `done`/`error` terminates it.
-    /// `page` is per-message context .
-    /// every failure (transport, 401, or a stream `error` event) is delivered on the stream's throwing channel as
+    /// `page` is per-message context.
+    /// Every failure (transport, 401, or a stream `error` event) is delivered on the stream's throwing channel as
     /// `ChatServiceError`. A 409 surfaces as ``ChatServiceError/conflict``; an active livechat session
     /// causes it, so the caller reads the session before sending the text to the agent.
     func sendMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page: String?
     ) -> AsyncThrowingStream<StreamEvent, any Error>
 
@@ -77,12 +78,13 @@ package protocol ChatServicing: Sendable {
         clientContext: LivechatClientContext?
     ) async throws(ChatServiceError) -> LivechatState.Status
 
-    /// Sends the visitor's text to the agent and returns the stored message. `operationId` is minted
-    /// once per message and sent again when retrying it: the server stores the message once per id
-    /// and answers a repeat with the stored copy. A 409 means the session is no longer active and
-    /// surfaces as ``ChatServiceError/conflict``.
+    /// Sends the visitor's text and/or attachments to the agent and returns the stored message.
+    /// `operationId` is minted once per message and sent again when retrying it: the server stores
+    /// the message once per id and answers a repeat with the stored copy. A 409 means the session
+    /// is no longer active and surfaces as ``ChatServiceError/conflict``.
     func sendLivechatMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page: String?,
         operationId: String
     ) async throws(ChatServiceError) -> LivechatMessage

@@ -23,7 +23,7 @@ struct ChatProviderTests {
         try await provider.send("hi")
 
         let snapshot = await snapshots.next()
-        #expect(snapshot?.user.map(\.model) == [[AttributedString("hi")]])
+        #expect(snapshot?.user.map(\.model) == [[.text(AttributedString("hi"))]])
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("hel"))]])
     }
 
@@ -85,7 +85,7 @@ struct ChatProviderTests {
         let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.retry(popped: "hi", body: "boom")) {
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: "boom")) {
             try await provider.send("hi")
         }
 

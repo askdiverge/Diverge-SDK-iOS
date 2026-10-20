@@ -21,7 +21,7 @@ struct ChatProviderLivechatTests {
         await provider.appendLivechat([stored, LivechatFixtures.message("a1", role: .agent, text: "ok")])
 
         let snapshot = await snapshots.next()
-        #expect(snapshot?.user.map(\.model) == [[AttributedString("hi")]])
+        #expect(snapshot?.user.map(\.model) == [[.text(AttributedString("hi"))]])
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("ok"))]])
     }
 
@@ -44,7 +44,7 @@ struct ChatProviderLivechatTests {
         try await send.value
 
         var snapshots = provider.stream.makeAsyncIterator()
-        #expect(await snapshots.next()?.user.map(\.model) == [[AttributedString("hi")]])
+        #expect(await snapshots.next()?.user.map(\.model) == [[.text(AttributedString("hi"))]])
     }
 
     @Test("a failed livechat send pops its echo")
@@ -53,7 +53,7 @@ struct ChatProviderLivechatTests {
         let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.retry(popped: "hi", body: nil)) {
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
             try await provider.sendLivechat("hi")
         }
 
@@ -73,7 +73,7 @@ struct ChatProviderLivechatTests {
         await provider.appendLivechat([stored])
 
         var snapshots = provider.stream.makeAsyncIterator()
-        #expect(await snapshots.next()?.user.map(\.model) == [[AttributedString("hi **there**\n\n- one")]])
+        #expect(await snapshots.next()?.user.map(\.model) == [[.text(AttributedString("hi **there**\n\n- one"))]])
         #expect(mock.livechatSendOperationIds.count == 2)
         #expect(Set(mock.livechatSendOperationIds).count == 1)
     }
@@ -84,11 +84,11 @@ struct ChatProviderLivechatTests {
         let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.retry(popped: "hi", body: nil)) {
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
             try await provider.sendLivechat("hi")
         }
         #expect(await snapshots.next()?.user.isEmpty == true)
-        await #expect(throws: ChatProvider.SendFailure.retry(popped: "hi", body: nil)) {
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
             try await provider.sendLivechat("hi")
         }
 
@@ -118,7 +118,7 @@ struct ChatProviderLivechatTests {
         let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.livechatInactive(popped: "hi")) {
+        await #expect(throws: ChatProvider.SendFailure.livechatInactive(popped: .init(text: "hi", attachments: []))) {
             try await provider.sendLivechat("hi")
         }
 
@@ -131,7 +131,7 @@ struct ChatProviderLivechatTests {
         let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.livechatActive(popped: "hi")) {
+        await #expect(throws: ChatProvider.SendFailure.livechatActive(popped: .init(text: "hi", attachments: []))) {
             try await provider.send("hi")
         }
 
@@ -154,13 +154,13 @@ struct ChatProviderLivechatTests {
 
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
-            .user([AttributedString("hi")]),
+            .user([.text(AttributedString("hi"))]),
             .bot([
                 .text(AttributedString("hello")),
                 .livechatNote(.init(kind: .queued)),
                 .livechatNote(.init(kind: .agentJoined(displayName: "Alice")))
             ]),
-            .user([AttributedString("my order")])
+            .user([.text(AttributedString("my order"))])
         ])
     }
 
@@ -212,7 +212,7 @@ struct ChatProviderLivechatTests {
         let reply = Identified<[ChatResponse]>(model: [.text(AttributedString("form here"))])
         let notes = Identified<[ChatResponse]>(model: [.livechatNote(.init(kind: .queued))])
         let snapshot = ConversationSnapshot(
-            user: [Identified(model: [AttributedString("hi")]), Identified(model: [AttributedString("again")])],
+            user: [Identified(model: [.text(AttributedString("hi"))]), Identified(model: [.text(AttributedString("again"))])],
             incoming: [reply, notes],
             isUserInitiatedConversation: true,
             streamingTurnID: nil
@@ -277,7 +277,7 @@ struct ChatProviderLivechatTests {
         ])
 
         let snapshot = await snapshots.next()
-        #expect(snapshot?.user.map(\.model) == [[AttributedString("hi")]])
+        #expect(snapshot?.user.map(\.model) == [[.text(AttributedString("hi"))]])
         #expect(snapshot?.incoming.map(\.model) == [[
             .text(AttributedString("hello")),
             .systemNote(AttributedString("closed"))
@@ -298,9 +298,9 @@ struct ChatProviderLivechatTests {
 
         let turns = await snapshots.next()?.turns.map(\.model)
         #expect(turns == [
-            .user([AttributedString("hi")]),
+            .user([.text(AttributedString("hi"))]),
             .bot([.text(AttributedString("reply")), .text(AttributedString("one")), .text(AttributedString("two"))]),
-            .user([AttributedString("thanks")]),
+            .user([.text(AttributedString("thanks"))]),
             .bot([.text(AttributedString("welcome"))])
         ])
     }
@@ -390,7 +390,7 @@ struct ChatProviderLivechatTests {
 
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
-            .user([AttributedString("hi")]),
+            .user([.text(AttributedString("hi"))]),
             .bot([.text(AttributedString("agent")), .text(AttributedString("later"))])
         ])
     }
@@ -407,9 +407,9 @@ struct ChatProviderLivechatTests {
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
             .bot([.text(AttributedString("hello"))]),
-            .user([AttributedString("hi")]),
+            .user([.text(AttributedString("hi"))]),
             .bot([.text(AttributedString("reply"))]),
-            .user([AttributedString("again")]),
+            .user([.text(AttributedString("again"))]),
             .bot([.text(AttributedString("reply"))])
         ])
     }
@@ -426,9 +426,9 @@ struct ChatProviderLivechatTests {
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
             .bot([.livechatNote(LivechatNote(kind: .queued))]),
-            .user([AttributedString("one")]),
+            .user([.text(AttributedString("one"))]),
             .bot([.text(AttributedString("reply"))]),
-            .user([AttributedString("two")]),
+            .user([.text(AttributedString("two"))]),
             .bot([.text(AttributedString("reply"))])
         ])
     }
@@ -458,9 +458,9 @@ struct ChatProviderLivechatTests {
 
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
-            .user([AttributedString("hi")]),
+            .user([.text(AttributedString("hi"))]),
             .bot([.text(AttributedString("one")), .text(AttributedString("two"))]),
-            .user([AttributedString("thanks")])
+            .user([.text(AttributedString("thanks"))])
         ])
     }
 
@@ -470,11 +470,11 @@ struct ChatProviderLivechatTests {
         await provider.appendLivechat([LivechatFixtures.message("u1", role: .user, text: "one")])
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.livechatInactive(popped: "two")) {
+        await #expect(throws: ChatProvider.SendFailure.livechatInactive(popped: .init(text: "two", attachments: []))) {
             try await provider.sendLivechat("two")
         }
 
-        #expect(await snapshots.next()?.user.map(\.model) == [[AttributedString("hi")], [AttributedString("one")]])
+        #expect(await snapshots.next()?.user.map(\.model) == [[.text(AttributedString("hi"))], [.text(AttributedString("one"))]])
     }
 
     @Test("an AI send after an unanswered visitor message joins its turn and pops alone on failure")
@@ -491,11 +491,11 @@ struct ChatProviderLivechatTests {
         ])
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.retry(popped: "three", body: nil)) {
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "three", attachments: []), body: nil)) {
             try await provider.send("three")
         }
 
-        #expect(await snapshots.next()?.user.map(\.model) == [[AttributedString("one")], [AttributedString("two")]])
+        #expect(await snapshots.next()?.user.map(\.model) == [[.text(AttributedString("one"))], [.text(AttributedString("two"))]])
     }
 
     @Test("expireSession clears the conversation")

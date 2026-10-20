@@ -10,7 +10,7 @@ import Foundation
 /// The published conversation: the two panes the view model zips for layout.
 package struct ConversationSnapshot: Sendable, Equatable {
 
-    package let user: [Identified<[AttributedString]>]
+    package let user: [Identified<[UserContent]>]
     package let incoming: [Identified<[ChatResponse]>]
 
     /// Sets the leading side when the two panes are interleaved for display.
@@ -26,7 +26,7 @@ extension ConversationSnapshot {
     /// ``ConversationView``'s content builder.
     package enum Turn: Sendable, Equatable {
         case bot([ChatResponse])
-        case user([AttributedString])
+        case user([UserContent])
     }
 
     /// Interleaves the two panes into render order — the leading side per round is set by

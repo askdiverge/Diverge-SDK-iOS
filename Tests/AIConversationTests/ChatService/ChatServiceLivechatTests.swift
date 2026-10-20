@@ -161,7 +161,7 @@ struct ChatServiceLivechatTests {
         }
         """.utf8))])
 
-        let stored = try await sut.sendLivechatMessage("Here is my order", page: "/orders/123", operationId: "op-1")
+        let stored = try await sut.sendLivechatMessage("Here is my order", attachments: [], page: "/orders/123", operationId: "op-1")
 
         let request = try #require(script.requests.first)
         #expect(request.url?.path() == "/api/v1/chat/livechat/messages")
@@ -179,7 +179,7 @@ struct ChatServiceLivechatTests {
         let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409)])
 
         await #expect {
-            _ = try await sut.sendLivechatMessage("hi", page: nil, operationId: "op-1")
+            _ = try await sut.sendLivechatMessage("hi", attachments: [], page: nil, operationId: "op-1")
         } throws: { error in
             if case ChatServiceError.conflict = error { true } else { false }
         }
@@ -190,7 +190,7 @@ struct ChatServiceLivechatTests {
         let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409)])
 
         await #expect {
-            try await ChatServiceFixtures.drain(sut.sendMessage("hi", page: nil))
+            try await ChatServiceFixtures.drain(sut.sendMessage("hi", attachments: [], page: nil))
         } throws: { error in
             if case ChatServiceError.conflict = error { true } else { false }
         }
