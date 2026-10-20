@@ -327,6 +327,14 @@ extension ChatService {
             throw .conflict
         }
     }
+
+    package func submitLivechatFeedback(_ request: LivechatFeedbackRequest) async throws(ChatServiceError) {
+        do {
+            try await self.postLivechat(request, to: .livechatFeedback)
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
+    }
 }
 
 private extension ChatService {
@@ -392,6 +400,7 @@ private extension ChatService {
         case livechatMessages = "api/v1/chat/livechat/messages"
         case livechatTyping = "api/v1/chat/livechat/typing"
         case livechatClose = "api/v1/chat/livechat/close"
+        case livechatFeedback = "api/v1/chat/livechat/feedback"
     }
 
     func url(for endpoint: Endpoint) -> URL {
