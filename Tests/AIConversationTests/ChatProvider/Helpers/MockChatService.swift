@@ -77,6 +77,8 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) var livechatSyncCursor: String?
     /// Awaited after `sendEvents` and before the reply stream finishes.
     nonisolated(unsafe) var sendHold: (@Sendable () async -> Void)?
+    /// Awaited at the start of each `syncLivechat`, so a test can act while the read is in flight.
+    nonisolated(unsafe) var livechatSyncHold: (@Sendable () async -> Void)?
     /// Awaited inside `sendLivechatMessage`, so a test can act while the POST is in flight.
     nonisolated(unsafe) var livechatSendHold: (@Sendable () async -> Void)?
     /// Awaited at the start of each typing post with its value, so a test can act while it is
@@ -162,6 +164,7 @@ final class MockChatService: ChatServicing {
     ) async throws(ChatServiceError) -> LivechatSync {
         let index = self.livechatSyncCallCount
         self.livechatSyncCallCount += 1
+        await self.livechatSyncHold?()
         self.lastLivechatAfterSequence = sequenceNumber
         self.lastLivechatSyncWait = (waitMs, syncCursor)
         if let error = self.stub.livechatStateFailingCalls[index] ?? self.livechatStateError {

@@ -221,7 +221,7 @@ struct ChatProviderLivechatTests {
         #expect(snapshot.lastBotTurnID == reply.id)
     }
 
-    @Test("a request_human_agent part becomes the prompt card, and a file part is skipped")
+    @Test("agent file and request_human_agent parts become display responses")
     func fileAndHandoffParts() async throws {
         let file = try LivechatFixtures.decoder.decode(MessageFile.self, from: Data("""
         {
@@ -249,7 +249,7 @@ struct ChatProviderLivechatTests {
         ])
 
         let incoming = await snapshots.next()?.incoming.map(\.model)
-        #expect(incoming == [[.requestHumanAgent(.init(partId: "part_human_1"))]])
+        #expect(incoming == [[.file(file), .requestHumanAgent(.init(partId: "part_human_1"))]])
     }
 
     @Test("system-role text becomes a centred system note")

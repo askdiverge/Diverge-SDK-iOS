@@ -118,6 +118,9 @@ extension ChatAppearance {
         /// talk-to-a-person card — the handoff CTA.
         static let person = Image(systemName: "person")
 
+        /// file row — an agent or assistant attachment.
+        static let file = Image(systemName: "doc")
+
         /// leading control & opens Privacy & Data.
         static let privacy = Image(systemName: "checkmark.shield")
 
