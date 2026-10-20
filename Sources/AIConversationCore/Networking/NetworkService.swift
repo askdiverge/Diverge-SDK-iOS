@@ -24,6 +24,13 @@ package protocol NetworkService<Failure> {
         headers: [String: String]?
     ) async throws(Failure) -> Response
 
+    /// POST whose response body is not read.
+    func post(
+        url: URL,
+        payload: some Encodable & Sendable,
+        headers: [String: String]?
+    ) async throws(Failure)
+
     func delete(
         url: URL,
         headers: [String: String]?
