@@ -157,6 +157,14 @@ final class MockChatService: ChatServicing {
         throw .provider(Unstubbed())
     }
 
+    func fetchSession() async throws(ChatServiceError) -> ChatSessionState {
+        throw .provider(Unstubbed())
+    }
+
+    func patchFormValues(formId _: String, values _: [String: String]) async throws(ChatServiceError) -> ChatSessionState {
+        throw .provider(Unstubbed())
+    }
+
     func syncLivechat(
         after sequenceNumber: Int64?,
         waitMs: Int?,
