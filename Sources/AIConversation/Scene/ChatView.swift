@@ -165,15 +165,20 @@ private extension ChatView {
     }
 
     var inputBar: some View {
-        self.chatInput
-            .background(alignment: .top) {
-                // A permanent wrapper ensures the alignment guide is never dropped
-                VStack {
-                    self.bottomNotice
-                }
-                // Align the bottom of VStack to the top of the chatInput
-                .alignmentGuide(.top) { $0[.bottom] }
+        VStack(spacing: 0) {
+            if self.viewModel.isAgentTyping {
+                AgentTypingIndicator(agentName: self.viewModel.livechatAgentName)
             }
+            self.chatInput
+        }
+        .background(alignment: .top) {
+            // A permanent wrapper ensures the alignment guide is never dropped
+            VStack {
+                self.bottomNotice
+            }
+            // Align the bottom of VStack to the top of the input bar, above the typing row
+            .alignmentGuide(.top) { $0[.bottom] }
+        }
     }
 
     @ViewBuilder
@@ -414,7 +419,7 @@ private extension ChatView {
         ChatInput(
             currentMessage: .init(
                 get: { self.viewModel.currentMessage },
-                set: { self.viewModel.currentMessage = $0 }
+                set: { self.viewModel.editDraft($0) }
             ),
             placeholder: self.viewModel.inputPlaceholder,
             leadingIcon: ChatAppearance.Symbol.privacy,

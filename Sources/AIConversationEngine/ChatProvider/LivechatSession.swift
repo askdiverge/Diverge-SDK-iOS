@@ -60,6 +60,18 @@ package actor LivechatSession {
     /// Set once a state is published. Until then a published state is one the session found
     /// already in place, which its snapshot marks as restored.
     private var hasPublishedState = false
+    /// How long the visitor's draft may sit unchanged before the agent is told typing stopped.
+    private let typingIdle: Duration
+    /// The typing state the agent should see.
+    private var wantsTyping = false
+    /// The typing state the agent was last told by a post that succeeded.
+    private var isTypingSent = false
+    /// Ends the typing burst after ``typingIdle`` without a draft change.
+    private var typingIdleTask: Task<Void, Never>?
+    /// Sends ``wantsTyping`` until the agent has it; one at a time, so posts arrive in order.
+    private var typingPost: Task<Void, Never>?
+    /// Bumped when the typing state is dropped, so a post in flight doesn't record its result.
+    private var typingEpoch = 0
 
     private static let waitingInterval: Duration = .seconds(2)
     private static let activeInterval: Duration = .seconds(3)
@@ -67,6 +79,10 @@ package actor LivechatSession {
     private static let maxWaitMs = 20_000
     /// The pause between waiting syncs, so a server that answers at once can't spin the loop.
     private static let waitGap: Duration = .milliseconds(250)
+    /// Attempts per typing change before it waits for the next one.
+    private static let typingAttempts = 3
+    /// The pause before a failed typing post is tried again.
+    private static let typingRetry: Duration = .seconds(1)
 
     private var shouldPoll: Bool {
         self.isSceneActive && self.isVisible && !self.sessionExpired
@@ -74,9 +90,11 @@ package actor LivechatSession {
 
     package init(
         service: any ChatServicing,
+        typingIdle: Duration = .milliseconds(1500),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.service = service
+        self.typingIdle = typingIdle
         self.sleep = sleep
         // Unbounded: a snapshot carries the messages after the cursor, and the cursor has already
         // moved past them, so dropping an undelivered snapshot would lose those messages.
@@ -204,6 +222,35 @@ package actor LivechatSession {
         await self.tick(waiting: false)
     }
 
+    /// The visitor's draft changed. While an agent is connected, the agent is told the visitor is
+    /// typing once per burst, and that they stopped after ``typingIdle`` without a change or when
+    /// the draft empties.
+    package func visitorTyping(isEmpty: Bool) {
+        self.typingIdleTask?.cancel()
+        guard self.lastStatus == .active, !isEmpty else {
+            self.endTyping()
+            return
+        }
+        self.postTyping(true)
+        let sleep = self.sleep
+        let idle = self.typingIdle
+        self.typingIdleTask = Task { [weak self] in
+            do {
+                try await sleep(idle)
+            } catch {
+                return
+            }
+            await self?.endTyping()
+        }
+    }
+
+    /// Tells the agent the visitor stopped typing, if they were last told otherwise.
+    package func endTyping() {
+        self.typingIdleTask?.cancel()
+        self.typingIdleTask = nil
+        self.postTyping(false)
+    }
+
     /// Stops polling, rewinds the cursor and publishes `inactive`. Called on reset and delete.
     /// Returns the generation that starts here: snapshots of an older one still in ``stream``
     /// belong to the session being replaced.
@@ -245,15 +292,22 @@ package actor LivechatSession {
         self.cancelPolling()
     }
 
-    /// Pauses polling while the app is in the background.
+    /// Pauses polling while the app is in the background, and tells the agent typing stopped.
     package func setSceneActive(_ active: Bool) {
         self.isSceneActive = active
+        if !active {
+            self.endTyping()
+        }
         self.resumeIfNeeded()
     }
 
-    /// Pauses polling while the chat view is off screen but the chat is still alive.
+    /// Pauses polling while the chat view is off screen but the chat is still alive, and tells the
+    /// agent typing stopped.
     package func setVisible(_ visible: Bool) {
         self.isVisible = visible
+        if !visible {
+            self.endTyping()
+        }
         self.resumeIfNeeded()
     }
 }
@@ -447,6 +501,9 @@ private extension LivechatSession {
         self.lastStatus = state.status
         let isRestored = !self.hasPublishedState
         self.hasPublishedState = true
+        if state.status != .active {
+            self.dropTyping()
+        }
         self.continuation.yield(
             LivechatSnapshot(
                 previousStatus: previous,
@@ -457,6 +514,65 @@ private extension LivechatSession {
                 isRestored: isRestored
             )
         )
+    }
+
+    /// Asks for the agent to see `isTyping`. An expired session clears the state without posting,
+    /// since its token no longer belongs to this visitor.
+    func postTyping(_ isTyping: Bool) {
+        guard !self.sessionExpired else {
+            self.wantsTyping = false
+            self.isTypingSent = false
+            return
+        }
+        self.wantsTyping = isTyping
+        guard self.typingPost == nil else { return }
+        // Holds the session until the post settles, so "stopped typing" still reaches the agent
+        // when the chat closes mid-burst.
+        self.typingPost = Task { await self.sendTyping() }
+    }
+
+    /// Forgets the visitor's typing state without telling the agent: the session it belonged to
+    /// is no longer active, and the backend clears the flag itself when a session closes or the
+    /// visitor's data is deleted.
+    func dropTyping() {
+        self.typingIdleTask?.cancel()
+        self.typingIdleTask = nil
+        self.wantsTyping = false
+        self.isTypingSent = false
+        self.typingEpoch += 1
+    }
+
+    /// Posts the newest wanted typing state until the agent has it, while a session is active. A
+    /// transient failure is retried after ``typingRetry``; after ``typingAttempts`` it stays unsent,
+    /// and the next change tries again. A 401 ends the visitor session; any other refusal waits for
+    /// the next change.
+    func sendTyping() async {
+        var failures = 0
+        while self.wantsTyping != self.isTypingSent, !self.sessionExpired, self.lastStatus == .active {
+            let isTyping = self.wantsTyping
+            let gen = self.generation
+            let epoch = self.typingEpoch
+            do {
+                try await self.service.sendLivechatTyping(isTyping: isTyping)
+                guard epoch == self.typingEpoch else { break }
+                self.isTypingSent = isTyping
+                failures = 0
+            } catch .sessionExpired {
+                self.expire(generation: gen)
+                break
+            } catch let error where error.isTransient {
+                failures += 1
+                guard failures < Self.typingAttempts else { break }
+                do {
+                    try await self.sleep(Self.typingRetry)
+                } catch {
+                    break
+                }
+            } catch {
+                break
+            }
+        }
+        self.typingPost = nil
     }
 
     func expire(generation: UInt64) {
