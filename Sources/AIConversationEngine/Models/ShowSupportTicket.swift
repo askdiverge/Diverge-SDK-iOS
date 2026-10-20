@@ -19,6 +19,18 @@ package struct ShowSupportTicket: Decodable, Sendable, Equatable {
     package let attachmentsAccepted: Bool
     package let maxAttachmentSizeBytes: Int
 
+    package init(
+        partId: String,
+        fields: [FormField],
+        attachmentsAccepted: Bool = true,
+        maxAttachmentSizeBytes: Int = OutgoingAttachment.maxActionDecodedBytes
+    ) {
+        self.partId = partId
+        self.fields = fields
+        self.attachmentsAccepted = attachmentsAccepted
+        self.maxAttachmentSizeBytes = maxAttachmentSizeBytes
+    }
+
     /// Every key is required. A missing key or malformed payload throws, and the part decoder
     /// decides how the message degrades.
     package init(from decoder: any Decoder) throws {

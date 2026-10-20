@@ -54,4 +54,12 @@ extension ConversationSnapshot {
 
         return turns
     }
+
+    /// The newest bot turn's id — forms in that turn stay fillable; older `part_id`s are read-only.
+    package var lastBotTurnID: UUID? {
+        for turn in self.turns.reversed() {
+            if case .bot = turn.model { return turn.id }
+        }
+        return nil
+    }
 }
