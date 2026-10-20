@@ -14,7 +14,7 @@ struct ChatProviderLivechatTests {
     func sendRecordsStoredID() async throws {
         let stored = LivechatFixtures.message("lc_1", role: .user, text: "hi")
         let mock = MockChatService(.init(livechatSendResponse: stored))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.sendLivechat("hi")
@@ -29,7 +29,7 @@ struct ChatProviderLivechatTests {
     func pollDuringSendIsHeld() async throws {
         let stored = LivechatFixtures.message("lc_1", role: .user, text: "hi")
         let mock = MockChatService(.init(livechatSendResponse: stored))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         let entered = AsyncGate()
         let release = AsyncGate()
         mock.livechatSendHold = {
@@ -50,7 +50,7 @@ struct ChatProviderLivechatTests {
     @Test("a failed livechat send pops its echo")
     func sendFailurePopsEcho() async {
         let mock = MockChatService(.init(livechatSendError: .transport(.http(.unhandled(status: 500, body: Data())))))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
@@ -67,7 +67,7 @@ struct ChatProviderLivechatTests {
             livechatSendResponse: stored,
             livechatSendFailingCalls: [0: .transport(.connection(URLError(.timedOut)))]
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         try await provider.sendLivechat("hi **there**\n\n- one")
         await provider.appendLivechat([stored])
@@ -81,7 +81,7 @@ struct ChatProviderLivechatTests {
     @Test("a livechat send whose retry fails too is popped, and the next send gets a new operation id")
     func failedRetryIsPopped() async {
         let mock = MockChatService(.init(livechatSendError: .transport(.connection(URLError(.timedOut)))))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
@@ -102,7 +102,7 @@ struct ChatProviderLivechatTests {
             0: .transport(.connection(URLError(.timedOut))),
             1: .sessionExpired
         ]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.sessionExpired) {
@@ -115,7 +115,7 @@ struct ChatProviderLivechatTests {
     @Test("a 409 on a livechat send surfaces livechatInactive and pops the echo")
     func sendConflict() async {
         let mock = MockChatService(.init(livechatSendError: .conflict))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.livechatInactive(popped: .init(text: "hi", attachments: []))) {
@@ -128,7 +128,7 @@ struct ChatProviderLivechatTests {
     @Test("a 409 on an assistant send surfaces livechatActive and drops the turn")
     func assistantSendConflict() async {
         let mock = MockChatService(.init(sendError: .conflict))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.livechatActive(popped: .init(text: "hi", attachments: []))) {
@@ -142,7 +142,7 @@ struct ChatProviderLivechatTests {
 
     @Test("notes join the newest bot turn, so the panes stay paired and the next visitor message follows them")
     func notesKeepPairing() async {
-        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil }, acceptsImageUploadPrompts: true)
         await provider.appendLivechat([
             LivechatFixtures.message("u1", role: .user, text: "hi", sequence: 1),
             LivechatFixtures.message("a1", role: .assistant, text: "hello", sequence: 2)
@@ -169,7 +169,8 @@ struct ChatProviderLivechatTests {
         let provider: any ChatProviding = ChatProvider(
             service: MockChatService(),
             pageContext: { nil },
-            welcomeMessage: "welcome"
+            welcomeMessage: "welcome",
+            acceptsImageUploadPrompts: true
         )
         try await provider.loadOlder()
 
@@ -184,7 +185,7 @@ struct ChatProviderLivechatTests {
     @Test("notes and agent messages during a streaming reply wait, in order, until the reply settles")
     func noteWaitsForStream() async throws {
         let mock = MockChatService(.init(sendEvents: [Self.textPart("reply")]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         let entered = AsyncGate()
         let release = AsyncGate()
         mock.sendHold = {
@@ -231,7 +232,7 @@ struct ChatProviderLivechatTests {
           "size_bytes": 1200
         }
         """.utf8))
-        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await provider.appendLivechat([
@@ -254,7 +255,7 @@ struct ChatProviderLivechatTests {
 
     @Test("system-role text becomes a centred system note")
     func systemRoleIsNote() async {
-        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await provider.appendLivechat([
@@ -267,7 +268,7 @@ struct ChatProviderLivechatTests {
 
     @Test("visitor messages go to the user pane and every other role to the bot pane")
     func roleMapping() async {
-        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await provider.appendLivechat([
@@ -308,7 +309,7 @@ struct ChatProviderLivechatTests {
     @Test("an agent message during a streaming reply waits until the reply settles")
     func agentMessageWaitsForStream() async throws {
         let mock = MockChatService(.init(sendEvents: [Self.textPart("reply")]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         let entered = AsyncGate()
         let release = AsyncGate()
         mock.sendHold = {
@@ -331,7 +332,7 @@ struct ChatProviderLivechatTests {
     @Test("a session that expires during a reply clears once the reply settles")
     func expiryDuringReplyWaits() async throws {
         let mock = MockChatService(.init(sendError: .transport(.http(.unhandled(status: 500, body: Data())))))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         let entered = AsyncGate()
         let release = AsyncGate()
         mock.sendHold = {
@@ -361,7 +362,7 @@ struct ChatProviderLivechatTests {
             createdAt: "2026-01-01T00:00:00Z"
         )
         let mock = MockChatService(.init(historyPages: [MessagePage(messages: [history], nextCursor: nil)]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         try await provider.loadOlder()
 
         await provider.appendLivechat([LivechatFixtures.message("a1", role: .agent, text: "agent")])
@@ -379,7 +380,7 @@ struct ChatProviderLivechatTests {
             ],
             nextCursor: nil
         )]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         try await provider.loadOlder()
 
         await provider.appendLivechat([
@@ -398,7 +399,7 @@ struct ChatProviderLivechatTests {
     @Test("an agent message that opens an empty conversation leads it, and the visitor's reply follows")
     func agentOpensConversation() async throws {
         let mock = MockChatService(.init(sendEvents: [Self.textPart("reply")]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         await provider.appendLivechat([LivechatFixtures.message("a1", role: .agent, text: "hello")])
         try await provider.send("hi")
@@ -417,7 +418,7 @@ struct ChatProviderLivechatTests {
     @Test("a note that opens an empty conversation leads it, so every AI reply after it stays")
     func noteOpensConversation() async throws {
         let mock = MockChatService(.init(sendEvents: [Self.textPart("reply")]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         await provider.note(LivechatNote(kind: .queued))
         try await provider.send("one")
@@ -451,7 +452,7 @@ struct ChatProviderLivechatTests {
                 nextCursor: nil
             )
         ]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         try await provider.loadOlder()
         try await provider.loadOlder()
@@ -483,7 +484,7 @@ struct ChatProviderLivechatTests {
             sendEvents: [Self.textPart("reply")],
             sendError: .transport(.http(.unhandled(status: 500, body: Data())))
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         await provider.appendLivechat([
             LivechatFixtures.message("u1", role: .user, text: "one", sequence: 1),
             LivechatFixtures.message("a1", role: .agent, text: "answer", sequence: 2),
@@ -500,7 +501,7 @@ struct ChatProviderLivechatTests {
 
     @Test("expireSession clears the conversation")
     func expireSessionClears() async {
-        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: MockChatService(), pageContext: { nil }, acceptsImageUploadPrompts: true)
         await provider.appendLivechat([LivechatFixtures.message("u", role: .user, text: "hi")])
         var snapshots = provider.stream.makeAsyncIterator()
 
@@ -517,7 +518,7 @@ private extension ChatProviderLivechatTests {
         livechatSendError: ChatServiceError? = nil
     ) async throws -> any ChatProviding {
         let mock = MockChatService(.init(sendEvents: [Self.textPart("reply")], livechatSendError: livechatSendError))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         try await provider.send("hi")
         return provider
     }

@@ -8,9 +8,9 @@
 import SwiftUI
 import AIConversationEngine
 
-/// Renders one visible ``FormField`` — text / email / tel / textarea, a dropdown, or for a `file`
-/// field the copy that photo attach is unavailable. A field of a type this SDK doesn't know
-/// renders nothing. Disabled when the form is read-only or submitting.
+/// Renders one visible ``FormField`` — text / email / tel / textarea, a dropdown, or a `file`
+/// field via ``FormFileField``. A field of a type this SDK doesn't know renders nothing. Disabled
+/// when the form is read-only or submitting.
 ///
 /// Accessibility: the control carries the field label (VoiceOver reads it as the input's name,
 /// not just the placeholder); a required field adds the requirement as its hint and the
@@ -25,6 +25,10 @@ struct FormFieldView: View {
     let focusID: String
     let error: String?
     let isEnabled: Bool
+    let offersAttachments: Bool
+    let pickedFile: PendingAttachment?
+    let onPickFile: () -> Void
+    let onRemoveFile: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: self.appearance.spacing.units(1)) {
@@ -38,8 +42,8 @@ struct FormFieldView: View {
             }
             .font(self.appearance.font(size: 13, weight: .bold))
             .foregroundStyle(self.appearance.theme.primaryText)
-            // Text inputs and the dropdown carry the label themselves; a file field has no control,
-            // so its header stays spoken.
+            // Text inputs and the dropdown carry the label themselves; a file field has no
+            // labelled control of its own, so its header stays spoken.
             .accessibilityHidden(self.field.type != .file)
 
             self.control
@@ -66,9 +70,13 @@ struct FormFieldView: View {
             )
             .accessibilityIdentifier("form.field.\(self.field.key)")
         case .file:
-            Text(L10n.formAttachmentsDisabled.string)
-                .font(self.appearance.font(size: 13))
-                .foregroundStyle(self.appearance.theme.primaryText.opacity(0.6))
+            FormFileField(
+                picked: self.pickedFile,
+                offersAttachments: self.offersAttachments,
+                isEnabled: self.isEnabled,
+                onPick: self.onPickFile,
+                onRemove: self.onRemoveFile
+            )
         case .unknown:
             EmptyView()
         case .textarea:

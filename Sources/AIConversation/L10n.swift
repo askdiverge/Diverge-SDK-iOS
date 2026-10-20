@@ -12,6 +12,15 @@ import Foundation
 enum L10n {
 
     static let inputPlaceholder = string("input.placeholder")
+    static let inputAttachPhoto = string("input.attachPhoto")
+
+    static let attachmentRemove = string("attachment.remove")
+    static let attachmentTooLarge = string("attachment.tooLarge")
+    static let attachmentFailed = string("attachment.failed")
+
+    static let imageUploadPrompt = string("imageUpload.prompt")
+    static let imageUploadAddPhoto = string("imageUpload.addPhoto")
+    static let imageUploadHint = string("imageUpload.hint")
 
     static let sessionEndedTitle = string("session.ended.title")
     static let sessionEndedMessage = string("session.ended.message")
@@ -37,6 +46,8 @@ enum L10n {
     static let formSubmittedDefault = string("form.submittedDefault")
     static let formLoadFailed = string("form.loadFailed")
     static let formAttachmentsDisabled = string("form.attachmentsDisabled")
+    static let formAddPhoto = string("form.addPhoto")
+    static let formRemovePhoto = string("form.removePhoto")
     static let formReadOnly = string("form.readOnly")
     static let formAccessibilityHint = string("form.accessibilityHint")
     static let formSelectOption = string("form.selectOption")
@@ -80,6 +91,7 @@ enum L10n {
     static let livechatEndedNote = string("livechat.endedNote")
     static let livechatAgentFallback = string("livechat.agentFallback")
     static let livechatAgentTyping = string("livechat.agentTyping")
+    static let livechatAttachmentsDropped = string("livechat.attachmentsDropped")
 
     static func livechatAgentJoinedNote(_ name: String) -> LocalizedStringResource {
         LocalizedStringResource(
@@ -99,6 +111,7 @@ enum L10n {
 
     static let mediaOpenHint = string("media.openHint")
     static let mediaUnavailable = string("media.unavailable")
+    static let mediaImageLabel = string("media.imageLabel")
 
     static let sessionFormTitle = string("sessionForm.title")
     static let sessionFormDescription = string("sessionForm.description")

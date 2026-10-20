@@ -121,6 +121,12 @@ extension ChatAppearance {
         /// file row — an agent or assistant attachment.
         static let file = Image(systemName: "doc")
 
+        /// composer / form — opens the photo library picker.
+        static let attach = Image(systemName: "photo.badge.plus")
+
+        /// image bubble — shown when a remote photo cannot be loaded.
+        static let imageUnavailable = Image(systemName: "photo")
+
         /// leading control & opens Privacy & Data.
         static let privacy = Image(systemName: "checkmark.shield")
 

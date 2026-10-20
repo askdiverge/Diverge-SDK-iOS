@@ -624,7 +624,7 @@ struct LivechatSessionTests {
             for await snapshot in session.stream { log.record(snapshot) }
         }
 
-        let refresh = Task { await session.freshFile(attachmentId: "att_1") }
+        let refresh = Task { await session.freshURL(attachmentId: "att_1") }
         await entered.wait()
         await session.teardown()
         service.livechatStateError = .sessionExpired
@@ -699,9 +699,9 @@ struct LivechatSessionTests {
         ))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
 
-        let found = await session.freshFile(attachmentId: "att_1")
+        let found = await session.freshURL(attachmentId: "att_1")
 
-        #expect(found == fresh)
+        #expect(found == fresh.url)
         #expect(service.lastLivechatAfterSequence == nil)
     }
 
@@ -710,7 +710,7 @@ struct LivechatSessionTests {
         let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
 
-        #expect(await session.freshFile(attachmentId: "att_1") == nil)
+        #expect(await session.freshURL(attachmentId: "att_1") == nil)
     }
 
     // MARK: Visitor typing

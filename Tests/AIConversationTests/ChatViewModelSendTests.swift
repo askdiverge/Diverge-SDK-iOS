@@ -14,7 +14,7 @@ import Testing
 struct ChatViewModelSendTests {
 
     @Test(
-        "a send refused while a reply or another operation is in flight keeps its text and says to wait",
+        "a send refused while a reply or another operation is in flight keeps its text; a reply says to wait",
         arguments: [ChatProvider.SendFailure.Reason.streaming, .operation]
     )
     func busySendKeepsText(reason: ChatProvider.SendFailure.Reason) async throws {
@@ -24,6 +24,6 @@ struct ChatViewModelSendTests {
         try await viewModel.send()
 
         #expect(viewModel.currentMessage == "hi")
-        #expect(viewModel.notice?.message == L10n.noticeBusy.string)
+        #expect(viewModel.notice?.message == (reason == .streaming ? L10n.noticeBusy.string : nil))
     }
 }

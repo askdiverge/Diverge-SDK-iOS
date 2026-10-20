@@ -13,7 +13,9 @@ import Foundation
 /// `form` reuses the normalised ``ConversationForm`` — markers arrive whole, as a `part` event
 /// live or as a part in history, never as deltas.
 /// `table` massages the wire model into folded columns + rectangular rows (`TableContent`).
+/// `image` is a persisted photo on an assistant or agent turn.
 /// `file` is an agent- or assistant-sent attachment; the row opens its signed download URL.
+/// `requestImageUpload` is the photo-upload prompt card; gated by the host's attachments setting.
 /// `requestHumanAgent` is the handoff prompt card; the view model posts a marker handover.
 /// `livechatNote` is an SDK-minted queue / joined / ended divider, not wire-derived.
 /// `systemNote` is wire `role: system` copy, shown centred and muted.
@@ -24,7 +26,9 @@ package enum ChatResponse: Sendable, Equatable {
     case products([Products.Card])
     case form(ConversationForm)
     case table(TableContent)
+    case image(MessageImage)
     case file(MessageFile)
+    case requestImageUpload(RequestImageUpload)
     case requestHumanAgent(RequestHumanAgent)
     case livechatNote(LivechatNote)
     case systemNote(AttributedString)

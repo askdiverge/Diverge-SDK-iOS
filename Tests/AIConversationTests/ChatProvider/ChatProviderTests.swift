@@ -17,7 +17,7 @@ struct ChatProviderTests {
     @Test("deltas assemble the in-flight reply preview")
     func deltasAssemblePreview() async throws {
         let mock = MockChatService(.init(sendEvents: self.textDeltas("hel")))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -33,7 +33,7 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("hel")
             + [self.textPart("hello")]
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -50,7 +50,7 @@ struct ChatProviderTests {
         + [self.textPart("B", partId: "p1")]
 
         let mock = MockChatService(.init(sendEvents: events))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -64,7 +64,7 @@ struct ChatProviderTests {
     @Test("session expiry clears the conversation and surfaces .sessionExpired")
     func sessionExpiredClears() async {
         let mock = MockChatService(.init(sendError: .sessionExpired))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.sessionExpired) {
@@ -82,7 +82,7 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("hel"),
             sendError: .stream(.init(code: .generationFailed, message: "boom", retryable: true))
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: "boom")) {
@@ -100,7 +100,7 @@ struct ChatProviderTests {
     func streamedFormMarkerMapsToForm() async throws {
         let marker = ShowContactForm(partId: "p_form", fields: [])
         let mock = MockChatService(.init(sendEvents: [.part(.showContactForm(marker))]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -112,7 +112,7 @@ struct ChatProviderTests {
     @Test("expireSession clears the conversation")
     func expireSessionClears() async throws {
         let mock = MockChatService(.init(sendEvents: [self.textPart("hello")]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         try await provider.send("hi")
 
         await provider.expireSession()
@@ -134,7 +134,7 @@ struct ChatProviderTests {
             createdAt: "2026-01-01T00:00:00.000Z"
         )
         let mock = MockChatService(.init(historyPages: [MessagePage(messages: [message], nextCursor: nil)]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.loadOlder()
@@ -148,7 +148,7 @@ struct ChatProviderTests {
         let mock = MockChatService(.init(historyPages: [
             MessagePage(messages: [self.assistantMessage("a")], nextCursor: nil)
         ]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.loadOlder()
@@ -163,7 +163,7 @@ struct ChatProviderTests {
         let mock = MockChatService(
             .init(historyError: .transport(.http(.unhandled(status: 500, body: Data()))))
         )
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatServiceError.self) {
@@ -180,7 +180,7 @@ struct ChatProviderTests {
         let mock = MockChatService(.init(historyPages: [
             MessagePage(messages: [], nextCursor: nil)
         ]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         try await provider.loadOlder()
         try await provider.loadOlder()
@@ -196,7 +196,7 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("reply"),
             historyPages: [MessagePage(messages: [self.assistantMessage("hist")], nextCursor: nil)]
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -214,7 +214,7 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("reply"),
             resetError: .provider(TestError())
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         try await provider.send("hi")
 
@@ -228,7 +228,7 @@ struct ChatProviderTests {
     @Test("delete wipes the conversation")
     func deleteClears() async throws {
         let mock = MockChatService(.init(sendEvents: self.textDeltas("reply")))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -243,7 +243,7 @@ struct ChatProviderTests {
     @Test("a failed delete throws and leaves the conversation intact")
     func deleteFailureLeavesConversationIntact() async {
         let mock = MockChatService(.init(deleteError: .provider(TestError())))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         await #expect(throws: (any Error).self) {
             try await provider.delete()
@@ -256,7 +256,7 @@ struct ChatProviderTests {
     @Test("the welcome message is seeded as the first incoming bubble")
     func welcomeSeeded() async throws {
         let mock = MockChatService()
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi")
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi", acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.loadOlder()
@@ -268,7 +268,7 @@ struct ChatProviderTests {
     @Test("the welcome survives reset — re-seeded after clearing")
     func welcomeSurvivesReset() async throws {
         let mock = MockChatService(.init(sendEvents: self.textDeltas("reply")))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi")
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi", acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
