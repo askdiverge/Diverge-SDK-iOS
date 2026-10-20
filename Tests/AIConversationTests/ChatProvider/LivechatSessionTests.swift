@@ -623,6 +623,36 @@ struct LivechatSessionTests {
         #expect(snapshot?.state.feedback.status == .pending)
         #expect(service.livechatSyncCallCount == 2)
     }
+
+    // MARK: Restored state
+
+    @Test("the first state read is marked restored, and later changes are live")
+    func firstReadIsRestored() async {
+        let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        var snapshots = session.stream.makeAsyncIterator()
+
+        await session.bootstrap()
+        #expect(await snapshots.next()?.isRestored == true)
+
+        service.livechatState = LivechatState(status: .closed)
+        await session.refresh()
+        #expect(await snapshots.next()?.isRestored == false)
+    }
+
+    @Test("a handover is live even as the first state published")
+    func handoverIsLive() async throws {
+        let service = MockChatService()
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        var snapshots = session.stream.makeAsyncIterator()
+
+        try await session.handover(source: .manualButton, partId: nil)
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.state.status == .waiting)
+        #expect(snapshot?.isRestored == false)
+        await session.stopPolling()
+    }
 }
 
 /// Values appended from the poller's tasks and read by the test.

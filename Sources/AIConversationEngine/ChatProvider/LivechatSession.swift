@@ -57,6 +57,9 @@ package actor LivechatSession {
     private var sessionExpired = false
     /// Bumped by handover, close and teardown so responses to earlier requests are dropped.
     private var generation: UInt64 = 0
+    /// Set once a state is published. Until then a published state is one the session found
+    /// already in place, which its snapshot marks as restored.
+    private var hasPublishedState = false
 
     private static let waitingInterval: Duration = .seconds(2)
     private static let activeInterval: Duration = .seconds(3)
@@ -143,6 +146,8 @@ package actor LivechatSession {
             )
             guard gen == self.generation else { return }
             self.afterSequence = 0
+            // The handover is a change this device made, seen as it happens.
+            self.hasPublishedState = true
             self.publishTransition(to: LivechatState(status: status), messages: [])
             if status.isInSession {
                 self.startPolling(immediate: true)
@@ -264,6 +269,9 @@ package struct LivechatSnapshot: Sendable, Equatable {
     package let sessionExpired: Bool
     /// The session's generation when this was published; see ``LivechatSession/teardown()``.
     package let generation: UInt64
+    /// The first state the session published, found already in place rather than seen changing:
+    /// its transition from `previousStatus` happened before this device was watching.
+    package let isRestored: Bool
 }
 
 private struct PollHandles {
@@ -437,13 +445,16 @@ private extension LivechatSession {
         self.lastPublishedState = state
         let previous = self.lastStatus
         self.lastStatus = state.status
+        let isRestored = !self.hasPublishedState
+        self.hasPublishedState = true
         self.continuation.yield(
             LivechatSnapshot(
                 previousStatus: previous,
                 state: state,
                 messages: messages,
                 sessionExpired: expired,
-                generation: self.generation
+                generation: self.generation,
+                isRestored: isRestored
             )
         )
     }

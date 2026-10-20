@@ -57,10 +57,10 @@ package actor ChatProvider: ChatProviding {
     /// leading pane first; whatever opens an empty conversation sets it, and so does each
     /// history page.
     private var botLeads = false
-    /// Livechat messages that arrived while an operation was in flight. A streaming reply owns
-    /// the newest bot turn, and a livechat send's id isn't known until its POST returns, so they
-    /// are folded in when the operation finishes.
-    private var deferredLivechatMessages: [LivechatMessage] = []
+    /// Livechat messages and notes that arrived while an operation was in flight, in arrival
+    /// order. A streaming reply owns the newest bot turn, and a livechat send's id isn't known
+    /// until its POST returns, so they are folded in when the operation finishes.
+    private var deferredLivechat: [DeferredLivechat] = []
     /// Set when the poller saw the session end during an operation; the conversation clears when
     /// the operation finishes, so a streaming reply never writes into emptied panes.
     private var expiresAfterOperation = false
@@ -279,10 +279,22 @@ extension ChatProvider {
     /// Folds messages from the livechat poller into the panes, skipping ids already shown.
     package func appendLivechat(_ messages: [LivechatMessage]) {
         guard !self.isBusy else {
-            self.deferredLivechatMessages.append(contentsOf: messages)
+            self.deferredLivechat.append(.messages(messages))
             return
         }
         self.ingestLivechat(messages)
+    }
+
+    /// Appends a session-local boundary note after the newest bot content, keeping the panes
+    /// paired. During a send, reset or delete it waits, in order with the livechat messages,
+    /// until the operation finishes.
+    package func note(_ note: LivechatNote) {
+        guard !self.isBusy else {
+            self.deferredLivechat.append(.note(note))
+            return
+        }
+        self.appendIncoming([.livechatNote(note)])
+        self.publish()
     }
 
     /// Sends the visitor's text to the agent while a livechat session is active. The text shows
@@ -405,9 +417,14 @@ private extension ChatProvider {
             self.publish()
             return
         }
-        let deferred = self.deferredLivechatMessages
-        self.deferredLivechatMessages = []
-        self.ingestLivechat(deferred)
+        let deferred = self.deferredLivechat
+        self.deferredLivechat = []
+        for item in deferred {
+            switch item {
+            case .messages(let messages): self.ingestLivechat(messages)
+            case .note(let note): self.note(note)
+            }
+        }
     }
 
     func ingestLivechat(_ messages: [LivechatMessage]) {
@@ -422,7 +439,7 @@ private extension ChatProvider {
                 guard !bubbles.isEmpty else { continue }
                 self.appendUser(bubbles)
             } else {
-                let responses = message.parts.compactMap(Self.incoming)
+                let responses = message.parts.compactMap { Self.incoming($0, role: message.role) }
                 guard !responses.isEmpty else { continue }
                 self.appendIncoming(responses)
             }
@@ -441,7 +458,7 @@ private extension ChatProvider {
         self.livechatMessageIDs = []
         self.historyHead = nil
         self.botLeads = false
-        self.deferredLivechatMessages = []
+        self.deferredLivechat = []
     }
 
     /// Milliseconds since 1970 of an RFC 3339 `created_at`, whatever its fraction digits and
@@ -502,9 +519,9 @@ private extension ChatProvider {
             case (.user, _):
                 runs.append(.user(message.parts.compactMap(Self.user)))
             case (_, .bot(let responses)):
-                runs[runs.count - 1] = .bot(responses + message.parts.compactMap(Self.incoming))
+                runs[runs.count - 1] = .bot(responses + message.parts.compactMap { Self.incoming($0, role: message.role) })
             default:
-                runs.append(.bot(message.parts.compactMap(Self.incoming)))
+                runs.append(.bot(message.parts.compactMap { Self.incoming($0, role: message.role) }))
             }
         }
 
@@ -556,31 +573,40 @@ private extension ChatProvider {
         }
     }
 
-    static func incoming(_ part: Part) -> ChatResponse? {
+    /// Maps a wire part for an incoming turn. System-role text becomes a centred note; every other
+    /// non-user role keeps the usual assistant / agent cards.
+    static func incoming(_ part: Part, role: Message.Role = .assistant) -> ChatResponse? {
+        if role == .system {
+            guard case .richText(let richText) = part else { return nil }
+            return RichTextParser.attributedText(richText).map(ChatResponse.systemNote)
+        }
         switch part {
         case .richText(let richText):
-            RichTextParser.attributedText(richText).map(ChatResponse.text)
+            return RichTextParser.attributedText(richText).map(ChatResponse.text)
         case .products(let products):
-                .products(products.products)
+            return .products(products.products)
         case .table(let table):
-                .table(
-                    TableMapper.content(
-                        caption: table.caption,
-                        headers: table.headers,
-                        alignments: table.alignments,
-                        rows: table.rows
-                    )
+            return .table(
+                TableMapper.content(
+                    caption: table.caption,
+                    headers: table.headers,
+                    alignments: table.alignments,
+                    rows: table.rows
                 )
+            )
         case .showContactForm(let marker):
-                .form(.contact(marker))
+            return .form(.contact(marker))
         case .showSupportTicket(let marker):
-            ConversationForm.supportTicket(marker).map(ChatResponse.form)
+            return ConversationForm.supportTicket(marker).map(ChatResponse.form)
         case .showForm(let marker):
-                .form(.custom(marker))
-        case .file, .requestHumanAgent:
+            return .form(.custom(marker))
+        case .file:
             // Rendered like an unknown part: the turn shows its other parts.
-            nil
-        case .unknown: nil
+            return nil
+        case .requestHumanAgent(let marker):
+            return .requestHumanAgent(marker)
+        case .unknown:
+            return nil
         }
     }
 
@@ -616,4 +642,10 @@ private extension ChatProvider {
             return nil
         }
     }
+}
+
+/// A livechat delivery held back while an operation is in flight.
+private enum DeferredLivechat {
+    case messages([LivechatMessage])
+    case note(LivechatNote)
 }
