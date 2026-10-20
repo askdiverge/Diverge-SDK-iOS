@@ -36,9 +36,6 @@ struct ChatView: View {
         self.content
             .modifier(LoadingOverlay(isLoading: self.isLoading))
             .task { await self.viewModel.start() }
-            .onAppear { self.viewModel.setVisible(true) }
-            .onDisappear { self.viewModel.setVisible(false) }
-            .onChange(of: self.scenePhase) { _, phase in self.viewModel.setSceneActive(phase == .active) }
             .environment(\.appearance, self.appearance)
             .environment(\.imageLoader, self.viewModel.imageLoader)
     }
@@ -86,6 +83,16 @@ private extension ChatView {
                 self.viewModel.backgroundSessionEnded = false
                 self.showSessionEndedAlert = true
             }
+            .onChange(of: self.viewModel.livechatSessionEnded) { _, ended in
+                guard ended else { return }
+                self.viewModel.livechatSessionEnded = false
+                self.showSessionEndedAlert = true
+            }
+            .onChange(of: self.scenePhase) { _, phase in
+                Task { await self.viewModel.setSceneActive(phase == .active) }
+            }
+            .onAppear { Task { await self.viewModel.setVisible(true) } }
+            .onDisappear { Task { await self.viewModel.setVisible(false) } }
     }
 
     var failedView: some View {
@@ -113,7 +120,10 @@ private extension ChatView {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(self.viewModel.name)
             .toolbarTitleDisplayMode(.inline)
-            .toolbar { self.resetToolbarItem }
+            .toolbar {
+                self.livechatToolbarItem
+                self.resetToolbarItem
+            }
             .safeAreaInset(edge: .bottom) { self.inputBar }
         }
         .safeAreaInset(edge: .top) { self.topNotice }
@@ -133,7 +143,16 @@ private extension ChatView {
             } label: {
                 ChatAppearance.Symbol.reset
             }
-            .disabled(self.viewModel.snapshot?.streamingTurnID != nil)
+            .disabled(self.viewModel.snapshot?.streamingTurnID != nil || self.viewModel.isLivechatBusy)
+        }
+    }
+
+    @ToolbarContentBuilder
+    var livechatToolbarItem: some ToolbarContent {
+        if self.viewModel.livechatControl != .hidden {
+            ToolbarItem(placement: .primaryAction) {
+                LivechatControlButton(viewModel: self.viewModel)
+            }
         }
     }
 
@@ -385,7 +404,7 @@ private extension ChatView {
                 get: { self.viewModel.currentMessage },
                 set: { self.viewModel.currentMessage = $0 }
             ),
-            placeholder: L10n.inputPlaceholder.string,
+            placeholder: self.viewModel.inputPlaceholder,
             leadingIcon: ChatAppearance.Symbol.privacy,
             onLeadingTap: { self.privacyDestination = .privacy },
             onSend: self.send,
