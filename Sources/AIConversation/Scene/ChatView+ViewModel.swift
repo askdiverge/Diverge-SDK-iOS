@@ -51,6 +51,8 @@ extension ChatView {
         @ObservationIgnored private let submitAction: ActionSubmitter
         @ObservationIgnored private let fetchForm: FormFetcher
         @ObservationIgnored let livechat: LivechatSession
+        /// The livechat waiting-room form shown above the composer while the visitor is queued.
+        @ObservationIgnored let waitingForm: WaitingFormController
         /// A send is in flight. The provider refuses a reset until it finishes, and a handover waits
         /// for it so the agent's context holds the reply.
         private(set) var isSending = false
@@ -86,6 +88,8 @@ extension ChatView {
             conversationFlow: AIChat.ConversationFlow,
             submitAction: ActionSubmitter? = nil,
             fetchForm: FormFetcher? = nil,
+            fetchSession: WaitingFormController.SessionFetcher? = nil,
+            patchFormValues: WaitingFormController.ValuesPatcher? = nil,
             livechat: LivechatSession? = nil
         ) {
             self.service = service
@@ -94,13 +98,22 @@ extension ChatView {
             self.submitAction = submitAction ?? { request in
                 try await service.submitAction(request)
             }
-            self.fetchForm = fetchForm ?? { id in
+            let fetchForm = fetchForm ?? { id in
                 try await service.fetchForm(id: id)
             }
+            self.fetchForm = fetchForm
             self.livechat = livechat ?? LivechatSession(service: service)
+            self.waitingForm = WaitingFormController(
+                fetchForm: fetchForm,
+                fetchSession: fetchSession ?? { try await service.fetchSession() },
+                patchValues: patchFormValues ?? { formId, values in
+                    try await service.patchFormValues(formId: formId, values: values)
+                }
+            )
             // Product/table imagery fills ~half-width, ~800px covers 3x.
             self.imageLoader = ImageLoader(maxPixelSize: 800) { try await service.fetchData($0) }
             self.observeLivechat()
+            self.waitingForm.bind(onSessionExpired: { [weak self] in await self?.endExpiredSession() })
         }
 
         /// A livechat loop parked while the chat is off screen holds its session; this ends it.
@@ -147,6 +160,7 @@ extension ChatView {
                 self.observe(provider)
 
                 try? await provider.loadOlder()
+                self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)
                 self.phase = .ready
 
@@ -198,6 +212,7 @@ extension ChatView {
 
                 case .sessionExpired:
                     self.formModels = [:]
+                    self.waitingForm.clear()
                     throw SessionEnded()
                 }
             }
@@ -267,6 +282,7 @@ extension ChatView {
 
             } catch ChatServiceError.sessionExpired {
                 self.formModels = [:]
+                self.waitingForm.clear()
                 throw SessionEnded()
 
             } catch {
@@ -295,6 +311,7 @@ extension ChatView {
                 return
             }
             self.formModels = [:]
+            self.waitingForm.clear()
         }
 
         /// Request deletion of visitor data and end the session. Rethrows so the delete sheet can act on the
@@ -309,6 +326,7 @@ extension ChatView {
                 throw DeletionFailed()
             }
             self.formModels = [:]
+            self.waitingForm.clear()
         }
 
         /// Test seam — attach a stub provider without bootstrapping `/config`.
@@ -385,6 +403,7 @@ extension ChatView {
         /// send's own 401 clears them, so the next message starts the new session clean.
         private func endSession() async {
             self.formModels = [:]
+            self.waitingForm.clear()
             await self.provider?.expireSession()
         }
 
@@ -441,6 +460,15 @@ extension ChatView.ViewModel {
         await self.requestLivechat(partId: partId)
     }
 
+    /// Ends the chat after a request outside the poller found the visitor session expired (401),
+    /// as the poller's own 401 does: the conversation clears, livechat stops, and the view shows
+    /// the session-ended alert.
+    func endExpiredSession() async {
+        await self.provider?.expireSession()
+        await self.livechat.teardown()
+        self.livechatSessionEnded = true
+    }
+
     func presentLivechatNotice(_ message: LocalizedStringResource) {
         self.present(Notice(edge: .top, message: message.string, autoDismiss: .seconds(4)))
     }
@@ -484,10 +512,13 @@ extension ChatView.ViewModel {
         self.isAgentTyping = status == .active && snapshot.state.isAgentTyping
 
         if snapshot.sessionExpired {
+            self.waitingForm.clear()
             await self.provider?.expireSession()
             self.livechatSessionEnded = true
             return
         }
+
+        self.waitingForm.statusChanged(to: status)
 
         // Notes mark changes seen live; a restored session changed before this device looked.
         let notesChanges = !snapshot.isRestored

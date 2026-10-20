@@ -5979,6 +5979,612 @@
           }
         }
       }
+    },
+    "sessionForm.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valgfrit: udfyld de detaljer, der kan hjælpe medarbejderen, når de overtager."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional: Geben Sie Details an, die dem Mitarbeiter beim Übernehmen helfen."
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional: Geben Sie Details an, die dem Mitarbeiter beim Übernehmen helfen."
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional: Geben Sie Details an, die dem Mitarbeiter beim Übernehmen helfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional: add details that can help the agent when they pick up the chat."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valikuline: lisa andmed, mis aitavad agendil vestlust üle võtta."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valinnainen: lisää tiedot, jotka auttavat agenttia chatin siirtyessä hänelle."
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Valfrítt: legg upplýsingar afturat, sum kunnu hjálpa starvsfólkinum, tá ið tey taka ímóti kjattinum."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Facultatif : ajoutez des détails utiles à l'agent lors de la reprise du chat."
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valfrjálst: fylltu út upplýsingar sem geta hjálpað starfsmanni þegar hann tekur við."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neprivaloma: užpildykite informaciją, kuri padės konsultantui perimant pokalbį."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pēc izvēles: aizpildiet informāciju, kas palīdzēs aģentam pārņemot sarunu."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valgfritt: fyll inn detaljer som kan hjelpe medarbeideren når de tar over."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optioneel: vul gegevens in die de medewerker kunnen helpen bij overname."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcjonalnie: uzupełnij dane, które pomogą konsultantowi po przejęciu czatu."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valfritt: fyll i uppgifter som kan hjälpa medarbetaren när de tar över."
+          }
+        }
+      }
+    },
+    "sessionForm.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oplysningerne kunne ikke gemmes. Prøv igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Details konnten nicht gespeichert werden. Bitte erneut versuchen."
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Details konnten nicht gespeichert werden. Bitte erneut versuchen."
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Details konnten nicht gespeichert werden. Bitte erneut versuchen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save the details. Try again."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andmeid ei õnnestunud salvestada. Proovi uuesti."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tietoja ei voitu tallentaa. Yritä uudelleen."
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Upplýsingarnar kundu ikki goymast. Royn aftur."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'enregistrer les informations. Réessayez."
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ekki tókst að vista upplýsingar. Reyndu aftur."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nepavyko išsaugoti informacijos. Bandykite dar kartą."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neizdevās saglabāt informāciju. Mēģiniet vēlreiz."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opplysningene kunne ikke lagres. Prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De gegevens konden niet worden opgeslagen. Probeer opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się zapisać danych. Spróbuj ponownie."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uppgifterna kunde inte sparas. Försök igen."
+          }
+        }
+      }
+    },
+    "sessionForm.save" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gem oplysninger"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details speichern"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details speichern"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details speichern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save details"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvesta andmed"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tallenna tiedot"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Goym upplýsingar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer les informations"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vista upplýsingar"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Išsaugoti informaciją"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saglabāt informāciju"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lagre opplysninger"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gegevens opslaan"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisz dane"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spara uppgifter"
+          }
+        }
+      }
+    },
+    "sessionForm.saved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oplysningerne er gemt"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details gespeichert"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details gespeichert"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details gespeichert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details saved"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andmed salvestatud"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiedot tallennettu"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Upplýsingarnar eru goymdar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informations enregistrées"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upplýsingar vistaðar"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informacija išsaugota"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informācija saglabāta"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opplysningene er lagret"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gegevens opgeslagen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dane zapisane"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uppgifterna har sparats"
+          }
+        }
+      }
+    },
+    "sessionForm.saving" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemmer…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern…"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern…"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving…"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvestan…"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tallennetaan…"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Goymir…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement…"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vistar…"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Išsaugoma…"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saglabā…"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lagrer…"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opslaan…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisywanie…"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sparar…"
+          }
+        }
+      }
+    },
+    "sessionForm.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilføj oplysninger til medarbejderen"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details für den Mitarbeiter hinzufügen"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details für den Mitarbeiter hinzufügen"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details für den Mitarbeiter hinzufügen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add details for the agent"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lisa andmed agendile"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lisää tiedot agentille"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legg upplýsingar til umboðið"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter des informations pour l'agent"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bæta við upplýsingum fyrir starfsmann"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pridėti informaciją konsultantui"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pievienot informāciju aģentam"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legg til opplysninger for medarbeideren"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voeg gegevens toe voor de medewerker"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj dane dla konsultanta"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lägg till uppgifter för medarbetaren"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

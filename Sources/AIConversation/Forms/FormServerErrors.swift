@@ -32,9 +32,11 @@ enum FormServerErrors {
 
     /// The form field a server `field` path names. The API reports body paths:
     /// `action.fields.email` (contact form), `action.values.email` / `action.files.photo` (custom
-    /// form) and `action.email` (support ticket) all name their last segment.
+    /// form), `action.email` (support ticket) and `values.email` (waiting-form PATCH) all name
+    /// their last segment.
     static func fieldKey(_ path: String) -> String {
-        for prefix in ["action.fields.", "action.values.", "action.files.", "action."] where path.hasPrefix(prefix) {
+        let prefixes = ["action.fields.", "action.values.", "action.files.", "action.", "values."]
+        for prefix in prefixes where path.hasPrefix(prefix) {
             return String(path.dropFirst(prefix.count))
         }
         return path
