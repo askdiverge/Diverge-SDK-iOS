@@ -142,9 +142,7 @@ extension ChatProvider {
         guard !text.isEmpty || !attachments.isEmpty else { return }
 
         // Single-flight — reject a send while a reply is already streaming.
-        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
-
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         // Mint the in-flight turn and mark it live before the first suspension, so concurrent
@@ -277,8 +275,7 @@ extension ChatProvider {
     /// Opportunistically loads history for new session.
     /// If the rotation fails the conversation is left intact.
     package func reset() async throws {
-        guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         try await self.service.resetConversation()
@@ -294,8 +291,7 @@ extension ChatProvider {
     /// Throws on failure so the caller can revert the control and surface the error.
     /// a failed delete leaves the conversation intact.
     package func delete() async throws {
-        guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         try await self.service.deleteData()
@@ -338,8 +334,7 @@ extension ChatProvider {
     ) async throws(SendFailure) {
         // The API takes a message of at least one part.
         guard !text.isEmpty || !attachments.isEmpty else { return }
-        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         let page = await self.pageContext()
@@ -451,6 +446,12 @@ private extension ChatProvider {
         }.joined(separator: "\n")
     }
 
+    /// Claims the provider for a send, reset or delete, which must not interleave.
+    func beginOperation() throws(SendFailure) {
+        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
+        self.isBusy = true
+    }
+
     /// Ends a send, reset or delete, then folds in the livechat messages held back meanwhile.
     func finishOperation() {
         self.isBusy = false
@@ -522,7 +523,8 @@ private extension ChatProvider {
             millis = Int64(String(digits.prefix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)) ?? 0
             whole = String(timestamp[..<dot]) + rest.dropFirst(digits.count)
         }
-        guard let date = ISO8601DateFormatter().date(from: whole) else { return nil }
+        // A timestamp that doesn't parse has no place in the order, which is what `nil` says.
+        guard let date = try? Date(whole, strategy: .iso8601) else { return nil }
         return Int64(date.timeIntervalSince1970) * 1000 + millis
     }
 
