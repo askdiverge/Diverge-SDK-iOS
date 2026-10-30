@@ -19,6 +19,8 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
     /// Whether the input holds focus. Gaining focus scrolls to the newest turn — selecting the field to
     /// reply shouldn't leave the reader up in history, and it pins the latest message above the keyboard.
     let isInputFocused: Bool
+    /// A form field has the keyboard, and the jump-to-newest button stays off it.
+    let isEditingForm: Bool
 
     /// Loads the next older page, returning whether it loaded.
     let onLoadOlder: () async -> Bool
@@ -36,7 +38,7 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
             self.conversation(proxy)
                 .overlay(alignment: .bottomTrailing) {
                     ScrollToBottomButton(
-                        isVisible: self.isScrolledAway && !self.isInputFocused && self.snapshot.turns.count > 1,
+                        isVisible: self.isScrolledAway && !self.isInputFocused && !self.isEditingForm && self.snapshot.turns.count > 1,
                         isStreaming: self.snapshot.streamingTurnID != nil
                     ) {
                         self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy, animated: true)
@@ -151,6 +153,8 @@ private extension ConversationBottomFlowingList {
 
 extension ConversationBottomFlowingList: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.snapshot == rhs.snapshot && lhs.isInputFocused == rhs.isInputFocused
+        lhs.snapshot == rhs.snapshot
+            && lhs.isInputFocused == rhs.isInputFocused
+            && lhs.isEditingForm == rhs.isEditingForm
     }
 }

@@ -261,7 +261,7 @@ extension ChatView {
 
                 // The chat opens without history: a failed page shows its notice and can be asked
                 // for again, and after a 401 the next message starts a new session.
-                try? await self.loadOlder()
+                _ = try? await self.loadOlder()
                 self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)
                 self.phase = .ready

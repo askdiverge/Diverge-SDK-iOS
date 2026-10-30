@@ -184,6 +184,32 @@ struct FormValidationErrorTests {
         #expect(two.isValid)
     }
 
+    @Test("a field's own error replaces the minimum-answers message")
+    func fieldErrorReplacesMinimumMessage() {
+        let result = FormValidator.validate(form: self.contact, values: [:], files: [], offersFileFields: true)
+
+        #expect(result.fieldErrors["name"] == L10n.formRequired.string)
+        #expect(result.formError == nil)
+        #expect(!result.isValid)
+    }
+
+    @Test("an edit clears the form's error, and the next submit checks again")
+    func editClearsFormError() {
+        let form = ConversationForm.contact(ShowContactForm(
+            partId: "part_contact_1",
+            fields: [.init(key: "name", label: "Name"), .init(key: "phone", label: "Phone", type: .tel)]
+        ))
+        var model = FormSubmissionModel(form: form)
+        model.validate(offersFileFields: true)
+        #expect(model.formError == L10n.formMinFilled(1).string)
+
+        model.setValue("  ", for: "name")
+        #expect(model.formError == nil)
+
+        model.validate(offersFileFields: true)
+        #expect(model.formError == L10n.formMinFilled(1).string)
+    }
+
     /// A custom form with a required `receipt` field of `type` and an optional note.
     private static func receiptForm(type: FormField.FieldType) -> ConversationForm {
         ConversationForm.custom(ShowForm(
