@@ -1,6 +1,6 @@
 //
 //  ChatProvider.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-11.
 //
@@ -165,6 +165,7 @@ extension ChatProvider {
         // Reveal placeholder only if the reply is slow enough to warrant it — a fast
         // reply overwrites index 0 before this fires
         let reveal = Task {
+            // Only cancellation throws here, and the guard below handles that.
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
             self.publish()

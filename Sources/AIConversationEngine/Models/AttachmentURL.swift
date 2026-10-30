@@ -84,7 +84,7 @@ package enum AttachmentURL {
         // Explicit styles on purpose: chaining `.time(includingFractionalSeconds:)` onto `.iso8601`
         // switches the style to opt-in fields and drops the date, so it never matches a full
         // timestamp. The fractional style is tried first; iOS rejects fractional input on the
-        // plain style even though macOS accepts it.
+        // plain style even though macOS accepts it. A timestamp neither reads means no known expiry.
         return (try? Date(iso, strategy: Self.fractionalISO8601))
             ?? (try? Date(iso, strategy: Self.plainISO8601))
     }

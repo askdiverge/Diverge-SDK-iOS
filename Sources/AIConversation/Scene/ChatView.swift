@@ -674,6 +674,7 @@ private extension ChatView {
 #if canImport(PhotosUI)
     /// Loads the picked photo bytes and routes them to the composer, a prompt, or a form field.
     func ingest(_ item: PhotosPickerItem, destination: PhotoDestination) async {
+        // The visitor hears the same failure as for a photo that won't encode.
         guard let data = try? await item.loadTransferable(type: Data.self) else {
             self.viewModel.presentAttachmentFailure()
             return

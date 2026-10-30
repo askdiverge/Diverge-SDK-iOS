@@ -1,6 +1,6 @@
 //
 //  Networking.swift
-//  AIConversation
+//  AIConversationCore
 //
 //  Created by Daniel Wennberg on 2026-05-22.
 //

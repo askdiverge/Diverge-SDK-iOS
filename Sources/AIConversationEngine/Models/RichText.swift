@@ -1,6 +1,6 @@
 //
 //  RichText.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-05-26.
 //
@@ -36,6 +36,7 @@ extension RichText {
 
         package init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            // A new block type degrades to `.unknown`, which rendering skips.
             self = switch try? container.decode(BlockType.self, forKey: .type) {
             case .paragraph: .paragraph(try Paragraph(from: decoder))
             case .bulletList: .bulletList(try BulletList(from: decoder))
@@ -83,6 +84,7 @@ extension RichText {
 
         package init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            // A new span type degrades to `.unknown`, which rendering skips.
             self = switch try? container.decode(SpanType.self, forKey: .type) {
             case .text: .text(try container.decode(String.self, forKey: .text))
             case .bold: .bold(try container.decode(String.self, forKey: .text))

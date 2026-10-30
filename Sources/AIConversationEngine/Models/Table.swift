@@ -1,6 +1,6 @@
 //
 //  Table.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-05-26.
 //
@@ -57,6 +57,7 @@ extension Table {
 
             package init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
+                // A new block type degrades to `.unknown`, which rendering skips.
                 self = switch try? container.decode(BlockType.self, forKey: .type) {
                 case .paragraph: .paragraph(try RichText.Paragraph(from: decoder))
                 case .bulletList: .bulletList(try RichText.BulletList(from: decoder))
