@@ -20,7 +20,8 @@ struct ChatViewModelRatingTests {
             user: [],
             incoming: [Identified(model: [.text(AttributedString("Welcome"))])],
             isUserInitiatedConversation: false,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         ))
         await Self.waitForSnapshot(viewModel)
 
@@ -340,7 +341,8 @@ struct ChatViewModelRatingTests {
             user: [Identified(model: [.text(AttributedString("hello"))])],
             incoming: [Identified(model: [.text(AttributedString("Hi"))])],
             isUserInitiatedConversation: true,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         )
     }
 

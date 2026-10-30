@@ -19,20 +19,15 @@ struct ConversationView<Content: View, Header: View>: View {
     /// reply shouldn't leave the reader up in history, and it pins the latest message above the keyboard.
     let isInputFocused: Bool
 
-    // TODO: - Hook up reverse pagination
-    /// Ready to consume: pagination is fully wired behind this hook. It is deliberately left
-    /// untriggered — `LazyVStack` cannot hold the reader's scroll position across a top prepend, as
-    /// the turns above the viewport are unmeasured, so every offset / id / anchor restore fails.
-    /// Plugging it in needs an alternative container (eager `VStack` + manual offset
-    /// management, inverted list reder through .scaleEffect(y: -1), or `UICollectionView` + `UIHostingConfiguration`)
-    /// or a future SwiftUI API not currently available.
-    let onLoadOlder: () async -> Void
+    /// Loads the next older page, returning whether it loaded.
+    let onLoadOlder: () async -> Bool
 
     @ViewBuilder let content: (Identified<ConversationSnapshot.Turn>) -> Content
     @ViewBuilder let header: () -> Header
 
     @State private var isScrolledAway = false
     @State private var scrollTask = ScrollTaskBox()
+    @State private var olderTurns = OlderTurnsAnchor()
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -49,8 +44,12 @@ struct ConversationView<Content: View, Header: View>: View {
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(.top, for: .alignment)
                 .defaultScrollAnchor(.bottom, for: .initialOffset)
-                .onChange(of: self.snapshot, initial: true) { _, snapshot in
-                    self.scrollToNewest(self.isScrolledAway ? nil : snapshot.turns.last?.id, proxy: proxy)
+                .onChange(of: self.snapshot, initial: true) { old, new in
+                    if let turnID = self.olderTurns.landing(from: old.turns.map(\.id), to: new.turns.map(\.id)) {
+                        self.scrollTask.land(on: turnID, proxy: proxy)
+                        return
+                    }
+                    self.scrollToNewest(self.isScrolledAway ? nil : new.turns.last?.id, proxy: proxy)
                 }
                 .onChange(of: self.isInputFocused) { _, focused in
                     if focused {
@@ -72,6 +71,10 @@ private extension ConversationView {
         return ScrollView {
             LazyVStack(spacing: self.appearance.spacing.units(11)) {
                 Section {
+                    if self.snapshot.canLoadOlder {
+                        LoadEarlierButton { await self.loadEarlier() }
+                    }
+
                     ForEach(turns) { turn in
                         self.content(turn)
                             .frame(maxWidth: .infinity, alignment: turn.model.alignment)
@@ -96,6 +99,13 @@ private extension ConversationView {
 // MARK: - Scroll state
 
 private extension ConversationView {
+    func loadEarlier() async {
+        self.olderTurns.arm(at: self.snapshot.turns.first?.id)
+        if await !self.onLoadOlder() {
+            self.olderTurns.disarm()
+        }
+    }
+
     /// Lands on the newest turn. Callers pass `nil` to suppress the scroll (e.g. the reader has
     /// scrolled away and we shouldn't yank them back). Yields a frame so a just-appended row is laid out
     /// before we target it, and eases the jump so it interpolates instead of tearing the offset out from

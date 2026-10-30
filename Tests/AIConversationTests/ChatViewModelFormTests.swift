@@ -128,7 +128,8 @@ struct ChatViewModelFormTests {
                 Identified(id: newerID, model: [.text(AttributedString("ok"))])
             ],
             isUserInitiatedConversation: false,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         ))
 
         try await eventually { viewModel.snapshot?.lastBotTurnID == newerID }
@@ -202,7 +203,8 @@ struct ChatViewModelFormTests {
             user: [],
             incoming: [Identified(model: [.form(self.contact)]), Identified(id: laterTurn, model: [])],
             isUserInitiatedConversation: false,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot?.lastBotTurnID == laterTurn }
 
@@ -251,7 +253,8 @@ struct ChatViewModelFormTests {
             user: [],
             incoming: [turn],
             isUserInitiatedConversation: false,
-            streamingTurnID: turn.id
+            streamingTurnID: turn.id,
+            canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot?.streamingTurnID == turn.id }
         self.fillContact(in: viewModel)
@@ -341,7 +344,8 @@ struct ChatViewModelFormTests {
             user: [],
             incoming: [Identified(model: [.form(self.thinForm)])],
             isUserInitiatedConversation: false,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         ))
         try await eventually { viewModel.backgroundSessionEnded }
 
@@ -405,7 +409,8 @@ struct ChatViewModelFormTests {
             user: [],
             incoming: [Identified(model: [.form(form)])],
             isUserInitiatedConversation: false,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         ))
         try await eventually { viewModel.formModels[form.partId] != nil }
     }
