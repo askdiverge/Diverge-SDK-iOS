@@ -34,57 +34,57 @@ package actor LivechatSession {
 
     nonisolated package let stream: SnapshotStream
 
-    private let service: any ChatServicing
-    private let continuation: SnapshotStream.Continuation
+    let service: any ChatServicing
+    let continuation: SnapshotStream.Continuation
     /// Replaces `Task.sleep` in tests.
-    private let sleep: @Sendable (Duration) async throws -> Void
+    let sleep: @Sendable (Duration) async throws -> Void
 
     /// The poll task and the loop's parked continuation, behind a lock so ``stop()`` and `deinit`
     /// can cancel without hopping onto the actor.
-    private let poll = Mutex(PollHandles())
+    let poll = Mutex(PollHandles())
 
     private var isSceneActive = true
     private var isVisible = true
-    private var afterSequence: Int64 = 0
-    private var consecutiveFailures = 0
-    private var lastStatus: LivechatState.Status = .inactive
+    var afterSequence: Int64 = 0
+    var consecutiveFailures = 0
+    var lastStatus: LivechatState.Status = .inactive
     /// The change hint from the last sync; the next tick waits on it.
-    private var syncCursor: String?
+    var syncCursor: String?
     /// The state in the last published snapshot; a tick that changes nothing publishes nothing.
-    private var lastPublishedState: LivechatState?
+    var lastPublishedState: LivechatState?
     /// Highest `state_version` applied in this generation; older responses are dropped.
-    private var lastStateVersion: Int?
-    private var sessionExpired = false
+    var lastStateVersion: Int?
+    var sessionExpired = false
     /// Bumped by handover, close and teardown so responses to earlier requests are dropped.
-    private var generation: UInt64 = 0
+    var generation: UInt64 = 0
     /// Set once a state is published. Until then a published state is one the session found
     /// already in place, which its snapshot marks as restored.
-    private var hasPublishedState = false
+    var hasPublishedState = false
     /// How long the visitor's draft may sit unchanged before the agent is told typing stopped.
     private let typingIdle: Duration
     /// The typing state the agent should see.
-    private var wantsTyping = false
+    var wantsTyping = false
     /// The typing state the agent was last told by a post that succeeded.
-    private var isTypingSent = false
+    var isTypingSent = false
     /// Ends the typing burst after ``typingIdle`` without a draft change.
-    private var typingIdleTask: Task<Void, Never>?
+    var typingIdleTask: Task<Void, Never>?
     /// Sends ``wantsTyping`` until the agent has it; one at a time, so posts arrive in order.
-    private var typingPost: Task<Void, Never>?
+    var typingPost: Task<Void, Never>?
     /// Bumped when the typing state is dropped, so a post in flight doesn't record its result.
-    private var typingEpoch = 0
+    var typingEpoch = 0
 
-    private static let waitingInterval: Duration = .seconds(2)
-    private static let activeInterval: Duration = .seconds(3)
+    static let waitingInterval: Duration = .seconds(2)
+    static let activeInterval: Duration = .seconds(3)
     /// How long a sync may wait for a change, the API's maximum.
-    private static let maxWaitMs = 20_000
+    static let maxWaitMs = 20_000
     /// The pause between waiting syncs, so a server that answers at once can't spin the loop.
-    private static let waitGap: Duration = .milliseconds(250)
+    static let waitGap: Duration = .milliseconds(250)
     /// Attempts per typing change before it waits for the next one.
-    private static let typingAttempts = 3
+    static let typingAttempts = 3
     /// The pause before a failed typing post is tried again.
-    private static let typingRetry: Duration = .seconds(1)
+    static let typingRetry: Duration = .seconds(1)
 
-    private var shouldPoll: Bool {
+    var shouldPoll: Bool {
         self.isSceneActive && self.isVisible && !self.sessionExpired
     }
 
@@ -354,295 +354,4 @@ package struct LivechatSnapshot: Sendable, Equatable {
     /// The first state the session published, found already in place rather than seen changing:
     /// its transition from `previousStatus` happened before this device was watching.
     package let isRestored: Bool
-}
-
-private struct PollHandles {
-    var task: Task<Void, Never>?
-    var parked: CheckedContinuation<Void, Never>?
-}
-
-private extension LivechatSession {
-
-    var currentOutcome: LivechatBootstrapOutcome {
-        self.lastStatus.isInSession ? .inSession : .notInSession
-    }
-
-    /// Starts a new generation: later responses to earlier requests are dropped, and a new
-    /// session's `state_version` may start low again.
-    func bumpGeneration() {
-        self.generation += 1
-        self.lastStateVersion = nil
-        self.syncCursor = nil
-    }
-
-    /// Waits until polling may run, then ticks. `false` once the loop should end.
-    func pollOnce() async -> Bool {
-        await self.waitUntilShouldPoll()
-        guard !Task.isCancelled, !self.sessionExpired else { return false }
-        await self.tick(waiting: true)
-        return !Task.isCancelled && !self.sessionExpired
-    }
-
-    func waitUntilShouldPoll() async {
-        while !self.shouldPoll, !Task.isCancelled, !self.sessionExpired {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                if Task.isCancelled || self.shouldPoll {
-                    continuation.resume()
-                } else {
-                    self.park(continuation)
-                }
-            }
-        }
-    }
-
-    func resumeIfNeeded() {
-        if self.shouldPoll {
-            self.unpark()
-        }
-    }
-
-    /// Syncs once. `waiting` lets the request wait on the last `sync_cursor`; `confirming` marks
-    /// the fresh read that follows a lower `state_version`; `recovering` marks a read for a session
-    /// this device wasn't tracking, whose closing messages it hasn't shown.
-    func tick(waiting: Bool, confirming: Bool = false, recovering: Bool = false) async {
-        let gen = self.generation
-        let previous = self.lastStatus
-        do {
-            // A session this device wasn't tracking numbers its messages from the start.
-            let after = previous.isInSession ? self.afterSequence : 0
-            let sync = try await self.sync(after: after, waiting: waiting)
-            guard gen == self.generation else { return }
-            self.consecutiveFailures = 0
-            self.syncCursor = sync.syncCursor
-            if self.isStale(sync.state) {
-                guard previous.isInSession, sync.state.isInSession else { return }
-                if confirming {
-                    // Still lower on a fresh read: a session opened elsewhere replaced this one,
-                    // and its log numbers from the start.
-                    self.lastStateVersion = nil
-                    self.afterSequence = 0
-                    self.syncCursor = nil
-                    await self.tick(waiting: false)
-                } else {
-                    // `state_version` counts per session, so a lower one mid-session is either an
-                    // older response that arrived late or a replacement session. A fresh read
-                    // tells them apart.
-                    await self.tick(waiting: false, confirming: true)
-                }
-                return
-            }
-
-            if !previous.isInSession && sync.state.isInSession {
-                self.afterSequence = 0
-            }
-            let closedNow = (previous.isInSession || recovering) && sync.state.status == .closed
-            let messages = sync.state.isInSession || closedNow ? sync.messages : []
-            self.publishTransition(to: sync.state, messages: messages, generation: gen)
-            if !sync.state.isInSession {
-                self.stopPolling()
-            }
-        } catch .sessionExpired {
-            self.expire(generation: gen)
-        } catch {
-            guard gen == self.generation else { return }
-            self.syncCursor = nil
-            self.consecutiveFailures += 1
-        }
-    }
-
-    /// The state and every page of messages after `after`. The first request waits on the last
-    /// `sync_cursor` when `waiting` is true. The message cursor moves only when
-    /// ``publishTransition(to:messages:expired:generation:)`` publishes the messages.
-    func sync(after: Int64, waiting: Bool) async throws(ChatServiceError) -> LivechatSync {
-        var messages: [LivechatMessage] = []
-        var cursor = after
-        var waitOn = waiting ? self.syncCursor : nil
-        while true {
-            let sync = try await self.service.syncLivechat(
-                after: cursor > 0 ? cursor : nil,
-                waitMs: waitOn == nil ? nil : Self.maxWaitMs,
-                syncCursor: waitOn
-            )
-            messages += sync.messages
-            guard sync.hasMore, let last = sync.messages.last else {
-                return LivechatSync(state: sync.state, messages: messages, hasMore: false, syncCursor: sync.syncCursor)
-            }
-            cursor = last.sequenceNumber
-            waitOn = nil
-        }
-    }
-
-    /// The close already succeeded, so a failed sync retries once. If that fails too, the
-    /// session is reported closed with feedback pending, so the visitor can still rate it; the
-    /// messages it missed still arrive with history. A 401 ends the visitor session instead.
-    func syncAfterClose(after: Int64) async throws(ChatServiceError) -> LivechatSync {
-        for _ in 0..<2 {
-            do {
-                return try await self.sync(after: after, waiting: false)
-            } catch .sessionExpired {
-                throw .sessionExpired
-            } catch {
-                continue
-            }
-        }
-        return LivechatSync(
-            state: LivechatState(status: .closed, feedback: .pending),
-            messages: [],
-            hasMore: false,
-            syncCursor: nil
-        )
-    }
-
-    func nextDelay() -> Duration {
-        guard self.consecutiveFailures > 0 else {
-            if self.syncCursor != nil { return Self.waitGap }
-            return self.lastStatus == .active ? Self.activeInterval : Self.waitingInterval
-        }
-        // 2, 4, 8, 16, then 30 s.
-        return .seconds(min(30, 1 << min(self.consecutiveFailures, 5)))
-    }
-
-    /// Whether `state` is older than one already applied in this generation. A state without a
-    /// version always applies.
-    func isStale(_ state: LivechatState) -> Bool {
-        guard let incoming = state.stateVersion, let last = self.lastStateVersion else { return false }
-        return incoming < last
-    }
-
-    func publishTransition(
-        to state: LivechatState,
-        messages: [LivechatMessage],
-        expired: Bool = false,
-        generation: UInt64? = nil
-    ) {
-        if let generation, generation != self.generation { return }
-        if self.isStale(state) { return }
-        if let version = state.stateVersion {
-            self.lastStateVersion = version
-        }
-        if let last = messages.last {
-            self.afterSequence = last.sequenceNumber
-        }
-        if messages.isEmpty, !expired, state == self.lastPublishedState { return }
-        self.lastPublishedState = state
-        let previous = self.lastStatus
-        self.lastStatus = state.status
-        let isRestored = !self.hasPublishedState
-        self.hasPublishedState = true
-        if state.status != .active {
-            self.dropTyping()
-        }
-        self.continuation.yield(
-            LivechatSnapshot(
-                previousStatus: previous,
-                state: state,
-                messages: messages,
-                sessionExpired: expired,
-                generation: self.generation,
-                isRestored: isRestored
-            )
-        )
-    }
-
-    /// Asks for the agent to see `isTyping`. An expired session clears the state without posting,
-    /// since its token no longer belongs to this visitor.
-    func postTyping(_ isTyping: Bool) {
-        guard !self.sessionExpired else {
-            self.wantsTyping = false
-            self.isTypingSent = false
-            return
-        }
-        self.wantsTyping = isTyping
-        guard self.typingPost == nil else { return }
-        // Holds the session until the post settles, so "stopped typing" still reaches the agent
-        // when the chat closes mid-burst.
-        self.typingPost = Task { await self.sendTyping() }
-    }
-
-    /// Forgets the visitor's typing state without telling the agent: the session it belonged to
-    /// is no longer active, and the backend clears the flag itself when a session closes or the
-    /// visitor's data is deleted.
-    func dropTyping() {
-        self.typingIdleTask?.cancel()
-        self.typingIdleTask = nil
-        self.wantsTyping = false
-        self.isTypingSent = false
-        self.typingEpoch += 1
-    }
-
-    /// Posts the newest wanted typing state until the agent has it, while a session is active. A
-    /// transient failure is retried after ``typingRetry``; after ``typingAttempts`` it stays unsent,
-    /// and the next change tries again. A 401 ends the visitor session; any other refusal waits for
-    /// the next change.
-    func sendTyping() async {
-        var failures = 0
-        while self.wantsTyping != self.isTypingSent, !self.sessionExpired, self.lastStatus == .active {
-            let isTyping = self.wantsTyping
-            let gen = self.generation
-            let epoch = self.typingEpoch
-            do {
-                try await self.service.sendLivechatTyping(isTyping: isTyping)
-                guard epoch == self.typingEpoch else { break }
-                self.isTypingSent = isTyping
-                failures = 0
-            } catch .sessionExpired {
-                self.expire(generation: gen)
-                break
-            } catch let error where error.isTransient {
-                failures += 1
-                guard failures < Self.typingAttempts else { break }
-                do {
-                    try await self.sleep(Self.typingRetry)
-                } catch {
-                    break
-                }
-            } catch {
-                break
-            }
-        }
-        self.typingPost = nil
-    }
-
-    func expire(generation: UInt64) {
-        guard generation == self.generation else { return }
-        self.sessionExpired = true
-        self.publishTransition(to: LivechatState(status: .inactive), messages: [], expired: true)
-        self.stopPolling()
-    }
-}
-
-private extension LivechatSession {
-
-    nonisolated func setPollTask(_ task: Task<Void, Never>) {
-        self.poll.withLock { $0.task = task }
-    }
-
-    /// Checks cancellation under the lock ``cancelPolling()`` cancels under, so a cancel can't land
-    /// between the loop's last check and the park.
-    nonisolated func park(_ continuation: CheckedContinuation<Void, Never>) {
-        let toResume = self.poll.withLock { handles -> CheckedContinuation<Void, Never>? in
-            if Task.isCancelled { return continuation }
-            defer { handles.parked = continuation }
-            return handles.parked
-        }
-        toResume?.resume()
-    }
-
-    nonisolated func unpark() {
-        let parked = self.poll.withLock { handles in
-            defer { handles.parked = nil }
-            return handles.parked
-        }
-        parked?.resume()
-    }
-
-    /// Cancels the task and resumes a parked loop so it can't hang.
-    nonisolated func cancelPolling() {
-        let parked = self.poll.withLock { handles in
-            handles.task?.cancel()
-            defer { handles = PollHandles() }
-            return handles.parked
-        }
-        parked?.resume()
-    }
 }
