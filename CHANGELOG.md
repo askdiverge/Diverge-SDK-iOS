@@ -54,6 +54,9 @@
   web chat does, so a stray tap doesn't lose their place.
 - Reopening the chat during a livechat session shows the queue or agent note again, and the
   waiting form fades along its bottom edge when there is more to scroll to.
+- The jump-to-newest button sits in the trailing corner, clear of a form's Submit label, and no
+  longer lingers on a conversation with nothing to scroll to. Wrapped bullet lines align under
+  their text.
 - Long form field labels wrap instead of being cut off, a dropdown shows the same red outline as a
   text field when it has an error, and a picked form photo no longer shows the field's raw key.
 

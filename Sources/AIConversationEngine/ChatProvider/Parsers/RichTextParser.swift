@@ -13,9 +13,10 @@ import Foundation
 /// semantic (`inlinePresentationIntent`), so the VM/theme decides the concrete font
 /// Bullet lists render as markdown-style lines, each prefixed
 /// with a `•`:in flowing-text mode the bullet is content, not a themed ornament, and
-enum RichTextParser {
+package enum RichTextParser {
 
-    static let bulletMarker = AttributedString("   •  ")
+    /// Opens each bullet line. The view lays these lines out with a hanging indent.
+    package static let bulletMarker = "   •  "
 
     /// Returns nil when the content is empty
     static func attributedText(_ richText: RichText) -> AttributedString? {
@@ -31,7 +32,7 @@ enum RichTextParser {
         case .bulletList(let list):
             self.joined(
                 list.items.map {
-                    Self.bulletMarker + self.joined($0.spans.compactMap(self.span))
+                    AttributedString(Self.bulletMarker) + self.joined($0.spans.compactMap(self.span))
                 },
                 separator: .init("\n")
             )

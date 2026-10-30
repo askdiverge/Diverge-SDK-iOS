@@ -75,7 +75,7 @@ struct RichTextParserTests {
                 .init(spans: [.text("second")])
             ]))
         ])
-        let marker = RichTextParser.bulletMarker
+        let marker = AttributedString(RichTextParser.bulletMarker)
         let expected = marker + AttributedString("first") + AttributedString("\n") + marker + AttributedString("second")
         #expect(RichTextParser.attributedText(rich) == expected)
     }
@@ -109,7 +109,7 @@ struct RichTextParserTests {
             .startBlock(index: 0, type: .bulletList),
             .appendItem(index: 0, item: .init(spans: [.text("x")]))
         ]
-        #expect(RichTextParser.attributedText(deltas) == RichTextParser.bulletMarker + AttributedString("x"))
+        #expect(RichTextParser.attributedText(deltas) == AttributedString(RichTextParser.bulletMarker) + AttributedString("x"))
     }
 
     @Test("a delta targeting a block index that was never opened is ignored, not a crash")
