@@ -26,8 +26,8 @@
   the visitor closed mid-session.
 - Conversation rating on close: when the host sets `onClose`, a close control appears; with
   `rating: .enabled` (the default) the visitor is asked to rate the conversation (`POST /rate`)
-  before the host is called. Livechat CSAT still takes precedence while a session is closed with
-  pending feedback. Pass `rating: .disabled` to close without asking. Whether the visitor has rated
+  before the host is called. A closed livechat session has its own CSAT, so closing after one asks
+  nothing more. Pass `rating: .disabled` to close without asking. Whether the visitor has rated
   is remembered by the `AIChat` instance, so keep it, or use `AIChat.configure`, to avoid asking
   again.
 - Photo upload wire: `request_image_upload` markers and `MessageImage` parts decode from history
@@ -50,6 +50,10 @@
   load: the welcome message stays on screen and the visitor can keep writing.
 - A message refused because the session expired goes back in the composer, with its photos, so the
   visitor can send it again.
+- Leaving the livechat queue or ending a chat with an agent now asks the visitor to confirm, as the
+  web chat does, so a stray tap doesn't lose their place.
+- Reopening the chat during a livechat session shows the queue or agent note again, and the
+  waiting form fades along its bottom edge when there is more to scroll to.
 - Long form field labels wrap instead of being cut off, a dropdown shows the same red outline as a
   text field when it has an error, and a picked form photo no longer shows the field's raw key.
 

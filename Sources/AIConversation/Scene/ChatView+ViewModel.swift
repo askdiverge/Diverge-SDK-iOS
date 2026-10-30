@@ -38,6 +38,8 @@ extension ChatView {
         private(set) var isAgentTyping = false
         /// A handover or close is in flight; the header control and reset wait for it.
         private(set) var isLivechatBusy = false
+        /// The visitor asked to leave a session and is deciding whether to.
+        var isConfirmingLivechatEnd = false
         /// Set when the poller sees the visitor session end (401). The view shows the session-ended
         /// alert and clears it.
         var livechatSessionEnded = false
@@ -118,15 +120,16 @@ extension ChatView {
         /// the in-flight state is observed, without blocking a cooperative-pool thread.
         typealias AttachmentEncoder = @Sendable (Data, ImageAttachment.Options) async throws(ImageAttachment.Failure) -> ImageAttachment.Encoded
 
-        /// Whether tapping close should present the **conversation** `/rate` overlay.
+        /// Whether tapping close should present the **conversation** `/rate` overlay. A closed
+        /// livechat session has its own CSAT, so a close after one asks nothing more.
         var shouldOfferRating: Bool {
             self.conversationRatingMode == .enabled
                 && self.onClose != nil
                 && !self.conversationRating.hasRated
                 && !(self.snapshot?.user.isEmpty ?? true)
                 && !self.livechatStatus.isInSession
+                && self.livechatStatus != .closed
                 && !self.isLivechatBusy
-                && !self.rating.hasPendingFeedback
         }
 
         /// True when the host provided ``AIChat/Configuration/onClose``.
@@ -656,17 +659,31 @@ extension ChatView.ViewModel {
         Task { [livechat = self.livechat] in await livechat.bootstrap() }
     }
 
-    /// Acts on the header control: queues for an agent, or ends the session. An offline control
-    /// asks too, because availability changes after `/config` is read; a 409 says livechat is offline.
+    /// Acts on the header control: queues for an agent, or asks the visitor to confirm leaving the
+    /// session. An offline control asks too, because availability changes after `/config` is read;
+    /// a 409 says livechat is offline.
     func toggleLivechat() async {
         guard !self.isLivechatBusy else { return }
+        switch self.livechatControl {
+        case .start, .offline:
+            self.isLivechatBusy = true
+            defer { self.isLivechatBusy = false }
+            await self.requestLivechat()
+        case .end:
+            self.isConfirmingLivechatEnd = true
+        case .hidden:
+            break
+        }
+    }
+
+    /// The visitor confirmed leaving. A session that ended while the question was up stays ended,
+    /// so a late answer can't queue the visitor again.
+    func confirmEndLivechat() async {
+        self.isConfirmingLivechatEnd = false
+        guard !self.isLivechatBusy, self.livechatControl == .end else { return }
         self.isLivechatBusy = true
         defer { self.isLivechatBusy = false }
-        switch self.livechatControl {
-        case .start, .offline: await self.requestLivechat()
-        case .end: await self.endLivechat()
-        case .hidden: break
-        }
+        await self.endLivechat()
     }
 
     /// Hands over from the `request_human_agent` card in bot turn `turnID`, while
@@ -727,6 +744,9 @@ extension ChatView.ViewModel {
         let previous = snapshot.previousStatus
         let status = snapshot.state.status
         self.livechatStatus = status
+        if !status.isInSession {
+            self.isConfirmingLivechatEnd = false
+        }
         self.livechatAgentName = snapshot.state.activeAgent?.displayName
         self.isAgentTyping = status == .active && snapshot.state.isAgentTyping
         self.reportLivechatSessionIfChanged()
@@ -745,15 +765,17 @@ extension ChatView.ViewModel {
             self.conversationRating.dismiss()
         }
 
-        // Notes mark changes seen live; a restored session changed before this device looked.
-        let notesChanges = !snapshot.isRestored
-        if notesChanges {
-            await self.noteSessionStart(previous: previous, status: status, agentName: self.livechatAgentName)
-        }
+        // Notes are kept in memory, so a restored session says where it stands. How it got there
+        // happened before this device looked, which is why its end goes unnoted.
+        await self.noteSessionStart(
+            previous: snapshot.isRestored ? .inactive : previous,
+            status: status,
+            agentName: self.livechatAgentName
+        )
         if !snapshot.messages.isEmpty {
             await self.provider?.appendLivechat(snapshot.messages)
         }
-        if notesChanges, previous.isInSession, status == .closed {
+        if !snapshot.isRestored, previous.isInSession, status == .closed {
             await self.provider?.note(LivechatNote(kind: .ended))
         }
         self.rating.update(previous: previous, state: snapshot.state, isRestored: snapshot.isRestored)

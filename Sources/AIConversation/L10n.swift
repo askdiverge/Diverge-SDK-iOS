@@ -77,6 +77,13 @@ enum L10n {
 
     static let livechatStart = string("livechat.start")
     static let livechatEnd = string("livechat.end")
+    static let livechatLeaveTitle = string("livechat.leaveTitle")
+    static let livechatLeaveMessage = string("livechat.leaveMessage")
+    static let livechatLeaveConfirm = string("livechat.leaveConfirm")
+    static let livechatLeaveCancel = string("livechat.leaveCancel")
+    static let livechatEndTitle = string("livechat.endTitle")
+    static let livechatEndMessage = string("livechat.endMessage")
+    static let livechatEndCancel = string("livechat.endCancel")
     static let livechatOffline = string("livechat.offline")
     static let livechatWaitingPlaceholder = string("livechat.waitingPlaceholder")
     static let livechatActivePlaceholder = string("livechat.activePlaceholder")

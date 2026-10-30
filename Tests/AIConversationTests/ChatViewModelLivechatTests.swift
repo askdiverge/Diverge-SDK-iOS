@@ -313,14 +313,37 @@ struct ChatViewModelLivechatTests {
         #expect(await tap.value == nil)
     }
 
-    @Test("an open session found at start mints no notes")
-    func restoredSessionMintsNoNotes() async throws {
+    @Test("an open session found at start says where it stands, once")
+    func restoredSessionSaysWhereItStands() async throws {
         let (viewModel, service, provider) = self.makeSUT()
         service.livechatState = try LivechatFixtures.activeState(agentName: "Alice")
 
         viewModel.startLivechat(with: try Self.config())
-
         try await eventually { viewModel.livechatStatus == .active }
+        try await eventually { !provider.notes.isEmpty }
+        await viewModel.livechat.refresh()
+
+        #expect(provider.notes.map(\.kind) == [.agentJoined(displayName: "Alice")])
+    }
+
+    @Test("a queue found at start says so")
+    func restoredQueueSaysSo() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        service.livechatState = LivechatState(status: .waiting)
+
+        viewModel.startLivechat(with: try Self.config())
+
+        try await eventually { provider.notes.map(\.kind) == [.queued] }
+    }
+
+    @Test("a closed session found at start notes nothing")
+    func restoredCloseNotesNothing() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        service.livechatState = LivechatState(status: .closed)
+
+        viewModel.startLivechat(with: try Self.config())
+
+        try await eventually { viewModel.livechatStatus == .closed }
         #expect(provider.notes.isEmpty)
     }
 
@@ -333,7 +356,7 @@ struct ChatViewModelLivechatTests {
 
         await viewModel.livechat.refresh()
 
-        try await eventually { provider.livechatOrder == ["message:bye", "note:ended"] }
+        try await eventually { provider.livechatOrder.suffix(2) == ["message:bye", "note:ended"] }
     }
 
     @Test("the talk-to-a-person card hands over once, and not again during the session")
@@ -514,7 +537,7 @@ struct ChatViewModelLivechatTests {
         try await eventually { viewModel.livechatStatus == .waiting }
     }
 
-    @Test("during a session the control closes it and returns to the assistant")
+    @Test("during a session the control asks first, and closes it only once the visitor confirms")
     func controlEndsSession() async throws {
         let (viewModel, service, _) = self.makeSUT()
         try await self.start(viewModel, in: .active, on: service)
@@ -522,6 +545,12 @@ struct ChatViewModelLivechatTests {
 
         await viewModel.toggleLivechat()
 
+        #expect(viewModel.isConfirmingLivechatEnd)
+        #expect(service.livechatCloseCallCount == 0)
+
+        await viewModel.confirmEndLivechat()
+
+        #expect(!viewModel.isConfirmingLivechatEnd)
         #expect(service.livechatCloseCallCount == 1)
         #expect(service.lastLivechatCloseReason == "Switched back to AI chatbot mode")
         try await eventually { viewModel.livechatStatus == .closed }
@@ -533,10 +562,46 @@ struct ChatViewModelLivechatTests {
         try await self.start(viewModel, in: .active, on: service)
         service.livechatState = LivechatState(status: .inactive)
 
-        await viewModel.toggleLivechat()
+        await viewModel.confirmEndLivechat()
 
         try await eventually { viewModel.livechatStatus == .inactive }
         #expect(viewModel.notice == nil)
+    }
+
+    @Test("a session that ends under the question takes it away, and a late answer queues nothing")
+    func endedSessionCancelsTheQuestion() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        await viewModel.toggleLivechat()
+
+        service.livechatState = LivechatState(status: .closed)
+        await viewModel.livechat.refresh()
+        try await eventually { !viewModel.isConfirmingLivechatEnd }
+        await viewModel.confirmEndLivechat()
+
+        #expect(service.livechatCloseCallCount == 0)
+        #expect(service.livechatHandoverCallCount == 0)
+    }
+
+    @Test("the question asks about the agent during a chat, and the queue while waiting")
+    func confirmationCopyFollowsTheSession() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        #expect(viewModel.livechatEndConfirmation.title == L10n.livechatEndTitle.string)
+
+        service.livechatState = LivechatState(status: .waiting)
+        await viewModel.livechat.refresh()
+        try await eventually { viewModel.livechatStatus == .waiting }
+
+        #expect(viewModel.livechatEndConfirmation.title == L10n.livechatLeaveTitle.string)
+    }
+
+    @Test("the leave question exists in every locale")
+    func leaveCopyExistsInEveryLocale() throws {
+        try StringCatalog.expectKeysInEveryLocale([
+            "livechat.leaveTitle", "livechat.leaveMessage", "livechat.leaveConfirm", "livechat.leaveCancel",
+            "livechat.endTitle", "livechat.endMessage", "livechat.endCancel"
+        ])
     }
 
     // MARK: Reset and delete
