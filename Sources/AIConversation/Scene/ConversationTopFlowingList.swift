@@ -21,6 +21,8 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
 
     let snapshot: ConversationSnapshot
     let isInputFocused: Bool
+    /// A form field has the keyboard, and the jump-to-newest button stays off it.
+    let isEditingForm: Bool
     /// Loads the next older page, returning whether it loaded.
     let onLoadOlder: () async -> Bool
 
@@ -49,9 +51,10 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
             self.conversation(proxy)
                 .overlay(alignment: .bottomTrailing) {
                     ScrollToBottomButton(
-                        isVisible: self.isScrolledAway && !self.isInputFocused && self.snapshot.turns.count > 1,
+                        isVisible: self.isScrolledAway && !self.isInputFocused && !self.isEditingForm && self.snapshot.turns.count > 1,
                         isStreaming: self.snapshot.streamingTurnID != nil
                     ) {
+                        self.exchange?.isHeld = false
                         self.scrollToNewest(proxy, animated: true)
                     }
                 }
@@ -68,7 +71,11 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                 }
                 .onChange(of: self.snapshot.user.last?.id) { _, userID in self.userTurnChanged(userID, proxy: proxy) }
                 .onChange(of: self.snapshot.incoming.last?.id) { self.answerArrived(proxy) }
-                .onChange(of: self.isInputFocused) { _, focused in if focused { self.scrollToNewest(proxy, animated: true) } }
+                .onChange(of: self.isInputFocused) { _, focused in
+                    guard focused else { return }
+                    self.exchange?.isHeld = false
+                    self.scrollToNewest(proxy, animated: true)
+                }
         }
     }
 }
@@ -82,6 +89,8 @@ private extension ConversationTopFlowingList {
         var userHeight: CGFloat = 0
         /// Keyed by id so a fresh answer reads as unmeasured rather than the previous answer's height.
         var bot: (id: UUID, height: CGFloat)?
+        /// The list keeps the user turn at the top while the answer lays out, until the reader moves it.
+        var isHeld = true
     }
 
     /// Whether the armed exchange's user turn is still present in the snapshot.
@@ -122,7 +131,9 @@ private extension ConversationTopFlowingList {
 
                 ForEach(self.snapshot.turns) { turn in
                     self.content(turn)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.measure(turn, height: $0) }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                            self.measure(turn, height: $0, proxy: proxy)
+                        }
                         .frame(maxWidth: .infinity, alignment: self.alignment(turn.model))
                         .id(turn.id)
                 }
@@ -155,6 +166,7 @@ private extension ConversationTopFlowingList {
         .onScrollGeometryChange(for: ScrollGeometry.self) { $0 } action: { self.reclaim($0, $1) }
         .onScrollPhaseChange { _, phase, _ in
             self.isUserScrolling.value = phase == .interacting || phase == .decelerating
+            if phase == .interacting { self.exchange?.isHeld = false }
         }
     }
 
@@ -216,17 +228,23 @@ private extension ConversationTopFlowingList {
         self.scrollToNewest(proxy)
     }
 
-    /// The answer arriving relays out under the lift and can leave the user turn short, re-assert it, unless
-    /// nothing is armed or the reader has taken over. Both panes can lose their last turn in the same
-    /// snapshot, so this checks `isArmed` rather than leaning on the order the two handlers run in.
+    /// The answer arriving or growing relays out under the lift and can cut it short, so each change
+    /// re-asserts it, unless nothing is armed or the reader has taken over. Both panes can lose their last
+    /// turn in the same snapshot, so this checks `isArmed` rather than leaning on the order the two handlers
+    /// run in.
     func answerArrived(_ proxy: ScrollViewProxy) {
-        guard let exchange, self.isArmed, self.reclaimed == 0, !self.isUserScrolling.value else { return }
+        guard let exchange, exchange.isHeld, self.isArmed, self.reclaimed == 0, !self.isUserScrolling.value else {
+            return
+        }
         self.pinToTop(exchange.userID, proxy: proxy)
     }
 
-    func measure(_ turn: Identified<ConversationSnapshot.Turn>, height: CGFloat) {
+    func measure(_ turn: Identified<ConversationSnapshot.Turn>, height: CGFloat, proxy: ScrollViewProxy) {
         if turn.id == self.exchange?.userID { self.exchange?.userHeight = height }
-        if turn.id == self.snapshot.incoming.last?.id { self.exchange?.bot = (turn.id, height) }
+        if turn.id == self.snapshot.incoming.last?.id {
+            self.exchange?.bot = (turn.id, height)
+            self.answerArrived(proxy)
+        }
     }
 
     /// Reclaim the buffer as the reader drags up or as the focus scroll travels, so the keyboard consumes
@@ -286,6 +304,8 @@ private extension ConversationTopFlowingList {
 
 extension ConversationTopFlowingList: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.snapshot == rhs.snapshot && lhs.isInputFocused == rhs.isInputFocused
+        lhs.snapshot == rhs.snapshot
+            && lhs.isInputFocused == rhs.isInputFocused
+            && lhs.isEditingForm == rhs.isEditingForm
     }
 }

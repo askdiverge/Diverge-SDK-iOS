@@ -308,6 +308,39 @@ struct ChatViewModelWaitingFormTests {
         model.setValue("ORDER-1", for: "order_number")
         #expect(model.validate())
     }
+
+    @Test("an edit clears the banner, and the next save checks again")
+    func editClearsBanner() throws {
+        let model = WaitingFormModel(definition: try Self.definition(Self.fields, minFilled: 2))
+        model.setValue("a@b.com", for: "email")
+        model.validate()
+        #expect(model.bannerError != nil)
+
+        model.setValue("c@d.com", for: "email")
+        #expect(model.bannerError == nil)
+
+        model.validate()
+        #expect(model.bannerError != nil)
+    }
+
+    @Test("a field with an error is the one the card scrolls to, first in form order")
+    func firstFieldWithError() throws {
+        let model = WaitingFormModel(definition: try Self.definition(#"""
+        [
+          { "key": "name", "label": "Name", "type": "text" },
+          { "key": "email", "label": "Email", "type": "email", "required": true },
+          { "key": "order_number", "label": "Order", "type": "text", "required": true }
+        ]
+        """#))
+        model.setValue("Ada", for: "name")
+        #expect(model.firstFieldWithError == nil)
+
+        model.validate()
+        #expect(model.firstFieldWithError == "email")
+
+        model.setValue("a@b.com", for: "email")
+        #expect(model.firstFieldWithError == "order_number")
+    }
 }
 
 private extension ChatViewModelWaitingFormTests {

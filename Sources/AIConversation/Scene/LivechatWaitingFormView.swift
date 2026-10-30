@@ -8,8 +8,8 @@ import AIConversationEngine
 
 /// Session-scoped “Add details for the agent” card while livechat status is `waiting`.
 ///
-/// Field order matches web (`SessionForm`): title, description, fields, error.
-/// Save lives in ``ChatView`` chrome above the composer so it stays on screen.
+/// Field order matches web (`SessionForm`): title, description, fields. Save and its result live
+/// in ``ChatView`` chrome above the composer so they stay on screen.
 struct LivechatWaitingFormView: View {
 
     @Environment(\.appearance) private var appearance
@@ -41,13 +41,7 @@ struct LivechatWaitingFormView: View {
                     onPickFile: {},
                     onRemoveFile: {}
                 )
-            }
-
-            if let banner = self.model.bannerError {
-                Text(banner.message)
-                    .font(self.appearance.font(size: 12))
-                    .foregroundStyle(self.appearance.theme.destructive)
-                    .accessibilityIdentifier(banner.accessibilityID)
+                .id(field.key)
             }
         }
         .padding(self.appearance.spacing.units(4))
@@ -72,8 +66,8 @@ struct LivechatWaitingFormView: View {
     }
 }
 
-/// Save + “Details saved” — pinned above the composer so a tall field list does not hide it.
-/// VoiceOver hears the save result and any error the card shows.
+/// Save and its result, “Details saved” or the error — pinned above the composer so a tall field
+/// list hides neither. VoiceOver hears the result too.
 struct LivechatWaitingFormSaveChrome: View {
 
     @Environment(\.appearance) private var appearance
@@ -101,6 +95,13 @@ struct LivechatWaitingFormSaveChrome: View {
                     .font(self.appearance.font(size: 13))
                     .foregroundStyle(self.appearance.theme.secondaryText)
                     .accessibilityIdentifier("livechat.waitingForm.saved")
+            }
+            if let banner = self.model.bannerError {
+                Text(banner.message)
+                    .font(self.appearance.font(size: 12))
+                    .foregroundStyle(self.appearance.theme.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(banner.accessibilityID)
             }
             Spacer(minLength: 0)
         }

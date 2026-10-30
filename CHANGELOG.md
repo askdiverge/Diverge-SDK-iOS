@@ -62,6 +62,13 @@
   their text.
 - Text scales with Dynamic Type on chatbots with no custom font.
 - A product or table image that fails to load shows a placeholder instead of an empty slot.
+- A sent message always lifts to the top of the conversation: an answer that arrived in quick
+  parts could leave it short, with the reply below the fold.
+- A failed save of the waiting form says so beside Save, and a field with an error scrolls into
+  view, instead of both staying out of sight inside the card.
+- A form no longer repeats "Fill in at least 1 field" under fields that already show an error, and
+  the message clears as soon as the visitor edits the form.
+- The jump-to-newest button stays off a form field while it has the keyboard.
 - Long form field labels wrap instead of being cut off, a dropdown shows the same red outline as a
   text field when it has an error, and a picked form photo no longer shows the field's raw key.
 
