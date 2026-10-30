@@ -28,6 +28,9 @@ extension ChatView {
         private(set) var avatar: Image?
         private(set) var logo: HeaderLogo?
         private(set) var notice: Notice?
+        /// Dismisses the notice on screen. Each notice replaces it, so an older timer can't cut a
+        /// newer notice short.
+        @ObservationIgnored private var noticeTimer: Task<Void, Never>?
 
         /// Livechat as `/config` describes it, and the session's status as the poller last saw it.
         private(set) var livechatConfig = LivechatConfig.serverDefaults
@@ -632,18 +635,20 @@ extension ChatView {
             self.conversationRating.clearSession()
         }
 
-        private func present(_ notice: Notice) {
+        func present(_ notice: Notice) {
             guard notice != self.notice else { return }
             self.notice = notice
+            self.noticeTimer?.cancel()
             guard let delay = notice.autoDismiss else { return }
-            Task { [weak self] in
+            self.noticeTimer = Task { [weak self] in
                 try? await Task.sleep(for: delay)
-                guard self?.notice == notice else { return }
+                guard !Task.isCancelled else { return }
                 self?.notice = nil
             }
         }
 
         func dismissNotice() {
+            self.noticeTimer?.cancel()
             self.notice = nil
         }
     }
