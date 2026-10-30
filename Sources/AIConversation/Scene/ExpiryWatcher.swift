@@ -20,6 +20,7 @@ struct ExpiryWatcher: ViewModifier {
             guard let expiry = self.expiry else { return }
             let remaining = expiry.timeIntervalSinceNow
             if remaining > 0 {
+                // Only cancellation throws here, and the guard below handles that.
                 try? await Task.sleep(for: .seconds(remaining))
             }
             guard !Task.isCancelled else { return }

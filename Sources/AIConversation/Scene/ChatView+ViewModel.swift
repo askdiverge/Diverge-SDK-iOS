@@ -531,6 +531,7 @@ extension ChatView {
 
         /// Pre-loads a config image once, downsampled, so it isn't re-fetched during rendering.
         private func loadImage(_ url: URL?, maxPixelSize: CGFloat) async -> Image? {
+            // A logo or avatar that won't load leaves the chat without it.
             guard
                 let url,
                 let data = try? await self.service.fetchData(url)
@@ -617,6 +618,7 @@ extension ChatView {
             self.noticeTimer?.cancel()
             guard let delay = notice.autoDismiss else { return }
             self.noticeTimer = Task { [weak self] in
+                // Only cancellation throws here, and the guard below handles that.
                 try? await Task.sleep(for: delay)
                 guard !Task.isCancelled else { return }
                 self?.notice = nil

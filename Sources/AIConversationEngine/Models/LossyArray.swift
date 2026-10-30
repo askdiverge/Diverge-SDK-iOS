@@ -19,6 +19,7 @@ package struct LossyArray<Element: Decodable>: Decodable {
         var elements: [Element] = []
         while !container.isAtEnd {
             let index = container.currentIndex
+            // Skipping an element that won't decode is what this type is for.
             if let element = try? container.decode(Element.self) {
                 elements.append(element)
             } else if container.currentIndex == index {
