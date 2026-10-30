@@ -20,12 +20,8 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
     /// reply shouldn't leave the reader up in history, and it pins the latest message above the keyboard.
     let isInputFocused: Bool
 
-    // TODO: - Hook up reverse pagination
-    /// Ready to consume: pagination is fully wired behind this hook. It is deliberately left
-    /// untriggered — `List` cannot hold the reader's scroll position across a top prepend,
-    /// pinning to id after prepend is possible, but achiving a smooth continous scroll not.
-    /// deliberatly left unimplemented for now.
-    let onLoadOlder: () async -> Void
+    /// Loads the next older page, returning whether it loaded.
+    let onLoadOlder: () async -> Bool
 
     @ViewBuilder let content: (Identified<ConversationSnapshot.Turn>) -> Content
     @ViewBuilder let header: () -> Header
@@ -33,6 +29,7 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
     @State private var isScrolledAway = false
     @State private var isInitialLoad = true
     @State private var scrollTask = ScrollTaskBox()
+    @State private var olderTurns = OlderTurnsAnchor()
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -47,8 +44,12 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
                 }
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(.bottom, for: .initialOffset)
-                .onChange(of: self.snapshot, initial: true) { _, snapshot in
-                    let lastID = self.isScrolledAway ? nil : snapshot.turns.last?.id
+                .onChange(of: self.snapshot, initial: true) { old, new in
+                    if let turnID = self.olderTurns.landing(from: old.turns.map(\.id), to: new.turns.map(\.id)) {
+                        self.scrollTask.land(on: turnID, proxy: proxy)
+                        return
+                    }
+                    let lastID = self.isScrolledAway ? nil : new.turns.last?.id
                     self.scrollToNewest(lastID, proxy: proxy, animated: !self.isInitialLoad)
                     self.isInitialLoad = false
                 }
@@ -71,6 +72,10 @@ private extension ConversationBottomFlowingList {
         List {
             Group {
                 self.header()
+
+                if self.snapshot.canLoadOlder {
+                    LoadEarlierButton { await self.loadEarlier() }
+                }
 
                 ForEach(self.snapshot.turns) { turn in
                     self.content(turn)
@@ -125,6 +130,13 @@ private extension ConversationBottomFlowingList {
                 proxy.scrollTo(lastID, anchor: .bottom)
             }
         })
+    }
+
+    func loadEarlier() async {
+        self.olderTurns.arm(at: self.snapshot.turns.first?.id)
+        if await !self.onLoadOlder() {
+            self.olderTurns.disarm()
+        }
     }
 
     func alignment(_ turn: ConversationSnapshot.Turn) -> Alignment {

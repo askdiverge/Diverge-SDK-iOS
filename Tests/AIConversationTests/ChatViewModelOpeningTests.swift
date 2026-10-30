@@ -14,14 +14,28 @@ import Testing
 @MainActor
 struct ChatViewModelOpeningTests {
 
-    @Test("a first history page that fails opens the chat on the greeting", arguments: [500, 401])
-    func failedFirstPageOpensOnGreeting(status: Int) async throws {
-        let viewModel = Self.makeSUT(history: .init(status: status))
+    @Test("a first history page that fails opens on the greeting, says so, and can be asked for again")
+    func failedFirstPageOpensOnGreeting() async throws {
+        let viewModel = Self.makeSUT(history: .init(status: 500))
 
         await viewModel.start()
 
         #expect(viewModel.phase == .ready)
+        #expect(viewModel.notice?.message == L10n.noticeHistoryLoadFailed.string)
         try await eventually { viewModel.snapshot?.turns.map(\.model) == [Self.greeting] }
+        #expect(viewModel.snapshot?.canLoadOlder == true)
+    }
+
+    @Test("a 401 on the first history page opens on the greeting, with nothing to load")
+    func expiredFirstPageOpensOnGreeting() async throws {
+        let viewModel = Self.makeSUT(history: .init(status: 401))
+
+        await viewModel.start()
+
+        #expect(viewModel.phase == .ready)
+        #expect(viewModel.notice == nil)
+        try await eventually { viewModel.snapshot?.turns.map(\.model) == [Self.greeting] }
+        #expect(viewModel.snapshot?.canLoadOlder == false)
     }
 }
 

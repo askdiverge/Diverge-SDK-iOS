@@ -120,7 +120,8 @@ package actor ChatProvider: ChatProviding {
                 user: self.user,
                 incoming: self.publishedIncoming,
                 isUserInitiatedConversation: self.welcome == nil && !self.botLeads,
-                streamingTurnID: self.streamingTurnID
+                streamingTurnID: self.streamingTurnID,
+                canLoadOlder: !self.paginator.isExhausted
             )
         )
     }
@@ -189,8 +190,7 @@ extension ChatProvider {
             self.publish()
 
         } catch ChatServiceError.sessionExpired {
-            self.clear()
-            self.publish()
+            self.endConversation()
             throw SendFailure.sessionExpired
 
         } catch ChatServiceError.stream(let error) {
@@ -242,7 +242,8 @@ extension ChatProvider {
     }
 
     /// Loads the next older page of history and prepends it. No-op when a load is
-    /// already in flight or no pages remain. Drives both the first load and refresh.
+    /// already in flight or no pages remain. Drives both the first load and the visitor's
+    /// request for earlier messages.
     package func loadOlder() async throws {
         do {
             let cursor = try self.paginator.next()
@@ -259,8 +260,7 @@ extension ChatProvider {
         } catch Paginator.Failure.exhausted {
             // No more history available, do nothing
         } catch ChatServiceError.sessionExpired {
-            self.clear()
-            self.publish()
+            self.endConversation()
             throw ChatServiceError.sessionExpired
 
         } catch {
@@ -299,8 +299,7 @@ extension ChatProvider {
         defer { self.finishOperation() }
 
         try await self.service.deleteData()
-        self.clear()
-        self.publish()
+        self.endConversation()
     }
 
 }
@@ -352,8 +351,7 @@ extension ChatProvider {
             let stored = try await self.postLivechat(text, attachments: attachments, page: page)
             self.livechatMessageIDs.insert(stored.messageId)
         } catch ChatServiceError.sessionExpired {
-            self.clear()
-            self.publish()
+            self.endConversation()
             throw SendFailure.sessionExpired
         } catch ChatServiceError.conflict {
             self.popLastUserBubbles(count: echo.count)
@@ -374,8 +372,7 @@ extension ChatProvider {
             self.expiresAfterOperation = true
             return
         }
-        self.clear()
-        self.publish()
+        self.endConversation()
     }
 }
 
@@ -459,8 +456,7 @@ private extension ChatProvider {
         self.isBusy = false
         if self.expiresAfterOperation {
             self.expiresAfterOperation = false
-            self.clear()
-            self.publish()
+            self.endConversation()
             return
         }
         let deferred = self.deferredLivechat
@@ -494,8 +490,15 @@ private extension ChatProvider {
         if changed { self.publish() }
     }
 
-    /// Drops all conversation state and resets pagination — after a successful reset
-    /// or delete the next session starts clean.
+    /// Empties a conversation that ended with nothing to load in its place: a delete or an
+    /// expired session.
+    func endConversation() {
+        self.clear()
+        self.paginator.finish()
+        self.publish()
+    }
+
+    /// Drops all conversation state and resets pagination, so a reset's reload starts clean.
     func clear() {
         self.user = []
         self.incoming = []

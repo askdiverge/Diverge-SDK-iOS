@@ -216,7 +216,8 @@ struct ChatProviderLivechatTests {
             user: [Identified(model: [.text(AttributedString("hi"))]), Identified(model: [.text(AttributedString("again"))])],
             incoming: [reply, notes],
             isUserInitiatedConversation: true,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         )
 
         #expect(snapshot.lastBotTurnID == reply.id)

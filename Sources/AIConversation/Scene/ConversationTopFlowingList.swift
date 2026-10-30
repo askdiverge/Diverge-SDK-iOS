@@ -21,7 +21,8 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
 
     let snapshot: ConversationSnapshot
     let isInputFocused: Bool
-    let onLoadOlder: () async -> Void
+    /// Loads the next older page, returning whether it loaded.
+    let onLoadOlder: () async -> Bool
 
     @ViewBuilder let content: (Identified<ConversationSnapshot.Turn>) -> Content
     @ViewBuilder let header: () -> Header
@@ -39,6 +40,7 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
     // Written from scroll callbacks, never read in `body` — boxed so their churn triggers no renders.
     @State private var isUserScrolling = Box(false)
     @State private var scrollTask = ScrollTaskBox()
+    @State private var olderTurns = OlderTurnsAnchor()
 
     private var rowSpacing: CGFloat { self.appearance.spacing.units(11) }
 
@@ -55,7 +57,10 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                 }
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(.bottom, for: .initialOffset)
-                .onChange(of: self.snapshot, initial: true) {
+                .onChange(of: self.snapshot, initial: true) { old, new in
+                    if let turnID = self.olderTurns.landing(from: old.turns.map(\.id), to: new.turns.map(\.id)) {
+                        self.scrollTask.land(on: turnID, proxy: proxy)
+                    }
                     // Open at the newest turn once, afterwards a send lifts to the top instead.
                     guard self.isInitialLoad else { return }
                     self.scrollToNewest(proxy)
@@ -111,6 +116,10 @@ private extension ConversationTopFlowingList {
             Group {
                 self.header()
 
+                if self.snapshot.canLoadOlder {
+                    LoadEarlierButton { await self.loadEarlier() }
+                }
+
                 ForEach(self.snapshot.turns) { turn in
                     self.content(turn)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.measure(turn, height: $0) }
@@ -159,6 +168,13 @@ private extension ConversationTopFlowingList {
         }
     }
 
+    func loadEarlier() async {
+        self.olderTurns.arm(at: self.snapshot.turns.first?.id)
+        if await !self.onLoadOlder() {
+            self.olderTurns.disarm()
+        }
+    }
+
     func alignment(_ turn: ConversationSnapshot.Turn) -> Alignment {
         switch turn {
         case .bot: .topLeading
@@ -174,6 +190,8 @@ private extension ConversationTopFlowingList {
     /// The newest user turn changed: a turn that arrived arms an exchange, one that left retires the
     /// exchange it belonged to rather than arming the turn it uncovers.
     func userTurnChanged(_ userID: UUID?, proxy: ScrollViewProxy) {
+        // A turn loaded from history isn't a send.
+        guard !self.olderTurns.isArmed else { return }
         if self.exchange != nil, !self.isArmed {
             self.retire(proxy)
         } else {

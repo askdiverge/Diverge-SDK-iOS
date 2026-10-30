@@ -5,7 +5,7 @@
 //  Created by Daniel Wennberg on 2026-08-19.
 //
 
-import Foundation
+import SwiftUI
 
 /// Holds the pending scroll `Task` off of `@State`. The task is a side-effect handle, not view state, so
 /// cancelling and replacing it on each scroll request must not invalidate the view a reference held in
@@ -19,5 +19,14 @@ final class ScrollTaskBox {
     func replace(with task: Task<Void, Never>) {
         self.task?.cancel()
         self.task = task
+    }
+
+    /// Returns to `id` at the top of the view once the layout that moved it has committed.
+    func land(on id: UUID, proxy: ScrollViewProxy) {
+        self.replace(with: Task { @MainActor in
+            await Task.yield()
+            if Task.isCancelled { return }
+            proxy.scrollTo(id, anchor: .top)
+        })
     }
 }
