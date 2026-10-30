@@ -111,6 +111,19 @@ struct ChatViewModelAttachmentTests {
 
     // MARK: - Send and restore
 
+    @Test("a photo sent as the session expired comes back to the composer")
+    func expiredSendRestoresPhoto() async {
+        let viewModel = ChatView.ViewModel.forTesting(provider: StubChatProviding(sendFailure: .sessionExpired))
+        let pending = Self.pending(data: "AA==")
+        viewModel.pendingAttachments = [pending]
+
+        await #expect(throws: ChatView.SessionEnded.self) {
+            try await viewModel.send()
+        }
+
+        #expect(viewModel.pendingAttachments == [pending])
+    }
+
     @Test("a photo sent while a reset / delete is in flight comes back to the composer")
     func busyOperationRestoresDraftAndPhoto() async throws {
         let provider = StubChatProviding(sendFailure: .busy(.operation))

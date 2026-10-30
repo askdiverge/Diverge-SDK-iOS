@@ -19,6 +19,7 @@ struct FormDropdownField: View {
     let required: Bool
     @Binding var selection: String
     let isEnabled: Bool
+    let hasError: Bool
 
     var body: some View {
         Menu {
@@ -49,15 +50,19 @@ struct FormDropdownField: View {
             .padding(self.appearance.spacing.units(2))
             .frame(minHeight: self.appearance.spacing.units(11))
             .background(self.appearance.theme.inputBackground ?? self.appearance.theme.background)
-            .border(
-                self.appearance.theme.inputBorder ?? self.appearance.theme.botSurfaceBorder ?? .clear,
-                width: 1
-            )
+            .border(self.borderColor, width: 1)
         }
         .disabled(!self.isEnabled)
         .buttonStyle(.plain)
         .accessibilityLabel(self.label)
         .accessibilityValue(self.selection.isEmpty ? L10n.formSelectOption.string : self.selection)
         .accessibilityHint(self.required ? L10n.formRequired.string : "")
+    }
+
+    private var borderColor: Color {
+        if self.hasError {
+            return self.appearance.theme.destructive
+        }
+        return self.appearance.theme.inputBorder ?? self.appearance.theme.botSurfaceBorder ?? .clear
     }
 }
