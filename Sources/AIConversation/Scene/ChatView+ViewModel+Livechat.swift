@@ -98,19 +98,43 @@ extension ChatView.ViewModel {
             && !self.isReplyInFlight
     }
 
-    /// The link to open for `file`, or nil when there is none. A temporary signed link is re-read
+    /// The link to open for `file`, or nil when there is none, resolved as an image's is.
+    func url(toOpen file: MessageFile) async -> URL? {
+        await self.openableURL(
+            file.url,
+            attachmentId: file.attachmentId,
+            isTemporary: file.urlExpiresAt != nil,
+            isExpired: file.isExpired()
+        )
+    }
+
+    /// The link to open for `image`, or nil when there is none. A temporary signed link is re-read
     /// from the livechat log on every tap, so a link past its expiry still opens. When the log
     /// can't supply one, a stored link that hasn't expired is opened and the server serves or
     /// refuses it; an expired one is nil, since the server refuses it. A tap whose task was
     /// cancelled, because the chat closed while the log was read, is nil too.
-    func url(toOpen file: MessageFile) async -> URL? {
-        guard file.urlExpiresAt != nil, let id = file.attachmentId else { return file.url }
-        let fresh = await self.livechat.freshFile(attachmentId: id)
+    func url(toOpen image: MessageImage) async -> URL? {
+        await self.openableURL(
+            image.url,
+            attachmentId: image.attachmentId,
+            isTemporary: image.urlExpiresAt != nil,
+            isExpired: image.isExpired()
+        )
+    }
+
+    private func openableURL(
+        _ stored: URL,
+        attachmentId: String?,
+        isTemporary: Bool,
+        isExpired: Bool
+    ) async -> URL? {
+        guard isTemporary, let attachmentId else { return stored }
+        let fresh = await self.livechat.freshURL(attachmentId: attachmentId)
         guard !Task.isCancelled else { return nil }
         if let fresh {
-            return fresh.url
+            return fresh
         }
-        return file.isExpired() ? nil : file.url
+        return isExpired ? nil : stored
     }
 
     /// Ends the session from the visitor's side.
@@ -128,18 +152,26 @@ extension ChatView.ViewModel {
     }
 
     /// Sends to the agent while a session is active, otherwise to the assistant. A 409 on the
-    /// assistant send has the session read: the text goes to the agent when one is active, and is
+    /// assistant send has the session read: the draft goes to the agent when one is active, and is
     /// offered for retry otherwise.
-    func deliver(_ text: String, via provider: any ChatProviding) async throws(ChatProvider.SendFailure) {
+    func deliver(
+        _ text: String,
+        attachments: [OutgoingAttachment],
+        via provider: any ChatProviding
+    ) async throws(ChatProvider.SendFailure) {
         guard self.livechatStatus != .active else {
-            try await provider.sendLivechat(text)
+            try await provider.sendLivechat(text, attachments: attachments)
             return
         }
         do {
-            try await provider.send(text)
+            try await provider.send(text, attachments: attachments)
         } catch .livechatActive(let popped) {
             guard await self.livechat.resumeActive() else { throw .retry(popped: popped, body: nil) }
-            try await provider.sendLivechat(popped.text)
+            // An agent that refuses photos gets none: the draft comes back with the reason.
+            guard popped.attachments.isEmpty || self.livechatConfig.attachmentsEnabled else {
+                throw .retry(popped: popped, body: L10n.livechatAttachmentsDropped.string)
+            }
+            try await provider.sendLivechat(popped.text, attachments: popped.attachments)
         }
     }
 }

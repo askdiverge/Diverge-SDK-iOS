@@ -5,7 +5,8 @@ Missing usage strings crash the host app on first access of the related API.
 
 ## v0.1.0
 
-**None required.** The current SDK does not touch camera, photos, location, mic, contacts, or ATT APIs.
+**None required.** The current SDK does not touch camera, location, mic, contacts, or ATT APIs.
+Photo attach uses SwiftUI's out-of-process `PhotosPicker`, which needs no photo-library usage string.
 
 ## Future features (fill copy when confirmed)
 

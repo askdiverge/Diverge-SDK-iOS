@@ -214,6 +214,31 @@ struct ChatViewModelLivechatTests {
         #expect(await viewModel.url(toOpen: stale) == fresh.url)
     }
 
+    @Test("an expired photo link is re-signed from the livechat log when tapped, as a file's is")
+    func expiredImageIsResigned() async {
+        let (viewModel, service, _) = self.makeSUT()
+        let stale = MessageImage(
+            url: URL(string: "https://cdn.example.com/a.jpg?token=old")!,
+            attachmentId: "img_1",
+            urlExpiresAt: "2000-01-01T00:00:00Z"
+        )
+        let fresh = MessageImage(
+            url: URL(string: "https://cdn.example.com/a.jpg?token=new")!,
+            attachmentId: "img_1",
+            urlExpiresAt: "2099-01-01T00:00:00Z"
+        )
+        service.livechatMessagePages = [LivechatFixtures.page(LivechatMessage(
+            messageId: "m1",
+            role: .agent,
+            agent: nil,
+            parts: [.image(fresh)],
+            createdAt: "2026-01-01T00:00:00Z",
+            sequenceNumber: 1
+        ))]
+
+        #expect(await viewModel.url(toOpen: stale) == fresh.url)
+    }
+
     @Test("a lasting link opens as stored, and a valid link the log can't re-sign falls back to the stored one")
     func storedLinkFallbacks() async throws {
         let (viewModel, service, _) = self.makeSUT()
@@ -232,6 +257,41 @@ struct ChatViewModelLivechatTests {
         let earlier = try LivechatFixtures.file(attachmentId: "att_earlier", expiresAt: "2000-01-01T00:00:00Z")
 
         #expect(await viewModel.url(toOpen: earlier) == nil)
+    }
+
+    @Test("an expired photo link the log can't re-sign, from an earlier session, isn't opened")
+    func expiredUnresignedImageIsNotOpened() async {
+        let (viewModel, _, _) = self.makeSUT()
+        let earlier = MessageImage(
+            url: URL(string: "https://cdn.example.com/a.jpg?token=old")!,
+            attachmentId: "img_earlier",
+            urlExpiresAt: "2000-01-01T00:00:00Z"
+        )
+
+        #expect(await viewModel.url(toOpen: earlier) == nil)
+    }
+
+    @Test("a photo tap whose chat closed while the log was read opens nothing")
+    func cancelledImageTapOpensNothing() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        let lasting = MessageImage(
+            url: URL(string: "https://cdn.example.com/a.jpg?token=old")!,
+            attachmentId: "img_1",
+            urlExpiresAt: "2099-01-01T00:00:00Z"
+        )
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        service.livechatSyncHold = {
+            await entered.open()
+            await release.wait()
+        }
+
+        let tap = Task { await viewModel.url(toOpen: lasting) }
+        await entered.wait()
+        tap.cancel()
+        await release.open()
+
+        #expect(await tap.value == nil)
     }
 
     @Test("a tap whose chat closed while the log was read opens nothing")

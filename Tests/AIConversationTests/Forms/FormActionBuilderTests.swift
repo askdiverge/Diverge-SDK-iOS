@@ -29,7 +29,9 @@ struct FormActionBuilderTests {
                 "email": "jane@example.com",
                 "orderNumber": "ABC-123",
                 "hiddenNoise": "ignored"
-            ]
+            ],
+            files: [:],
+            ticketAttachments: []
         )
 
         #expect(request == SubmitActionRequest(
@@ -55,7 +57,9 @@ struct FormActionBuilderTests {
 
         let request = FormActionBuilder.build(
             form: form,
-            values: ["name": "Jane", "email": "j@e.c", "message": "Broken"]
+            values: ["name": "Jane", "email": "j@e.c", "message": "Broken"],
+            files: [:],
+            ticketAttachments: []
         )
 
         #expect(request == SubmitActionRequest(
@@ -67,6 +71,29 @@ struct FormActionBuilderTests {
                 attachments: nil
             )
         ))
+    }
+
+    @Test("a support ticket sends only visible answers, so a hidden name's stale value stays home")
+    func ticketExcludesHiddenField() throws {
+        let form = try #require(ConversationForm.supportTicket(ShowSupportTicket(
+            partId: "part_ticket_1",
+            fields: [
+                .init(key: "topic", label: "Topic", type: .dropdown, options: ["order", "other"]),
+                .init(key: "name", label: "Name", type: .text, required: true,
+                      visibleWhen: [.init(field: "topic", operator: .equals, value: "order")]),
+                .init(key: "email", label: "Email", type: .email, required: true),
+                .init(key: "message", label: "Message", type: .textarea, required: true)
+            ]
+        )))
+
+        let request = FormActionBuilder.build(
+            form: form,
+            values: ["topic": "other", "name": "stale", "email": "j@e.c", "message": "Broken"],
+            files: [:],
+            ticketAttachments: []
+        )
+
+        #expect(request == nil)
     }
 
     @Test("a ticket form keeps only the fields its action carries")
@@ -123,7 +150,9 @@ struct FormActionBuilderTests {
                 "distributor": "b",
                 "claim": "should be excluded",
                 "photo": "should be excluded"
-            ]
+            ],
+            files: [:],
+            ticketAttachments: []
         )
 
         #expect(request == SubmitActionRequest(
@@ -151,7 +180,7 @@ struct FormActionBuilderTests {
             ],
             minFilledFields: 0
         ))
-        let request = FormActionBuilder.build(form: form, values: ["a": "z", "b": "y", "c": "stale"])
+        let request = FormActionBuilder.build(form: form, values: ["a": "z", "b": "y", "c": "stale"], files: [:], ticketAttachments: [])
         #expect(request?.action == .formSubmission(formId: "f", values: ["a": "z"], files: nil))
     }
 
@@ -161,6 +190,6 @@ struct FormActionBuilderTests {
             partId: "p",
             fields: [.init(key: "photo", label: "Photo", type: .file)]
         ))
-        #expect(FormActionBuilder.build(form: form, values: ["photo": "photo.jpg"]) == nil)
+        #expect(FormActionBuilder.build(form: form, values: ["photo": "photo.jpg"], files: [:], ticketAttachments: []) == nil)
     }
 }

@@ -111,6 +111,7 @@ public extension AIChat {
                 service: self.service,
                 contextProvider: self.configuration.contextProvider,
                 conversationFlow: self.configuration.conversationFlow,
+                attachments: self.configuration.attachments,
                 onClose: self.configuration.onClose,
                 onLivechatSessionChange: self.configuration.onLivechatSessionChange,
                 conversationRatingMode: self.configuration.rating,
@@ -149,6 +150,16 @@ public extension AIChat {
         case bottomUp
     }
 
+    /// Attachment sources offered in the composer and on `request_image_upload` prompts.
+    /// ``disabled`` hides attach and drops those prompts. ``photoLibrary`` uses SwiftUI
+    /// `PhotosPicker` (out-of-process — no photo permission prompt).
+    enum Attachments: Sendable {
+        /// No attach control — text only.
+        case disabled
+        /// A photo-library picker (`PhotosPicker`).
+        case photoLibrary
+    }
+
     /// Whether closing the chat first asks the visitor to rate the conversation (`POST /rate`).
     /// The close control shows when ``Configuration`` has `onClose`. A livechat session with
     /// feedback pending is rated through its own prompt, and closing then goes straight to the host.
@@ -185,6 +196,8 @@ public extension AIChat {
         let conversationFlow: ConversationFlow
         /// Which Diverge backend to talk to. Defaults to ``DivergeAPI/Environment/production``.
         let environment: DivergeAPI.Environment
+        /// Attachment sources offered in the composer. Defaults to ``Attachments/photoLibrary``.
+        let attachments: Attachments
         /// Whether to prompt for a conversation rating on close. Defaults to ``Rating/enabled``.
         let rating: Rating
 
@@ -206,6 +219,8 @@ public extension AIChat {
         ///     connected agent changes while the chat is on screen, so the host can show the agent
         ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
+        ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
+        ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
         ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
         ///     Defaults to ``Rating/enabled``.
         public init(
@@ -217,6 +232,7 @@ public extension AIChat {
             onClose: (@MainActor () -> Void)? = nil,
             onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             environment: DivergeAPI.Environment = .production,
+            attachments: Attachments = .photoLibrary,
             rating: Rating = .enabled
         ) {
             self.tokenProvider = tokenProvider
@@ -228,6 +244,7 @@ public extension AIChat {
             self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = .bottomUp
             self.environment = environment
+            self.attachments = attachments
             self.rating = rating
         }
 #else
@@ -249,6 +266,8 @@ public extension AIChat {
         ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
+        ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
+        ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
         ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
         ///     Defaults to ``Rating/enabled``.
         public init(
@@ -261,6 +280,7 @@ public extension AIChat {
             onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             conversationFlow: ConversationFlow = .topDown,
             environment: DivergeAPI.Environment = .production,
+            attachments: Attachments = .photoLibrary,
             rating: Rating = .enabled
         ) {
             self.tokenProvider = tokenProvider
@@ -272,6 +292,7 @@ public extension AIChat {
             self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = conversationFlow
             self.environment = environment
+            self.attachments = attachments
             self.rating = rating
         }
 #endif

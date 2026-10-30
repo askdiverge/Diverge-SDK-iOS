@@ -26,6 +26,9 @@ package actor ChatProvider: ChatProviding {
     /// Re-seeded on `clear()` so it survives reset.
     private let welcomeMessage: String?
 
+    /// Whether `request_image_upload` markers render. Off when the host disabled attachments.
+    private let acceptsImageUploadPrompts: Bool
+
     /// Right pane — committed user turns. Outer = turns, inner = adjacent bubbles
     /// (text, and the attachments of a send from this device).
     private var user: [Identified<[UserContent]>] = []
@@ -71,11 +74,13 @@ package actor ChatProvider: ChatProviding {
     package init(
         service: any ChatServicing,
         pageContext: @escaping @Sendable () async -> String?,
-        welcomeMessage: String? = nil
+        welcomeMessage: String? = nil,
+        acceptsImageUploadPrompts: Bool
     ) {
         self.service = service
         self.pageContext = pageContext
         self.welcomeMessage = welcomeMessage
+        self.acceptsImageUploadPrompts = acceptsImageUploadPrompts
         (self.stream, self.continuation) = ChatStream.makeStream(bufferingPolicy: .bufferingNewest(1))
     }
 
@@ -114,11 +119,6 @@ package actor ChatProvider: ChatProviding {
 }
 
 extension ChatProvider {
-
-    /// Text-only send — ``ChatProviding`` surface until photo-upload-ui wires attachments through.
-    package func send(_ text: String) async throws(SendFailure) {
-        try await self.send(text, attachments: [])
-    }
 
     /// Sends a user message (text and/or attachments) and folds the streamed reply into the
     /// conversation. A send with neither does nothing.
@@ -207,7 +207,7 @@ extension ChatProvider {
         case .part(let part):
             // Authoritative — replace the part's preview, then advance.
             guard
-                let response = Self.incoming(part)
+                let response = self.incoming(part)
             else {
                 // Unsupported part renders nothing, reset without consuming index.
                 buffer.reset()
@@ -314,11 +314,6 @@ extension ChatProvider {
         }
         self.appendIncoming([.livechatNote(note)])
         self.publish()
-    }
-
-    /// Text-only livechat send — ``ChatProviding`` surface until photo-upload-ui wires attachments.
-    package func sendLivechat(_ text: String) async throws(SendFailure) {
-        try await self.sendLivechat(text, attachments: [])
     }
 
     /// Sends the visitor's text and/or attachments to the agent while a livechat session is
@@ -476,7 +471,7 @@ private extension ChatProvider {
                 guard !bubbles.isEmpty else { continue }
                 self.appendUser(bubbles)
             } else {
-                let responses = message.parts.compactMap { Self.incoming($0, role: message.role) }
+                let responses = message.parts.compactMap { self.incoming($0, role: message.role) }
                 guard !responses.isEmpty else { continue }
                 self.appendIncoming(responses)
             }
@@ -570,9 +565,9 @@ private extension ChatProvider {
             case (.user, _):
                 runs.append(.user(message.parts.compactMap(Self.user)))
             case (_, .bot(let responses)):
-                runs[runs.count - 1] = .bot(responses + message.parts.compactMap { Self.incoming($0, role: message.role) })
+                runs[runs.count - 1] = .bot(responses + message.parts.compactMap { self.incoming($0, role: message.role) })
             default:
-                runs.append(.bot(message.parts.compactMap { Self.incoming($0, role: message.role) }))
+                runs.append(.bot(message.parts.compactMap { self.incoming($0, role: message.role) }))
             }
         }
 
@@ -621,14 +616,16 @@ private extension ChatProvider {
         switch part {
         case .richText(let richText):
             RichTextParser.attributedText(richText).map(UserContent.text)
+        case .image(let image):
+            .image(image)
         default:
-            nil // uploads join the user pane once the chat renders them
+            nil
         }
     }
 
     /// Maps a wire part for an incoming turn. System-role text becomes a centred note; every other
     /// non-user role keeps the usual assistant / agent cards.
-    static func incoming(_ part: Part, role: Message.Role = .assistant) -> ChatResponse? {
+    func incoming(_ part: Part, role: Message.Role = .assistant) -> ChatResponse? {
         if role == .system {
             guard case .richText(let richText) = part else { return nil }
             return RichTextParser.attributedText(richText).map(ChatResponse.systemNote)
@@ -653,13 +650,14 @@ private extension ChatProvider {
             return ConversationForm.supportTicket(marker).map(ChatResponse.form)
         case .showForm(let marker):
             return .form(.custom(marker))
+        case .image(let image):
+            return .image(image)
         case .file(let file):
             return .file(file)
+        case .requestImageUpload(let marker):
+            return self.acceptsImageUploadPrompts ? .requestImageUpload(marker) : nil
         case .requestHumanAgent(let marker):
             return .requestHumanAgent(marker)
-        case .image, .requestImageUpload:
-            // Images and upload prompts join the panes once the chat renders them.
-            return nil
         case .unknown:
             return nil
         }

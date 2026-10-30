@@ -13,4 +13,6 @@ package enum UserContent: Sendable, Equatable {
     case text(AttributedString)
     /// An upload sent from this device, kept as the payload that was posted.
     case attachment(OutgoingAttachment)
+    /// A photo from history or livechat that the visitor sent (signed URL, not local echo).
+    case image(MessageImage)
 }

@@ -18,7 +18,9 @@ final class StubChatProviding: ChatProviding {
     private let livechatSendFailure: ChatProvider.SendFailure?
     private let continuation: AsyncStream<ConversationSnapshot>.Continuation
     private(set) var lastSent: String?
+    private(set) var lastAttachments: [OutgoingAttachment] = []
     private(set) var lastLivechatSent: String?
+    private(set) var lastLivechatAttachments: [OutgoingAttachment] = []
     private(set) var appendedLivechat: [LivechatMessage] = []
     private(set) var resetCount = 0
     private(set) var expireCount = 0
@@ -26,6 +28,8 @@ final class StubChatProviding: ChatProviding {
     var loadOlderError: Error?
     /// Runs while an agent send is in flight, before it returns.
     var whileSendingLivechat: (@MainActor () async -> Void)?
+    /// Runs at the start of an assistant send, before the scripted failure (if any).
+    var onSend: (@MainActor () -> Void)?
 
     init(sendFailure: ChatProvider.SendFailure? = nil, livechatSendFailure: ChatProvider.SendFailure? = nil) {
         self.sendFailure = sendFailure
@@ -44,8 +48,10 @@ final class StubChatProviding: ChatProviding {
         self.continuation.yield(snapshot)
     }
 
-    func send(_ text: String) async throws(ChatProvider.SendFailure) {
+    func send(_ text: String, attachments: [OutgoingAttachment]) async throws(ChatProvider.SendFailure) {
         self.lastSent = text
+        self.lastAttachments = attachments
+        self.onSend?()
         if let sendFailure {
             throw sendFailure
         }
@@ -76,8 +82,9 @@ final class StubChatProviding: ChatProviding {
         self.livechatOrder.append("note:\(note.kind)")
     }
 
-    func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure) {
+    func sendLivechat(_ text: String, attachments: [OutgoingAttachment]) async throws(ChatProvider.SendFailure) {
         self.lastLivechatSent = text
+        self.lastLivechatAttachments = attachments
         await self.whileSendingLivechat?()
         if let livechatSendFailure {
             throw livechatSendFailure
@@ -95,10 +102,12 @@ extension ChatView.ViewModel {
     @MainActor
     static func forTesting(
         provider: StubChatProviding,
+        attachments: AIChat.Attachments = .photoLibrary,
         onClose: (@MainActor () -> Void)? = {},
         onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
         conversationRatingMode: AIChat.Rating = .enabled,
         ratingSession: RatingSession = RatingSession(),
+        encodeAttachment: AttachmentEncoder? = nil,
         submitAction: ActionSubmitter? = nil,
         fetchForm: FormFetcher? = nil,
         fetchSession: WaitingFormController.SessionFetcher? = nil,
@@ -119,10 +128,12 @@ extension ChatView.ViewModel {
             service: service,
             contextProvider: contextProvider,
             conversationFlow: .topDown,
+            attachments: attachments,
             onClose: onClose,
             onLivechatSessionChange: onLivechatSessionChange,
             conversationRatingMode: conversationRatingMode,
             ratingSession: ratingSession,
+            encodeAttachment: encodeAttachment,
             submitAction: submitAction,
             fetchForm: fetchForm,
             fetchSession: fetchSession,

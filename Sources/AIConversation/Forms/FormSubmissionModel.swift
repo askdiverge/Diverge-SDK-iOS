@@ -21,6 +21,10 @@ struct FormSubmissionModel: Equatable {
 
     private(set) var form: ConversationForm
     private(set) var values: [String: String] = [:]
+    /// File-field picks keyed by `FormField.key` — the same chip model the composer uses.
+    private(set) var files: [String: PendingAttachment] = [:]
+    /// Extra attachments on a support-ticket form (when `attachmentsAccepted`).
+    private(set) var ticketAttachments: [PendingAttachment] = []
     private(set) var fieldErrors: [String: String] = [:]
     private(set) var formError: String?
     private(set) var phase: Phase = .editing
@@ -46,9 +50,11 @@ struct FormSubmissionModel: Equatable {
     var hasFields: Bool { !self.form.fields.isEmpty }
 
     /// Whether the visitor can complete the form here: it has a definition, and no visible
-    /// required field asks for something this app can't provide.
-    var isCompletable: Bool {
-        !self.isUnavailable && FormValidator.blockingField(of: self.form, values: self.values) == nil
+    /// required field asks for something this app can't provide. `offersFileFields` is whether the
+    /// host offers photo attach for file fields.
+    func isCompletable(offersFileFields: Bool) -> Bool {
+        !self.isUnavailable
+            && FormValidator.blockingField(of: self.form, values: self.values, offersFileFields: offersFileFields) == nil
     }
 
     init(form: ConversationForm) {
@@ -110,10 +116,33 @@ struct FormSubmissionModel: Equatable {
         if case .failed = self.phase { self.phase = .editing }
     }
 
+    /// Attaches a picked photo to a file field (replacing any previous pick).
+    mutating func setFile(_ file: PendingAttachment?, for key: String) {
+        if let file {
+            self.files[key] = file
+        } else {
+            self.files.removeValue(forKey: key)
+        }
+        self.fieldErrors[key] = nil
+        if case .failed = self.phase { self.phase = .editing }
+    }
+
+    /// Sets the ticket-level attachment (capped at one for v1).
+    mutating func setTicketAttachment(_ file: PendingAttachment?) {
+        self.ticketAttachments = file.map { [$0] } ?? []
+        if case .failed = self.phase { self.phase = .editing }
+    }
+
     /// Runs client-side validation. Returns `true` when the draft is ready to submit.
+    /// `offersFileFields` is whether the host offers photo attach for file fields.
     @discardableResult
-    mutating func validate() -> Bool {
-        let result = FormValidator.validate(form: self.form, values: self.values)
+    mutating func validate(offersFileFields: Bool) -> Bool {
+        let result = FormValidator.validate(
+            form: self.form,
+            values: self.values,
+            files: Set(self.files.keys),
+            offersFileFields: offersFileFields
+        )
         self.fieldErrors = result.fieldErrors
         self.formError = result.formError
         return result.isValid
@@ -121,7 +150,12 @@ struct FormSubmissionModel: Equatable {
 
     /// Builds the wire request from the current draft, or `nil` if the builder cannot.
     func buildRequest() -> SubmitActionRequest? {
-        FormActionBuilder.build(form: self.form, values: self.values)
+        FormActionBuilder.build(
+            form: self.form,
+            values: self.values,
+            files: self.files.mapValues(\.attachment),
+            ticketAttachments: self.ticketAttachments.map(\.attachment)
+        )
     }
 
     /// Enters `.submitting`. Returns `false` (and changes nothing) when a submit is already in

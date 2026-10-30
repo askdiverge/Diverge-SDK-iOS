@@ -251,10 +251,10 @@ package actor LivechatSession {
         self.postTyping(false)
     }
 
-    /// Reads the message log again for a freshly signed copy of attachment `attachmentId`, whose
-    /// stored link may have expired. Nil when the log can't be read or no longer holds it. The
-    /// read publishes nothing and leaves the message cursor where it is.
-    package func freshFile(attachmentId: String) async -> MessageFile? {
+    /// Reads the message log again for a freshly signed link to attachment `attachmentId` — a
+    /// file or an image — whose stored link may have expired. Nil when the log can't be read or
+    /// no longer holds it. The read publishes nothing and leaves the message cursor where it is.
+    package func freshURL(attachmentId: String) async -> URL? {
         let gen = self.generation
         let sync: LivechatSync
         do {
@@ -268,8 +268,12 @@ package actor LivechatSession {
             return nil
         }
         for message in sync.messages.reversed() {
-            for case .file(let file) in message.parts where file.attachmentId == attachmentId {
-                return file
+            for part in message.parts {
+                switch part {
+                case .file(let file) where file.attachmentId == attachmentId: return file.url
+                case .image(let image) where image.attachmentId == attachmentId: return image.url
+                default: continue
+                }
             }
         }
         return nil

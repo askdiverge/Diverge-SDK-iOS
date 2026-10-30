@@ -107,7 +107,7 @@ final class WaitingFormModel {
 
     @discardableResult
     func validate() -> Bool {
-        let result = FormValidator.validate(form: self.form, values: self.values)
+        let result = FormValidator.validate(form: self.form, values: self.values, files: [], offersFileFields: false)
         self.fieldErrors = result.fieldErrors
         self.formError = result.formError
         return result.isValid
