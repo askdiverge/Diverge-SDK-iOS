@@ -115,7 +115,8 @@ public extension AIChat {
                 onClose: self.configuration.onClose,
                 onLivechatSessionChange: self.configuration.onLivechatSessionChange,
                 conversationRatingMode: self.configuration.rating,
-                ratingSession: self.ratingSession
+                ratingSession: self.ratingSession,
+                dependencies: .live(service: self.service)
             )
         )
         .environment(\.openURL, self.openURL)
