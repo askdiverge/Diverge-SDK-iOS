@@ -48,6 +48,10 @@
   composer, so the visitor can type when `GET /messages` fails.
 - The chat no longer goes blank after a data deletion, an expired session or a failed history
   load: the welcome message stays on screen and the visitor can keep writing.
+- A message refused because the session expired goes back in the composer, with its photos, so the
+  visitor can send it again.
+- Long form field labels wrap instead of being cut off, a dropdown shows the same red outline as a
+  text field when it has an error, and a picked form photo no longer shows the field's raw key.
 
 ## [1.0.0] - 2026-10-01
 
