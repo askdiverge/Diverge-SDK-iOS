@@ -71,7 +71,7 @@ struct NetworkManagerStreamTests {
             _ = try await collect(Frame.self, from: sut)
             Issue.record("Expected stream to throw")
         } catch let error as NetworkError {
-            guard case .http(.unhandled(let code)) = error, code == 500 else {
+            guard case .http(.unhandled(let code, _)) = error, code == 500 else {
                 Issue.record("Expected .http(.unhandled(500)), got \(error)")
                 return
             }

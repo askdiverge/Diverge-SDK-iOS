@@ -16,7 +16,9 @@ package enum NetworkError: Error {
 
     package enum HTTPStatusError: Error {
         case unauthorized
-        case unhandled(status: Int)
+        /// Any other non-2xx status, with the response body the facade reads the API's error
+        /// envelope from.
+        case unhandled(status: Int, body: Data)
     }
 
     /// Maps an arbitrary error into the closest matching `NetworkError` case.
