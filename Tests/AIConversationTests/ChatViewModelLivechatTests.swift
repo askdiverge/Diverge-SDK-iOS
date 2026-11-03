@@ -106,7 +106,7 @@ struct ChatViewModelLivechatTests {
             "livechat.waitingStatus", "livechat.activeStatus",
             "livechat.talkToPerson", "livechat.humanAgentPrompt", "livechat.humanAgentHint",
             "livechat.queuedNote", "livechat.endedNote", "livechat.agentJoinedNote",
-            "livechat.agentFallback"
+            "livechat.agentFallback", "livechat.agentTyping", "livechat.agentTypingNamed"
         ])
     }
 
@@ -133,6 +133,66 @@ struct ChatViewModelLivechatTests {
         service.livechatState = LivechatState(status: .closed)
         await viewModel.livechat.refresh()
         try await eventually { provider.notes.contains { $0.kind == .ended } }
+    }
+
+    @Test("an active agent's typing flag shows on the view model")
+    func agentTypingFlag() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        let state = try LivechatFixtures.decoder.decode(LivechatState.self, from: Data("""
+        {
+          "status": "active",
+          "active_agent": { "agent_id": "a", "display_name": "Alice", "avatar_url": null },
+          "is_agent_typing": true,
+          "feedback": { "status": "not_available" }
+        }
+        """.utf8))
+        service.livechatState = state
+        await viewModel.livechat.refresh()
+
+        try await eventually { viewModel.isAgentTyping }
+        #expect(viewModel.livechatAgentName == "Alice")
+    }
+
+    @Test("while an agent is connected, editing posts true once, and sending posts false")
+    func visitorTypingPosts() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+
+        viewModel.editDraft("h")
+        viewModel.editDraft("hi")
+        try await eventually { service.livechatTypingEvents == [true] }
+
+        try await viewModel.send()
+
+        try await eventually { service.livechatTypingEvents == [true, false] }
+    }
+
+    @Test("a draft put back after a failed send reports no typing")
+    func restoredDraftIsNotTyping() async throws {
+        let provider = StubChatProviding(livechatSendFailure: .retry(popped: "hi", body: nil))
+        let (viewModel, service, _) = self.makeSUT(provider: provider)
+        try await self.start(viewModel, in: .active, on: service)
+        viewModel.editDraft("hi")
+        try await eventually { service.livechatTypingEvents == [true] }
+
+        try await viewModel.send()
+        try await eventually { service.livechatTypingEvents == [true, false] }
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(viewModel.currentMessage == "hi")
+        #expect(service.livechatTypingEvents == [true, false])
+    }
+
+    @Test("editing without an agent session reports no typing")
+    func typingWithoutSession() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+
+        viewModel.editDraft("hello")
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(viewModel.currentMessage == "hello")
+        #expect(service.livechatTypingEvents.isEmpty)
     }
 
     @Test("an open session found at start mints no notes")

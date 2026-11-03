@@ -73,6 +73,15 @@ extension ChatView.ViewModel {
         }
     }
 
+    /// The visitor edited the draft. While an agent is connected, the session tells the agent
+    /// they are typing; the view model's own writes to ``currentMessage`` report nothing.
+    func editDraft(_ text: String) {
+        self.currentMessage = text
+        guard self.livechatStatus == .active else { return }
+        let isEmpty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        Task { [livechat = self.livechat] in await livechat.visitorTyping(isEmpty: isEmpty) }
+    }
+
     /// Whether the `request_human_agent` card in bot turn `turnID` can hand over: it is in the
     /// newest bot turn, like a fillable form, no session is open, nothing is in flight and the
     /// reply it came in has finished.
