@@ -9,6 +9,9 @@
   and a form that requires one can't be sent. The privacy manifest now declares Name, Email
   address, Phone number and Customer support, which these forms collect; update your App Store
   privacy label.
+- Livechat handover: when livechat is enabled, a header control asks for a person or ends the
+  session, the composer sends to the agent while one is connected, and the agent's messages appear
+  in the conversation. A reset closes an open session first.
 
 ### Fixed
 
