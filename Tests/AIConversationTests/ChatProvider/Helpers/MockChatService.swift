@@ -48,6 +48,8 @@ final class MockChatService: ChatServicing {
     nonisolated(unsafe) private(set) var lastLivechatSyncWait: (waitMs: Int?, syncCursor: String?)
     nonisolated(unsafe) private(set) var livechatHandoverCallCount = 0
     nonisolated(unsafe) private(set) var lastLivechatHandoverClientContext: LivechatClientContext?
+    nonisolated(unsafe) private(set) var lastLivechatHandoverSource: LivechatHandoverRequest.Source?
+    nonisolated(unsafe) private(set) var lastLivechatHandoverPartId: String?
     nonisolated(unsafe) private(set) var lastLivechatAfterSequence: Int64?
     nonisolated(unsafe) private(set) var livechatCloseCallCount = 0
     nonisolated(unsafe) private(set) var lastLivechatCloseReason: String?
@@ -157,11 +159,13 @@ final class MockChatService: ChatServicing {
     }
 
     func requestLivechatHandover(
-        source _: LivechatHandoverRequest.Source,
-        partId _: String?,
+        source: LivechatHandoverRequest.Source,
+        partId: String?,
         clientContext: LivechatClientContext?
     ) async throws(ChatServiceError) -> LivechatState.Status {
         self.livechatHandoverCallCount += 1
+        self.lastLivechatHandoverSource = source
+        self.lastLivechatHandoverPartId = partId
         self.lastLivechatHandoverClientContext = clientContext
         if let error = self.stub.livechatHandoverError {
             throw error

@@ -53,14 +53,17 @@ extension ChatView.ViewModel {
     }
 
     /// Queues the visitor for an agent with the native client context, once no reply is in flight.
-    func requestLivechat() async {
+    /// Pass `partId` when the request comes from a `request_human_agent` marker so the API can
+    /// attribute the handover.
+    func requestLivechat(partId: String? = nil) async {
         guard !self.isReplyInFlight else { return }
         let epoch = self.livechatEpoch
         let context = LivechatClientContext.native(page: await self.pageContext())
         // A delete while the host's callback ran replaced the visitor; nothing is handed over.
         guard epoch == self.livechatEpoch else { return }
+        let source: LivechatHandoverRequest.Source = partId == nil ? .manualButton : .assistantMarker
         do {
-            try await self.livechat.handover(source: .manualButton, partId: nil, clientContext: context)
+            try await self.livechat.handover(source: source, partId: partId, clientContext: context)
         } catch .conflict {
             self.presentLivechatNotice(L10n.livechatOffline)
         } catch .sessionExpired {
@@ -68,6 +71,14 @@ extension ChatView.ViewModel {
         } catch {
             self.presentLivechatNotice(L10n.noticeSendFailed)
         }
+    }
+
+    /// Whether the `request_human_agent` card in bot turn `turnID` can hand over: it is in the
+    /// newest bot turn, like a fillable form, no session is open, nothing is in flight and the
+    /// reply it came in has finished.
+    func canAcceptHumanAgentPrompt(inBotTurn turnID: UUID) -> Bool {
+        self.isFormEditable(inBotTurn: turnID) && !self.livechatStatus.isInSession && !self.isLivechatBusy
+            && !self.isReplyInFlight
     }
 
     /// Ends the session from the visitor's side.

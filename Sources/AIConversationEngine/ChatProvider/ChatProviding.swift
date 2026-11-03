@@ -29,6 +29,9 @@ package protocol ChatProviding: Sendable {
     /// Folds messages from the livechat poller into the conversation, skipping ids already shown.
     func appendLivechat(_ messages: [LivechatMessage]) async
 
+    /// Appends an SDK-minted livechat boundary note (queued / agent joined / ended).
+    func note(_ note: LivechatNote) async
+
     /// Sends the visitor's text to the agent while a livechat session is active.
     func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure)
 
