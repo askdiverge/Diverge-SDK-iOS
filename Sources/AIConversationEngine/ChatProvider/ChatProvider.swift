@@ -45,6 +45,9 @@ package actor ChatProvider: ChatProviding {
     /// Serializes send/reset/delete — they must not interleave.
     private var isBusy = false
 
+    /// A session expiry that arrived during a send, reset or delete; the clear runs when it ends.
+    private var expiresAfterOperation = false
+
     /// Snapshot channel the view model observes. Latest-wins — the VM only ever
     /// cares about the current conversation, never a backlog.
     package let stream: ChatStream
@@ -93,7 +96,7 @@ extension ChatProvider {
         guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
 
         self.isBusy = true
-        defer { self.isBusy = false }
+        defer { self.finishOperation() }
 
         // Mint the in-flight turn and mark it live before the first suspension, so concurrent
         // sends bounce and the view can flag exactly this turn from the snapshot.
@@ -216,7 +219,7 @@ extension ChatProvider {
     package func reset() async throws {
         guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
         self.isBusy = true
-        defer { self.isBusy = false }
+        defer { self.finishOperation() }
 
         try await self.service.resetConversation()
         self.clear()
@@ -233,9 +236,20 @@ extension ChatProvider {
     package func delete() async throws {
         guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
         self.isBusy = true
-        defer { self.isBusy = false }
+        defer { self.finishOperation() }
 
         try await self.service.deleteData()
+        self.clear()
+        self.publish()
+    }
+
+    /// Clears the conversation after a call outside the provider saw the session end (401). During
+    /// a send, reset or delete the clear waits until the operation finishes.
+    package func expireSession() {
+        guard !self.isBusy else {
+            self.expiresAfterOperation = true
+            return
+        }
         self.clear()
         self.publish()
     }
@@ -263,6 +277,15 @@ private extension ChatProvider {
         self.incoming.removeLast()
         let userText = self.user.removeLast().model.last ?? ""
         return String(userText.characters)
+    }
+
+    /// Ends a send, reset or delete, then applies a session expiry that arrived meanwhile.
+    func finishOperation() {
+        self.isBusy = false
+        guard self.expiresAfterOperation else { return }
+        self.expiresAfterOperation = false
+        self.clear()
+        self.publish()
     }
 
     /// Drops all conversation state and resets pagination — after a successful reset
@@ -322,6 +345,12 @@ private extension ChatProvider {
                         rows: table.rows
                     )
                 )
+        case .showContactForm(let marker):
+                .form(.contact(marker))
+        case .showSupportTicket(let marker):
+            ConversationForm.supportTicket(marker).map(ChatResponse.form)
+        case .showForm(let marker):
+                .form(.custom(marker))
         case .unknown: nil
         }
     }

@@ -24,6 +24,22 @@ package struct ShowForm: Decodable, Sendable, Equatable {
     package let fields: [FormField]
     package let minFilledFields: Int
 
+    package init(
+        partId: String,
+        formId: String,
+        name: String?,
+        confirmationText: String? = nil,
+        fields: [FormField] = [],
+        minFilledFields: Int = 0
+    ) {
+        self.partId = partId
+        self.formId = formId
+        self.name = name
+        self.confirmationText = confirmationText
+        self.fields = fields
+        self.minFilledFields = minFilledFields
+    }
+
     /// The keys the contract requires must be present. An empty `fields` is hydrated from
     /// `GET …/forms/{form_id}`. A missing key or malformed payload throws, and the part decoder
     /// decides how the message degrades.

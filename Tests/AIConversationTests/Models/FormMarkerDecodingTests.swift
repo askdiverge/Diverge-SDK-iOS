@@ -152,6 +152,29 @@ struct FormMarkerDecodingTests {
         }
     }
 
+    // MARK: - Part
+
+    @Test("each form marker decodes through Part to its own case")
+    func markersDecodeThroughPart() throws {
+        let message = try self.decode(Message.self, """
+            {"message_id":"m_1","role":"assistant","created_at":"2026-01-01T00:00:00Z","parts":[
+              {"type":"show_contact_form","part_id":"p_1","fields":[]},
+              {"type":"show_support_ticket","part_id":"p_2","fields":[],"attachments_accepted":true,"max_attachment_size_bytes":2097152},
+              {"type":"show_form","part_id":"p_3","form_id":"frm_1","name":"Callback","fields":[],"min_filled_fields":0}
+            ]}
+            """)
+
+        guard message.parts.count == 3,
+              case .showContactForm(let contact) = message.parts[0],
+              case .showSupportTicket(let ticket) = message.parts[1],
+              case .showForm(let form) = message.parts[2]
+        else {
+            Issue.record("expected the three marker cases, got \(message.parts)")
+            return
+        }
+        #expect([contact.partId, ticket.partId, form.partId] == ["p_1", "p_2", "p_3"])
+    }
+
     // MARK: - Fixtures
 
     private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {

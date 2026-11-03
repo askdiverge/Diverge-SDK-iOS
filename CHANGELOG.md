@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Contact, support-ticket and custom forms render in the conversation, validate locally, and
+  submit through `POST /actions`. File fields are shown as unavailable until photo attach ships,
+  and a form that requires one can't be sent. The privacy manifest now declares Name, Email
+  address, Phone number and Customer support, which these forms collect; update your App Store
+  privacy label.
+
 ## [1.0.0] - 2026-10-01
 
 First stable release. Upgrading from 0.1.0: see

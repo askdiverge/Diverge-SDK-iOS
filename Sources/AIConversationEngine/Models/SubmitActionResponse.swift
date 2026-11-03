@@ -14,4 +14,9 @@ package struct SubmitActionResponse: Decodable, Sendable, Equatable {
     /// Copy shown to the visitor after the submission. `nil` when the form sets none; the SDK
     /// then shows its own confirmation copy.
     package let confirmationText: String?
+
+    package init(submissionId: String, confirmationText: String? = nil) {
+        self.submissionId = submissionId
+        self.confirmationText = confirmationText
+    }
 }

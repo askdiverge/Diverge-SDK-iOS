@@ -26,6 +26,12 @@ package struct FormFieldCondition: Decodable, Sendable, Equatable {
     package let `operator`: Operator
     package let value: String
 
+    package init(field: String, operator: Operator = .equals, value: String) {
+        self.field = field
+        self.operator = `operator`
+        self.value = value
+    }
+
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.field = try container.decode(String.self, forKey: .field)
