@@ -15,7 +15,7 @@ private struct ChatBubble: View {
     let text: AttributedString
 
     var body: some View {
-        Text(self.text)
+        BulletedText(text: self.text)
             .font(self.appearance.font(size: 13))
             .padding(self.appearance.spacing.units(2))
     }

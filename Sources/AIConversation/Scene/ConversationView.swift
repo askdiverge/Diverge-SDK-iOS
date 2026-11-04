@@ -37,7 +37,14 @@ struct ConversationView<Content: View, Header: View>: View {
     var body: some View {
         ScrollViewReader { proxy in
             self.conversation(proxy)
-                .overlay(alignment: .bottom) { self.scrollToBottomButton(proxy) }
+                .overlay(alignment: .bottomTrailing) {
+                    ScrollToBottomButton(
+                        isVisible: self.isScrolledAway && self.snapshot.turns.count > 1,
+                        isStreaming: self.snapshot.streamingTurnID != nil
+                    ) {
+                        self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy)
+                    }
+                }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(.top, for: .alignment)
@@ -84,19 +91,6 @@ private extension ConversationView {
         }
     }
 
-    /// Jump-to-bottom control, surfaced only once the reader has scrolled away. Wears the thinking
-    /// border while a reply streams.
-    func scrollToBottomButton(_ proxy: ScrollViewProxy) -> some View {
-        IconButton(icon: ChatAppearance.Symbol.scrollToBottom) {
-            self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy)
-        }
-        .modifier(ThinkingBorderEffect(isActive: self.snapshot.streamingTurnID != nil, shape: Circle()))
-        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
-        .padding(.bottom, self.appearance.spacing.units(2))
-        .opacity(self.isScrolledAway ? 1 : 0)
-        .allowsHitTesting(self.isScrolledAway)
-        .animation(.easeInOut(duration: 0.2), value: self.isScrolledAway)
-    }
 }
 
 // MARK: - Scroll state
