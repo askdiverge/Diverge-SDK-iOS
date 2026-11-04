@@ -30,6 +30,9 @@
   pending feedback. Pass `rating: .disabled` to close without asking. Whether the visitor has rated
   is remembered by the `AIChat` instance, so keep it, or use `AIChat.configure`, to avoid asking
   again.
+- Photo upload wire: `request_image_upload` markers and `MessageImage` parts decode from history
+  and stream `done`, and visitor image/file parts travel on `POST /messages` and
+  `POST /livechat/messages`. Composer attach UI ships in a follow-up.
 
 ### Fixed
 

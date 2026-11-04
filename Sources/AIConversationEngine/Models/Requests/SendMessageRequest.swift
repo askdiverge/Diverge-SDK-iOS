@@ -62,5 +62,26 @@ extension SendMessageRequest {
                 try data.encode(to: encoder)
             }
         }
+
+        /// Builds outbound parts for a visitor send — text (when non-empty) then each attachment.
+        /// A send carries at least one of them, since the API requires one part.
+        static func make(text: String, attachments: [OutgoingAttachment]) -> [Part] {
+            var parts: [Part] = []
+            if !text.isEmpty {
+                parts.append(.text(text))
+            }
+            for attachment in attachments {
+                let input = SendMessageRequest.Input(
+                    data: attachment.dataBase64,
+                    mime: attachment.mimeType,
+                    filename: attachment.filename
+                )
+                switch attachment.kind {
+                case .image: parts.append(.image(input))
+                case .file: parts.append(.file(input))
+                }
+            }
+            return parts
+        }
     }
 }

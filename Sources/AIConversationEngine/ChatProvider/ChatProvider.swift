@@ -26,10 +26,9 @@ package actor ChatProvider: ChatProviding {
     /// Re-seeded on `clear()` so it survives reset.
     private let welcomeMessage: String?
 
-    /// Right pane — committed user turns. Outer = turns, inner = adjacent bubbles.
-    /// Built through the same rich_text parse as `incoming`; user text just lands
-    /// unstyled. One parser, not two.
-    private var user: [Identified<[AttributedString]>] = []
+    /// Right pane — committed user turns. Outer = turns, inner = adjacent bubbles
+    /// (text, and the attachments of a send from this device).
+    private var user: [Identified<[UserContent]>] = []
 
     /// Left pane — committed turns from every non-user role (assistant, agent,
     /// system) folded together, as display models.
@@ -80,6 +79,16 @@ package actor ChatProvider: ChatProviding {
         (self.stream, self.continuation) = ChatStream.makeStream(bufferingPolicy: .bufferingNewest(1))
     }
 
+    /// Builds the optimistic user-turn echo for a send: the text, then each attachment as posted.
+    package static func echo(text: String, attachments: [OutgoingAttachment]) -> [UserContent] {
+        var contents: [UserContent] = []
+        if !text.isEmpty {
+            contents.append(.text(AttributedString(text)))
+        }
+        contents.append(contentsOf: attachments.map(UserContent.attachment))
+        return contents
+    }
+
     /// True only while the synthetic welcome is present (history exhausted). It opens the
     /// conversation, so the bot leads the interleave.
     private var showsWelcome: Bool {
@@ -106,8 +115,17 @@ package actor ChatProvider: ChatProviding {
 
 extension ChatProvider {
 
-    /// Sends a user message and folds the streamed reply into the conversation.
+    /// Text-only send — ``ChatProviding`` surface until photo-upload-ui wires attachments through.
     package func send(_ text: String) async throws(SendFailure) {
+        try await self.send(text, attachments: [])
+    }
+
+    /// Sends a user message (text and/or attachments) and folds the streamed reply into the
+    /// conversation. A send with neither does nothing.
+    package func send(_ text: String, attachments: [OutgoingAttachment]) async throws(SendFailure) {
+        // The API takes a message of at least one part.
+        guard !text.isEmpty || !attachments.isEmpty else { return }
+
         // Single-flight — reject a send while a reply is already streaming.
         guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
 
@@ -122,8 +140,9 @@ extension ChatProvider {
         // Extra context
         let page = await self.pageContext()
 
-        // Optimistic echo — the user turn shows immediately.
-        self.appendUser([AttributedString(text)])
+        // Optimistic echo — the user turn shows immediately (text + any pending media).
+        let echo = Self.echo(text: text, attachments: attachments)
+        self.appendUser(echo)
         self.publish()
 
         // In-flight assistant turn, the thinking placeholder fills the pre-delta gap
@@ -143,7 +162,7 @@ extension ChatProvider {
         var buffer = DeltaBuffer { Self.response(for: $0) }
 
         do {
-            for try await event in self.service.sendMessage(text, page: page) {
+            for try await event in self.service.sendMessage(text, attachments: attachments, page: page) {
                 self.apply(event, into: &buffer)
             }
             // Stream finished, clear the live marker.
@@ -161,19 +180,19 @@ extension ChatProvider {
             throw SendFailure.sessionExpired
 
         } catch ChatServiceError.stream(let error) {
-            let popped = self.discardInFlight()
+            let popped = self.discardInFlight(echoCount: echo.count)
             self.publish()
-            throw .retry(popped: popped, body: error.message)
+            throw .retry(popped: .init(text: popped, attachments: attachments), body: error.message)
 
         } catch ChatServiceError.conflict {
-            let popped = self.discardInFlight()
+            let popped = self.discardInFlight(echoCount: echo.count)
             self.publish()
-            throw .livechatActive(popped: popped)
+            throw .livechatActive(popped: .init(text: popped, attachments: attachments))
 
         } catch {
-            let popped = self.discardInFlight()
+            let popped = self.discardInFlight(echoCount: echo.count)
             self.publish()
-            throw .retry(popped: popped, body: nil)
+            throw .retry(popped: .init(text: popped, attachments: attachments), body: nil)
         }
     }
 
@@ -297,32 +316,44 @@ extension ChatProvider {
         self.publish()
     }
 
-    /// Sends the visitor's text to the agent while a livechat session is active. The text shows
-    /// at once, and the stored message's id is recorded so the poller's copy isn't shown again.
+    /// Text-only livechat send — ``ChatProviding`` surface until photo-upload-ui wires attachments.
     package func sendLivechat(_ text: String) async throws(SendFailure) {
+        try await self.sendLivechat(text, attachments: [])
+    }
+
+    /// Sends the visitor's text and/or attachments to the agent while a livechat session is
+    /// active. The echo shows at once, and the stored message's id is recorded so the poller's
+    /// copy isn't shown again. A send with neither does nothing.
+    package func sendLivechat(
+        _ text: String,
+        attachments: [OutgoingAttachment]
+    ) async throws(SendFailure) {
+        // The API takes a message of at least one part.
+        guard !text.isEmpty || !attachments.isEmpty else { return }
         guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
         self.isBusy = true
         defer { self.finishOperation() }
 
         let page = await self.pageContext()
-        self.appendUser([AttributedString(text)])
+        let echo = Self.echo(text: text, attachments: attachments)
+        self.appendUser(echo)
         self.publish()
 
         do {
-            let stored = try await self.postLivechat(text, page: page)
+            let stored = try await self.postLivechat(text, attachments: attachments, page: page)
             self.livechatMessageIDs.insert(stored.messageId)
         } catch ChatServiceError.sessionExpired {
             self.clear()
             self.publish()
             throw SendFailure.sessionExpired
         } catch ChatServiceError.conflict {
-            self.popLastUserBubble()
+            self.popLastUserBubbles(count: echo.count)
             self.publish()
-            throw .livechatInactive(popped: text)
+            throw .livechatInactive(popped: .init(text: text, attachments: attachments))
         } catch {
-            self.popLastUserBubble()
+            self.popLastUserBubbles(count: echo.count)
             self.publish()
-            throw .retry(popped: text, body: nil)
+            throw .retry(popped: .init(text: text, attachments: attachments), body: nil)
         }
     }
 
@@ -354,16 +385,16 @@ private extension ChatProvider {
         self.incoming[turn] = Identified(id: self.incoming[turn].id, model: responses)
     }
 
-    /// Discards the unfinished assistant reply and pops the user echo, returning its text
-    /// for the caller to restore to the input.
-    func discardInFlight() -> String {
+    /// Discards the unfinished assistant reply and pops the user echo bubbles, returning their
+    /// text for the caller to restore to the input.
+    func discardInFlight(echoCount: Int) -> String {
         self.streamingTurnID = nil
         self.incoming.removeLast()
-        return self.popLastUserBubble()
+        return self.popLastUserBubbles(count: echoCount)
     }
 
     /// Adds a visitor turn, or a bubble on the newest one when a new turn would break the pairing.
-    func appendUser(_ bubbles: [AttributedString]) {
+    func appendUser(_ bubbles: [UserContent]) {
         if self.user.isEmpty, self.incoming.isEmpty {
             self.botLeads = false
         }
@@ -396,16 +427,22 @@ private extension ChatProvider {
         leads ? count == otherCount : count < otherCount
     }
 
-    /// Removes the newest visitor bubble, and its turn when nothing is left, returning its text.
+    /// Removes the newest `count` visitor bubbles (and their turn when empty), returning text
+    /// for input restore. An unanswered prior bubble on the same turn is left in place.
     @discardableResult
-    func popLastUserBubble() -> String {
-        guard let last = self.user.popLast() else { return "" }
+    func popLastUserBubbles(count: Int) -> String {
+        guard count > 0, let last = self.user.popLast() else { return "" }
         var bubbles = last.model
-        let text = bubbles.popLast().map { String($0.characters) } ?? ""
+        let removeCount = min(count, bubbles.count)
+        let removed = Array(bubbles.suffix(removeCount))
+        bubbles.removeLast(removeCount)
         if !bubbles.isEmpty {
             self.user.append(Identified(id: last.id, model: bubbles))
         }
-        return text
+        return removed.compactMap { content -> String? in
+            if case .text(let text) = content { return String(text.characters) }
+            return nil
+        }.joined(separator: "\n")
     }
 
     /// Ends a send, reset or delete, then folds in the livechat messages held back meanwhile.
@@ -480,12 +517,26 @@ private extension ChatProvider {
     /// Posts a livechat message under one operation id, and once more when the first attempt may
     /// have been stored: the server answers a repeated id with the stored copy, so a send whose
     /// response was lost is never stored twice.
-    func postLivechat(_ text: String, page: String?) async throws(ChatServiceError) -> LivechatMessage {
+    func postLivechat(
+        _ text: String,
+        attachments: [OutgoingAttachment],
+        page: String?
+    ) async throws(ChatServiceError) -> LivechatMessage {
         let operationId = UUID().uuidString
         do {
-            return try await self.service.sendLivechatMessage(text, page: page, operationId: operationId)
+            return try await self.service.sendLivechatMessage(
+                text,
+                attachments: attachments,
+                page: page,
+                operationId: operationId
+            )
         } catch let error where Self.mayHaveBeenStored(error) {
-            return try await self.service.sendLivechatMessage(text, page: page, operationId: operationId)
+            return try await self.service.sendLivechatMessage(
+                text,
+                attachments: attachments,
+                page: page,
+                operationId: operationId
+            )
         }
     }
 
@@ -549,7 +600,7 @@ private extension ChatProvider {
         }
         guard let first = runs.first else { return }
 
-        var olderUser: [Identified<[AttributedString]>] = []
+        var olderUser: [Identified<[UserContent]>] = []
         var olderIncoming: [Identified<[ChatResponse]>] = []
         for run in runs {
             switch run {
@@ -566,10 +617,12 @@ private extension ChatProvider {
         }
     }
 
-    static func user(_ part: Part) -> AttributedString? {
+    static func user(_ part: Part) -> UserContent? {
         switch part {
-        case .richText(let richText): RichTextParser.attributedText(richText)
-        default: nil // user turns should only ever carry text
+        case .richText(let richText):
+            RichTextParser.attributedText(richText).map(UserContent.text)
+        default:
+            nil // uploads join the user pane once the chat renders them
         }
     }
 
@@ -604,6 +657,9 @@ private extension ChatProvider {
             return .file(file)
         case .requestHumanAgent(let marker):
             return .requestHumanAgent(marker)
+        case .image, .requestImageUpload:
+            // Images and upload prompts join the panes once the chat renders them.
+            return nil
         case .unknown:
             return nil
         }

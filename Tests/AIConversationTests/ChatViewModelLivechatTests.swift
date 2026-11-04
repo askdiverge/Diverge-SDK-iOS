@@ -173,7 +173,7 @@ struct ChatViewModelLivechatTests {
 
     @Test("a draft put back after a failed send reports no typing")
     func restoredDraftIsNotTyping() async throws {
-        let provider = StubChatProviding(livechatSendFailure: .retry(popped: "hi", body: nil))
+        let provider = StubChatProviding(livechatSendFailure: .retry(popped: .init(text: "hi", attachments: []), body: nil))
         let (viewModel, service, _) = self.makeSUT(provider: provider)
         try await self.start(viewModel, in: .active, on: service)
         viewModel.editDraft("hi")
@@ -297,7 +297,7 @@ struct ChatViewModelLivechatTests {
         let (viewModel, service, provider) = self.makeSUT()
         let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
         provider.publish(ConversationSnapshot(
-            user: [Identified(model: [AttributedString("hi")])],
+            user: [Identified(model: [.text(AttributedString("hi"))])],
             incoming: [card, Identified(model: [.text(AttributedString("later"))])],
             isUserInitiatedConversation: false,
             streamingTurnID: nil
@@ -314,7 +314,7 @@ struct ChatViewModelLivechatTests {
         let (viewModel, service, provider) = self.makeSUT()
         let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
         provider.publish(ConversationSnapshot(
-            user: [Identified(model: [AttributedString("hi")])],
+            user: [Identified(model: [.text(AttributedString("hi"))])],
             incoming: [card],
             isUserInitiatedConversation: true,
             streamingTurnID: card.id
@@ -369,7 +369,7 @@ struct ChatViewModelLivechatTests {
 
     @Test("a 409 on the assistant send adopts the active session and resends the text to the agent")
     func assistantConflictAdoptsSession() async throws {
-        let provider = StubChatProviding(sendFailure: .livechatActive(popped: "hi"))
+        let provider = StubChatProviding(sendFailure: .livechatActive(popped: .init(text: "hi", attachments: [])))
         let (viewModel, service, _) = self.makeSUT(provider: provider)
         service.livechatState = LivechatState(status: .active)
 
@@ -384,7 +384,7 @@ struct ChatViewModelLivechatTests {
 
     @Test("a 409 on the assistant send with no agent session offers a retry and stays with the assistant")
     func assistantConflictWithoutSession() async throws {
-        let provider = StubChatProviding(sendFailure: .livechatActive(popped: "hi"))
+        let provider = StubChatProviding(sendFailure: .livechatActive(popped: .init(text: "hi", attachments: [])))
         let (viewModel, service, _) = self.makeSUT(provider: provider)
         service.livechatState = LivechatState(status: .inactive)
 
@@ -400,7 +400,7 @@ struct ChatViewModelLivechatTests {
 
     @Test("a 409 on the agent send says the agent chat ended and refreshes, so the next send goes to the assistant")
     func agentConflictRefreshes() async throws {
-        let provider = StubChatProviding(livechatSendFailure: .livechatInactive(popped: "hi"))
+        let provider = StubChatProviding(livechatSendFailure: .livechatInactive(popped: .init(text: "hi", attachments: [])))
         let (viewModel, service, _) = self.makeSUT(provider: provider)
         try await self.start(viewModel, in: .active, on: service)
         service.livechatState = LivechatState(status: .closed)
@@ -539,7 +539,7 @@ struct ChatViewModelLivechatTests {
         let (viewModel, service, _) = self.makeSUT(provider: provider)
         viewModel.startLivechat(with: try Self.config())
         provider.publish(ConversationSnapshot(
-            user: [Identified(model: [AttributedString("hi")])],
+            user: [Identified(model: [.text(AttributedString("hi"))])],
             incoming: [],
             isUserInitiatedConversation: true,
             streamingTurnID: UUID()
