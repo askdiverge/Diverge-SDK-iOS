@@ -15,8 +15,8 @@ package actor ChatProvider: ChatProviding {
 
     package typealias ChatStream = AsyncStream<ConversationSnapshot>
 
-    private let service: any ChatServicing
-    private let pageContext: @Sendable () async -> String?
+    let service: any ChatServicing
+    let pageContext: @Sendable () async -> String?
 
     /// yield new chat conversations
     private let continuation: ChatStream.Continuation
@@ -29,15 +29,15 @@ package actor ChatProvider: ChatProviding {
     private let welcomeTurnID = UUID()
 
     /// Whether `request_image_upload` markers render. Off when the host disabled attachments.
-    private let acceptsImageUploadPrompts: Bool
+    let acceptsImageUploadPrompts: Bool
 
     /// Right pane — committed user turns. Outer = turns, inner = adjacent bubbles
     /// (text, and the attachments of a send from this device).
-    private var user: [Identified<[UserContent]>] = []
+    var user: [Identified<[UserContent]>] = []
 
     /// Left pane — committed turns from every non-user role (assistant, agent,
     /// system) folded together, as display models.
-    private var incoming: [Identified<[ChatResponse]>] = []
+    var incoming: [Identified<[ChatResponse]>] = []
 
     /// Owns the history cursor and serializes pagination — no overlapping loads.
     private var paginator = Paginator()
@@ -45,29 +45,29 @@ package actor ChatProvider: ChatProviding {
     /// The turn whose reply is streaming
     /// and the marker the snapshot carries so the view can flag that a turn is live.
     /// Set before the first suspension in `send`, cleared when the stream settles.
-    private var streamingTurnID: UUID?
+    var streamingTurnID: UUID?
 
     /// Serializes send/reset/delete — they must not interleave.
-    private var isBusy = false
+    var isBusy = false
 
     /// Message ids already in the panes, from history, the livechat log and this device's sends,
     /// so the poller's copy of a message isn't shown twice.
-    private var livechatMessageIDs: Set<String> = []
+    var livechatMessageIDs: Set<String> = []
     /// The newest `created_at` of the first history page, in milliseconds. History carries every
     /// livechat message stored before it was read, under ids of its own, so the log's copies up
     /// to this point are already on screen.
-    private var historyHead: Int64?
+    var historyHead: Int64?
     /// Which pane holds the conversation's first turn. Turns pair up by index across the panes,
     /// leading pane first; whatever opens an empty conversation sets it, and so does each
     /// history page.
-    private var botLeads = false
+    var botLeads = false
     /// Livechat messages and notes that arrived while an operation was in flight, in arrival
     /// order. A streaming reply owns the newest bot turn, and a livechat send's id isn't known
     /// until its POST returns, so they are folded in when the operation finishes.
-    private var deferredLivechat: [DeferredLivechat] = []
+    var deferredLivechat: [DeferredLivechat] = []
     /// Set when the poller saw the session end during an operation; the conversation clears when
     /// the operation finishes, so a streaming reply never writes into emptied panes.
-    private var expiresAfterOperation = false
+    var expiresAfterOperation = false
 
     /// Snapshot channel the view model observes. Latest-wins — the VM only ever
     /// cares about the current conversation, never a backlog.
@@ -114,7 +114,7 @@ package actor ChatProvider: ChatProviding {
         return [Identified(id: self.welcomeTurnID, model: [welcome] + first.model)] + self.incoming.dropFirst()
     }
 
-    private func publish() {
+    func publish() {
         self.continuation.yield(
             .init(
                 user: self.user,
@@ -134,111 +134,6 @@ package actor ChatProvider: ChatProviding {
 }
 
 extension ChatProvider {
-
-    /// Sends a user message (text and/or attachments) and folds the streamed reply into the
-    /// conversation. A send with neither does nothing.
-    package func send(_ text: String, attachments: [OutgoingAttachment]) async throws(SendFailure) {
-        // The API takes a message of at least one part.
-        guard !text.isEmpty || !attachments.isEmpty else { return }
-
-        // Single-flight — reject a send while a reply is already streaming.
-        try self.beginOperation()
-        defer { self.finishOperation() }
-
-        // Mint the in-flight turn and mark it live before the first suspension, so concurrent
-        // sends bounce and the view can flag exactly this turn from the snapshot.
-        let inFlight = Identified<[ChatResponse]>(model: [.placeholder(AttributedString("• • •"))])
-        self.streamingTurnID = inFlight.id
-
-        // Extra context
-        let page = await self.pageContext()
-
-        // Optimistic echo — the user turn shows immediately (text + any pending media).
-        let echo = Self.echo(text: text, attachments: attachments)
-        self.appendUser(echo)
-        self.publish()
-
-        // In-flight assistant turn, the thinking placeholder fills the pre-delta gap
-        // the first streamed response overwrites index 0. Dropped on failure.
-        self.incoming.append(inFlight)
-
-        // Reveal placeholder only if the reply is slow enough to warrant it — a fast
-        // reply overwrites index 0 before this fires
-        let reveal = Task {
-            // Only cancellation throws here, and the guard below handles that.
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else { return }
-            self.publish()
-        }
-
-        defer { reveal.cancel() }
-
-        var buffer = DeltaBuffer { Self.response(for: $0) }
-
-        do {
-            for try await event in self.service.sendMessage(text, attachments: attachments, page: page) {
-                self.apply(event, into: &buffer)
-            }
-            // Stream finished, clear the live marker.
-            // A content-less reply never overwrote the placeholder, so drop that dangling turn
-            // either way publish so the stop signal a snapshot change.
-            self.streamingTurnID = nil
-            if case .placeholder? = self.incoming.last?.model.first {
-                self.incoming.removeLast()
-            }
-            self.publish()
-
-        } catch ChatServiceError.sessionExpired {
-            self.endConversation()
-            throw SendFailure.sessionExpired
-
-        } catch ChatServiceError.stream(let error) {
-            let popped = self.discardInFlight(echoCount: echo.count)
-            self.publish()
-            throw .retry(popped: .init(text: popped, attachments: attachments), body: error.message)
-
-        } catch ChatServiceError.conflict {
-            let popped = self.discardInFlight(echoCount: echo.count)
-            self.publish()
-            throw .livechatActive(popped: .init(text: popped, attachments: attachments))
-
-        } catch {
-            let popped = self.discardInFlight(echoCount: echo.count)
-            self.publish()
-            throw .retry(popped: .init(text: popped, attachments: attachments), body: nil)
-        }
-    }
-
-    private func apply(_ event: StreamEvent, into buffer: inout DeltaBuffer) {
-        switch event {
-        case .delta(_, let delta):
-            buffer.append(delta)
-            guard let preview = buffer.render() else { return }
-            self.place(preview, at: buffer.commitCount)
-            self.publish()
-
-        case .part(let part):
-            // Authoritative — replace the part's preview, then advance.
-            guard
-                let response = self.incoming(part)
-            else {
-                // Unsupported part renders nothing, reset without consuming index.
-                buffer.reset()
-                return
-            }
-
-            self.place(response, at: buffer.commitCount)
-            buffer.commit()
-            self.publish()
-
-        case .status, .done, .error, .unknown:
-            // .status is lifecycle only,
-            // .done is terminal.
-            // .error is routed to the throwing channel.
-            // .unknown ignored.
-            return
-        }
-    }
 
     /// Loads the next older page of history and prepends it. No-op when a load is
     /// already in flight or no pages remain. Drives both the first load and the visitor's
@@ -301,151 +196,7 @@ extension ChatProvider {
 
 }
 
-// MARK: - Livechat
-
 extension ChatProvider {
-
-    /// Folds messages from the livechat poller into the panes, skipping ids already shown.
-    package func appendLivechat(_ messages: [LivechatMessage]) {
-        guard !self.isBusy else {
-            self.deferredLivechat.append(.messages(messages))
-            return
-        }
-        self.ingestLivechat(messages)
-    }
-
-    /// Appends a session-local boundary note after the newest bot content, keeping the panes
-    /// paired. During a send, reset or delete it waits, in order with the livechat messages,
-    /// until the operation finishes.
-    package func note(_ note: LivechatNote) {
-        guard !self.isBusy else {
-            self.deferredLivechat.append(.note(note))
-            return
-        }
-        self.appendIncoming([.livechatNote(note)])
-        self.publish()
-    }
-
-    /// Sends the visitor's text and/or attachments to the agent while a livechat session is
-    /// active. The echo shows at once, and the stored message's id is recorded so the poller's
-    /// copy isn't shown again. A send with neither does nothing.
-    package func sendLivechat(
-        _ text: String,
-        attachments: [OutgoingAttachment]
-    ) async throws(SendFailure) {
-        // The API takes a message of at least one part.
-        guard !text.isEmpty || !attachments.isEmpty else { return }
-        try self.beginOperation()
-        defer { self.finishOperation() }
-
-        let page = await self.pageContext()
-        let echo = Self.echo(text: text, attachments: attachments)
-        self.appendUser(echo)
-        self.publish()
-
-        do {
-            let stored = try await self.postLivechat(text, attachments: attachments, page: page)
-            self.livechatMessageIDs.insert(stored.messageId)
-        } catch ChatServiceError.sessionExpired {
-            self.endConversation()
-            throw SendFailure.sessionExpired
-        } catch ChatServiceError.conflict {
-            self.popLastUserBubbles(count: echo.count)
-            self.publish()
-            throw .livechatInactive(popped: .init(text: text, attachments: attachments))
-        } catch {
-            self.popLastUserBubbles(count: echo.count)
-            self.publish()
-            throw .retry(popped: .init(text: text, attachments: attachments), body: nil)
-        }
-    }
-
-    /// Clears the conversation after a call outside the provider — the livechat poller, a form
-    /// submit — saw the session end (401). During a send, reset or delete the clear waits until
-    /// the operation finishes.
-    package func expireSession() {
-        guard !self.isBusy else {
-            self.expiresAfterOperation = true
-            return
-        }
-        self.endConversation()
-    }
-}
-
-private extension ChatProvider {
-
-    /// Places a response  at `index` in the assistant turn
-    /// appends it on the chunck or  replaces it as the part streams in.
-    func place(_ response: ChatResponse, at index: Int) {
-        let turn = self.incoming.count - 1
-        var responses = self.incoming[turn].model
-        if index < responses.count {
-            responses[index] = response
-        } else {
-            responses.append(response)
-        }
-        self.incoming[turn] = Identified(id: self.incoming[turn].id, model: responses)
-    }
-
-    /// Discards the unfinished assistant reply and pops the user echo bubbles, returning their
-    /// text for the caller to restore to the input.
-    func discardInFlight(echoCount: Int) -> String {
-        self.streamingTurnID = nil
-        self.incoming.removeLast()
-        return self.popLastUserBubbles(count: echoCount)
-    }
-
-    /// Adds a visitor turn, or a bubble on the newest one when a new turn would break the pairing.
-    func appendUser(_ bubbles: [UserContent]) {
-        if self.user.isEmpty, self.incoming.isEmpty {
-            self.botLeads = false
-        }
-        if Self.startsTurn(count: self.user.count, otherCount: self.incoming.count, leads: !self.botLeads) {
-            self.user.append(Identified(model: bubbles))
-        } else {
-            let last = self.user[self.user.count - 1]
-            self.user[self.user.count - 1] = Identified(id: last.id, model: last.model + bubbles)
-        }
-    }
-
-    /// Adds a bot turn, or a bubble on the newest one when a new turn would break the pairing.
-    func appendIncoming(_ responses: [ChatResponse]) {
-        if self.user.isEmpty, self.incoming.isEmpty {
-            self.botLeads = true
-        }
-        if Self.startsTurn(count: self.incoming.count, otherCount: self.user.count, leads: self.botLeads) {
-            self.incoming.append(Identified(model: responses))
-        } else {
-            let last = self.incoming[self.incoming.count - 1]
-            self.incoming[self.incoming.count - 1] = Identified(id: last.id, model: last.model + responses)
-        }
-    }
-
-    /// Whether new content starts a turn in a pane of `count` turns. Turns pair up by index across
-    /// the panes, leading pane first, so the leading pane may start a turn only when the panes are
-    /// level, and the other only to catch up. A pane that runs two turns ahead loses one from
-    /// ``ConversationSnapshot/turns``.
-    static func startsTurn(count: Int, otherCount: Int, leads: Bool) -> Bool {
-        leads ? count == otherCount : count < otherCount
-    }
-
-    /// Removes the newest `count` visitor bubbles (and their turn when empty), returning text
-    /// for input restore. An unanswered prior bubble on the same turn is left in place.
-    @discardableResult
-    func popLastUserBubbles(count: Int) -> String {
-        guard count > 0, let last = self.user.popLast() else { return "" }
-        var bubbles = last.model
-        let removeCount = min(count, bubbles.count)
-        let removed = Array(bubbles.suffix(removeCount))
-        bubbles.removeLast(removeCount)
-        if !bubbles.isEmpty {
-            self.user.append(Identified(id: last.id, model: bubbles))
-        }
-        return removed.compactMap { content -> String? in
-            if case .text(let text) = content { return String(text.characters) }
-            return nil
-        }.joined(separator: "\n")
-    }
 
     /// Claims the provider for a send, reset or delete, which must not interleave.
     func beginOperation() throws(SendFailure) {
@@ -471,27 +222,6 @@ private extension ChatProvider {
         }
     }
 
-    func ingestLivechat(_ messages: [LivechatMessage]) {
-        var changed = false
-        for message in messages {
-            if let head = self.historyHead, let createdAt = Self.milliseconds(of: message.createdAt), createdAt <= head {
-                continue
-            }
-            guard self.livechatMessageIDs.insert(message.messageId).inserted else { continue }
-            if message.role == .user {
-                let bubbles = message.parts.compactMap(Self.user)
-                guard !bubbles.isEmpty else { continue }
-                self.appendUser(bubbles)
-            } else {
-                let responses = message.parts.compactMap { self.incoming($0, role: message.role) }
-                guard !responses.isEmpty else { continue }
-                self.appendIncoming(responses)
-            }
-            changed = true
-        }
-        if changed { self.publish() }
-    }
-
     /// Empties a conversation that ended with nothing to load in its place: a delete or an
     /// expired session.
     func endConversation() {
@@ -512,203 +242,4 @@ private extension ChatProvider {
         self.deferredLivechat = []
     }
 
-    /// Milliseconds since 1970 of an RFC 3339 `created_at`, whatever its fraction digits and
-    /// offset; `nil` when it doesn't parse. History keeps a message's stored timestamp as written,
-    /// often with microseconds, while the livechat log writes milliseconds in UTC.
-    static func milliseconds(of timestamp: String) -> Int64? {
-        var whole = timestamp
-        var millis: Int64 = 0
-        if let dot = timestamp.firstIndex(of: ".") {
-            let rest = timestamp[timestamp.index(after: dot)...]
-            let digits = rest.prefix { $0.isASCII && $0.isNumber }
-            millis = Int64(String(digits.prefix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)) ?? 0
-            whole = String(timestamp[..<dot]) + rest.dropFirst(digits.count)
-        }
-        // A timestamp that doesn't parse has no place in the order, which is what `nil` says.
-        guard let date = try? Date(whole, strategy: .iso8601) else { return nil }
-        return Int64(date.timeIntervalSince1970) * 1000 + millis
-    }
-
-    /// Posts a livechat message under one operation id, and once more when the first attempt may
-    /// have been stored: the server answers a repeated id with the stored copy, so a send whose
-    /// response was lost is never stored twice.
-    func postLivechat(
-        _ text: String,
-        attachments: [OutgoingAttachment],
-        page: String?
-    ) async throws(ChatServiceError) -> LivechatMessage {
-        let operationId = UUID().uuidString
-        do {
-            return try await self.service.sendLivechatMessage(
-                text,
-                attachments: attachments,
-                page: page,
-                operationId: operationId
-            )
-        } catch let error where Self.mayHaveBeenStored(error) {
-            return try await self.service.sendLivechatMessage(
-                text,
-                attachments: attachments,
-                page: page,
-                operationId: operationId
-            )
-        }
-    }
-
-    /// Whether a failed livechat send may still have been stored: the connection dropped or timed
-    /// out after the request went out, or the response couldn't be read.
-    static func mayHaveBeenStored(_ error: ChatServiceError) -> Bool {
-        switch error {
-        case .transport(.connection(let error)):
-            [.timedOut, .networkConnectionLost, .badServerResponse, .cannotParseResponse].contains(error.code)
-        case .transport(.decoding):
-            true
-        default:
-            false
-        }
-    }
-
-    /// Buckets a history page into the two panes and prepends it (older turns go
-    /// above existing ones). Messages in a row from the same side form one turn, and their
-    /// parts the turn's adjacent bubbles; the page's newest turn joins the existing first turn
-    /// when both are the same side, so the panes stay paired. Selecting the parser for each part
-    /// is the caller's job here — `RichTextParser` only ever sees a `RichText`.
-    func prepend(_ messages: [Message]) {
-        self.livechatMessageIDs.formUnion(messages.map(\.messageId))
-
-        // Chronological (oldest → newest), one entry per run of messages from one side.
-        var runs: [ConversationSnapshot.Turn] = []
-        for message in messages.reversed() {
-            switch (message.role, runs.last) {
-            case (.user, .user(let bubbles)):
-                runs[runs.count - 1] = .user(bubbles + message.parts.compactMap(Self.user))
-            case (.user, _):
-                runs.append(.user(message.parts.compactMap(Self.user)))
-            case (_, .bot(let responses)):
-                runs[runs.count - 1] = .bot(responses + message.parts.compactMap { self.incoming($0, role: message.role) })
-            default:
-                runs.append(.bot(message.parts.compactMap { self.incoming($0, role: message.role) }))
-            }
-        }
-
-        if !self.user.isEmpty || !self.incoming.isEmpty {
-            switch (runs.last, self.botLeads) {
-            case (.user(let bubbles), false):
-                self.user[0] = Identified(id: self.user[0].id, model: bubbles + self.user[0].model)
-                runs.removeLast()
-            case (.bot(let responses), true):
-                self.incoming[0] = Identified(id: self.incoming[0].id, model: responses + self.incoming[0].model)
-                runs.removeLast()
-            default:
-                break
-            }
-        }
-        guard let first = runs.first else { return }
-
-        var olderUser: [Identified<[UserContent]>] = []
-        var olderIncoming: [Identified<[ChatResponse]>] = []
-        for run in runs {
-            switch run {
-            case .user(let bubbles): olderUser.append(Identified(model: bubbles))
-            case .bot(let responses): olderIncoming.append(Identified(model: responses))
-            }
-        }
-        self.user.insert(contentsOf: olderUser, at: 0)
-        self.incoming.insert(contentsOf: olderIncoming, at: 0)
-        if case .bot = first {
-            self.botLeads = true
-        } else {
-            self.botLeads = false
-        }
-    }
-
-    static func user(_ part: Part) -> UserContent? {
-        switch part {
-        case .richText(let richText):
-            RichTextParser.attributedText(richText).map(UserContent.text)
-        case .image(let image):
-            .image(image)
-        default:
-            nil
-        }
-    }
-
-    /// Maps a wire part for an incoming turn. System-role text becomes a centred note; every other
-    /// non-user role keeps the usual assistant / agent cards.
-    func incoming(_ part: Part, role: Message.Role = .assistant) -> ChatResponse? {
-        if role == .system {
-            guard case .richText(let richText) = part else { return nil }
-            return RichTextParser.attributedText(richText).map(ChatResponse.systemNote)
-        }
-        switch part {
-        case .richText(let richText):
-            return RichTextParser.attributedText(richText).map(ChatResponse.text)
-        case .products(let products):
-            return .products(products.products)
-        case .table(let table):
-            return .table(
-                TableMapper.content(
-                    caption: table.caption,
-                    headers: table.headers,
-                    alignments: table.alignments,
-                    rows: table.rows
-                )
-            )
-        case .showContactForm(let marker):
-            return .form(.contact(marker))
-        case .showSupportTicket(let marker):
-            return ConversationForm.supportTicket(marker).map(ChatResponse.form)
-        case .showForm(let marker):
-            return .form(.custom(marker))
-        case .image(let image):
-            return .image(image)
-        case .file(let file):
-            return .file(file)
-        case .requestImageUpload(let marker):
-            return self.acceptsImageUploadPrompts ? .requestImageUpload(marker) : nil
-        case .requestHumanAgent(let marker):
-            return .requestHumanAgent(marker)
-        case .unknown:
-            return nil
-        }
-    }
-
-    /// Renders the in-flight part's accumulated deltas to a preview, dispatched on the
-    /// part type (the first delta carries it).
-    static func response(for deltas: [PartDelta]) -> ChatResponse? {
-        switch deltas.first {
-        case .richText:
-            return RichTextParser.attributedText(
-                deltas.compactMap {
-                    guard case .richText(let richText) = $0 else { return nil }
-                    return richText
-                }
-            ).map(ChatResponse.text)
-
-        case .products:
-            let cards = deltas.compactMap { delta -> Products.Card? in
-                guard case .products(.appendProduct(let card)) = delta else { return nil }
-                return card
-            }
-
-            return cards.isEmpty ? nil : .products(cards)
-
-        case .table:
-            return TableMapper.content(
-                deltas.compactMap {
-                    guard case .table(let table) = $0 else { return nil }
-                    return table
-                }
-            ).map(ChatResponse.table)
-
-        case .endPart, .unknown, .none:
-            return nil
-        }
-    }
-}
-
-/// A livechat delivery held back while an operation is in flight.
-private enum DeferredLivechat {
-    case messages([LivechatMessage])
-    case note(LivechatNote)
 }
