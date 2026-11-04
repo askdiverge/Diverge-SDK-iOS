@@ -26,4 +26,16 @@ struct ChatViewModelSendTests {
         #expect(viewModel.currentMessage == "hi")
         #expect(viewModel.notice?.message == (reason == .streaming ? L10n.noticeBusy.string : nil))
     }
+
+    @Test("a send the session expired under goes back in the composer")
+    func expiredSendKeepsDraft() async {
+        let viewModel = ChatView.ViewModel.forTesting(provider: StubChatProviding(sendFailure: .sessionExpired))
+        viewModel.currentMessage = "hi"
+
+        await #expect(throws: ChatView.SessionEnded.self) {
+            try await viewModel.send()
+        }
+
+        #expect(viewModel.currentMessage == "hi")
+    }
 }

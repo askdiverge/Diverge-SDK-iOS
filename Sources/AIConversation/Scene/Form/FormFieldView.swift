@@ -32,8 +32,9 @@ struct FormFieldView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: self.appearance.spacing.units(1)) {
-            HStack(spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(self.field.label)
+                    .fixedSize(horizontal: false, vertical: true)
                 if self.field.required {
                     Text(verbatim: "*")
                         .foregroundStyle(self.appearance.theme.destructive)
@@ -66,7 +67,8 @@ struct FormFieldView: View {
                 options: self.field.options,
                 required: self.field.required,
                 selection: self.$value,
-                isEnabled: self.isEnabled
+                isEnabled: self.isEnabled,
+                hasError: self.error != nil
             )
             .accessibilityIdentifier("form.field.\(self.field.key)")
         case .file:

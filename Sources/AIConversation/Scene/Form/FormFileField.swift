@@ -41,10 +41,7 @@ struct FormFileField: View {
                     .clipped()
                     .accessibilityHidden(true)
 
-                Text(picked.displayName)
-                    .font(self.appearance.font(size: 13))
-                    .foregroundStyle(self.appearance.theme.primaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
 
                 Button(action: self.onRemove) {
                     ChatAppearance.Symbol.close
