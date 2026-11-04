@@ -145,56 +145,32 @@ extension ChatView {
             contextProvider: (@Sendable () async -> String?)?,
             conversationFlow: AIChat.ConversationFlow,
             attachments: AIChat.Attachments,
-            onClose: (@MainActor () -> Void)? = nil,
-            onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
-            conversationRatingMode: AIChat.Rating = .enabled,
-            ratingSession: RatingSession = RatingSession(),
-            encodeAttachment: AttachmentEncoder? = nil,
-            submitAction: ActionSubmitter? = nil,
-            fetchForm: FormFetcher? = nil,
-            fetchSession: WaitingFormController.SessionFetcher? = nil,
-            patchFormValues: WaitingFormController.ValuesPatcher? = nil,
-            submitLivechatFeedback: LivechatRatingController.Submitter? = nil,
-            rateConversation: ConversationRatingController.Submitter? = nil,
-            livechat: LivechatSession? = nil
+            onClose: (@MainActor () -> Void)?,
+            onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)?,
+            conversationRatingMode: AIChat.Rating,
+            ratingSession: RatingSession,
+            dependencies: Dependencies
         ) {
             self.service = service
             self.pageContext = { await contextProvider?() }
             self.conversationFlow = conversationFlow
             self.attachments = attachments
-            if let encodeAttachment {
-                self.encodeAttachment = encodeAttachment
-            } else {
-                self.encodeAttachment = { data, options async throws(ImageAttachment.Failure) in
-                    try ImageAttachment.encode(data, options: options)
-                }
-            }
+            self.encodeAttachment = dependencies.encodeAttachment
             self.onClose = onClose
             self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationRatingMode = conversationRatingMode
-            self.submitAction = submitAction ?? { request in
-                try await service.submitAction(request)
-            }
-            let fetchForm = fetchForm ?? { id in
-                try await service.fetchForm(id: id)
-            }
-            self.fetchForm = fetchForm
-            self.rating = LivechatRatingController(submitFeedback: submitLivechatFeedback ?? { request in
-                try await service.submitLivechatFeedback(request)
-            })
+            self.submitAction = dependencies.submitAction
+            self.fetchForm = dependencies.fetchForm
+            self.rating = LivechatRatingController(submitFeedback: dependencies.submitLivechatFeedback)
             self.conversationRating = ConversationRatingController(
                 ratingSession: ratingSession,
-                submitRating: rateConversation ?? { request in
-                    try await service.rateConversation(request)
-                }
+                submitRating: dependencies.rateConversation
             )
-            self.livechat = livechat ?? LivechatSession(service: service)
+            self.livechat = dependencies.livechat
             self.waitingForm = WaitingFormController(
-                fetchForm: fetchForm,
-                fetchSession: fetchSession ?? { try await service.fetchSession() },
-                patchValues: patchFormValues ?? { formId, values in
-                    try await service.patchFormValues(formId: formId, values: values)
-                }
+                fetchForm: dependencies.fetchForm,
+                fetchSession: dependencies.fetchSession,
+                patchValues: dependencies.patchFormValues
             )
             // Product/table imagery fills ~half-width, ~800px covers 3x.
             self.imageLoader = ImageLoader(maxPixelSize: 800) { try await service.fetchData($0) }

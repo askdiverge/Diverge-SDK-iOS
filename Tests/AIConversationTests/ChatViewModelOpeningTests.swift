@@ -51,7 +51,12 @@ private extension ChatViewModelOpeningTests {
             service: service,
             contextProvider: nil,
             conversationFlow: .topDown,
-            attachments: .disabled
+            attachments: .disabled,
+            onClose: nil,
+            onLivechatSessionChange: nil,
+            conversationRatingMode: .enabled,
+            ratingSession: RatingSession(),
+            dependencies: .live(service: service)
         )
     }
 

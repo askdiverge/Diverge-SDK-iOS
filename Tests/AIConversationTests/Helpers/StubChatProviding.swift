@@ -124,6 +124,15 @@ extension ChatView.ViewModel {
             sdkVersion: "9.8.7",
             clientProfiles: [.productRecommendation]
         )
+        var dependencies = Dependencies.live(service: service)
+        dependencies.encodeAttachment = encodeAttachment ?? dependencies.encodeAttachment
+        dependencies.submitAction = submitAction ?? dependencies.submitAction
+        dependencies.fetchForm = fetchForm ?? dependencies.fetchForm
+        dependencies.fetchSession = fetchSession ?? dependencies.fetchSession
+        dependencies.patchFormValues = patchFormValues ?? dependencies.patchFormValues
+        dependencies.submitLivechatFeedback = submitLivechatFeedback ?? dependencies.submitLivechatFeedback
+        dependencies.rateConversation = rateConversation ?? dependencies.rateConversation
+        dependencies.livechat = livechat ?? dependencies.livechat
         let viewModel = ChatView.ViewModel(
             service: service,
             contextProvider: contextProvider,
@@ -133,14 +142,7 @@ extension ChatView.ViewModel {
             onLivechatSessionChange: onLivechatSessionChange,
             conversationRatingMode: conversationRatingMode,
             ratingSession: ratingSession,
-            encodeAttachment: encodeAttachment,
-            submitAction: submitAction,
-            fetchForm: fetchForm,
-            fetchSession: fetchSession,
-            patchFormValues: patchFormValues,
-            submitLivechatFeedback: submitLivechatFeedback,
-            rateConversation: rateConversation,
-            livechat: livechat
+            dependencies: dependencies
         )
         viewModel.attachProviderForTesting(provider)
         return viewModel
