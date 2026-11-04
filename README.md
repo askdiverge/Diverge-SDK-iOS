@@ -68,9 +68,11 @@ product being viewed, the category being browsed, the order being queried.
 contextProvider: { await currentScreen.assistantContext }  // "PDP · Rieker Men's shoes 13510-00 black"
 ```
 
-**`onOpenLink`** — links inside a reply. Left `nil`, the SDK falls back to the system action: the URL
-opens in the browser and the user leaves your app. Set it to keep them in-app and route the URL
-through your own deep-link handling.
+**`onOpenLink`** — links inside a reply, and agent file attachments. Left `nil`, the SDK falls back to
+the system action: the URL opens in the browser and the user leaves your app. Set it to keep them
+in-app and route the URL through your own deep-link handling. Attachment links carry a short-lived
+download token; opening them in-app (Quick Look, `SFSafariViewController`) keeps the token out of the
+browser's history and the file out of Downloads.
 
 ```swift
 onOpenLink: { url in deepLinkRouter.handle(url) }

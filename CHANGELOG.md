@@ -13,8 +13,9 @@
   session, the composer sends to the agent while one is connected, and the agent's messages appear
   in the conversation. A reset closes an open session first.
 - Livechat conversation UI: a "talk to a person" card for `request_human_agent`, centred notes when
-  the visitor joins the queue, an agent joins or the session ends, system messages, and agent
-  typing. While an agent is connected, the SDK tells the agent when the visitor is typing
+  the visitor joins the queue, an agent joins or the session ends, system messages, agent typing,
+  and tappable agent file attachments, opened through `onOpenLink` with a freshly signed link on
+  each tap. While an agent is connected, the SDK tells the agent when the visitor is typing
   (`POST /livechat/typing`); it never sends the draft itself.
 
 ### Fixed
