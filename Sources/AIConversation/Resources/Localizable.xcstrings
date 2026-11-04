@@ -4970,6 +4970,309 @@
         }
       }
     },
+    "livechat.endCancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fortsæt chatten"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter chatten"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter chatten"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter chatten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep chatting"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jätka vestlust"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jatka keskustelua"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Halt fram at kjatta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer le chat"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halda spjallinu áfram"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tęsti pokalbį"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turpināt tērzēšanu"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fortsett chatten"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blijf chatten"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kontynuuj czat"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fortsätt chatta"
+          }
+        }
+      }
+    },
+    "livechat.endMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medarbejderen kan ikke længere svare dig her. Du kan fortsætte med AI-chatten bagefter."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Mitarbeiter kann Ihnen hier nicht mehr antworten. Sie können danach mit dem KI-Chat fortfahren."
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Mitarbeiter kann Ihnen hier nicht mehr antworten. Sie können danach mit dem KI-Chat fortfahren."
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Mitarbeiter kann Ihnen hier nicht mehr antworten. Sie können danach mit dem KI-Chat fortfahren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The agent will no longer be able to reply to you here. You can continue with the AI chat afterwards."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klienditeenindaja ei saa sulle siin enam vastata. Pärast saad AI-vestlusega jätkata."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asiakaspalvelija ei voi enää vastata sinulle täällä. Voit sen jälkeen jatkaa tekoälychatin kanssa."
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Starvsfólkið kann ikki longur svara tær her. Tú kanst halda fram við AI-kjattinum aftaná."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'agent ne pourra plus vous répondre ici. Vous pourrez ensuite continuer avec le chat IA."
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starfsmaðurinn getur ekki lengur svarað þér hér. Þú getur haldið áfram með AI-spjallinu á eftir."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Darbuotojas nebegalės jums čia atsakyti. Vėliau galėsite tęsti su DI asistentu."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Darbinieks šeit vairs nevarēs jums atbildēt. Pēc tam varat turpināt ar MI čatu."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medarbeideren kan ikke lenger svare deg her. Du kan fortsette med AI-chatten etterpå."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De medewerker kan je hier niet meer antwoorden. Je kunt daarna verder met de AI-chat."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konsultant nie będzie mógł już Ci tu odpowiedzieć. Później możesz kontynuować rozmowę z czatem AI."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medarbetaren kan inte längre svara dig här. Du kan fortsätta med AI-chatten efteråt."
+          }
+        }
+      }
+    },
+    "livechat.endTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afslut chatten med kundeservice?"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat mit dem Kundenservice beenden?"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat mit dem Kundenservice beenden?"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat mit dem Kundenservice beenden?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End the chat with customer service?"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kas lõpetada vestlus klienditeenindusega?"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lopetetaanko keskustelu asiakaspalvelun kanssa?"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Enda kjattið við kundatænastuna?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre fin au chat avec le service client ?"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ljúka spjallinu við þjónustuver?"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baigti pokalbį su klientų aptarnavimo skyriumi?"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beigt tērzēšanu ar klientu apkalpošanas dienestu?"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avslutte chatten med kundeservice?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat met de klantenservice beëindigen?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zakończyć czat z obsługą klienta?"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avsluta chatten med kundtjänst?"
+          }
+        }
+      }
+    },
     "livechat.endedNote" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5269,6 +5572,410 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vill du prata med en representant?"
+          }
+        }
+      }
+    },
+    "livechat.leaveCancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bliv i køen"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In der Warteschlange bleiben"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In der Warteschlange bleiben"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In der Warteschlange bleiben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stay in queue"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jää järjekorda"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pysy jonossa"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Verð í bíðirøðini"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rester dans la file"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vera áfram í biðröð"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Likti eilėje"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palikt rindā"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bli i køen"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In de wachtrij blijven"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zostań w kolejce"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stanna i kön"
+          }
+        }
+      }
+    },
+    "livechat.leaveConfirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forlad livechat"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Livechat verlassen"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Livechat verlassen"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Livechat verlassen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave live chat"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lahku vestlusest"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poistu livechatista"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Far úr livechat"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitter le chat"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yfirgefa lifandi spjall"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palikti pokalbį"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pamest tērzēšanu"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forlat livechat"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Livechat verlaten"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opuść czat"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lämna livechat"
+          }
+        }
+      }
+    },
+    "livechat.leaveMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen fra kundeservice vender tilbage til dig i denne chat, og du mister din plads i køen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niemand vom Kundenservice wird sich in diesem Chat bei Ihnen melden, und Sie verlieren Ihren Platz in der Warteschlange."
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niemand vom Kundenservice wird sich in diesem Chat bei Ihnen melden, und Sie verlieren Ihren Platz in der Warteschlange."
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niemand vom Kundenservice wird sich in diesem Chat bei Ihnen melden, und Sie verlieren Ihren Platz in der Warteschlange."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No one from customer service will get back to you in this chat, and you will lose your place in the queue."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keegi klienditeenindusest ei võta sinuga selles vestluses ühendust ja sa kaotad oma koha järjekorras."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kukaan asiakaspalvelusta ei palaa asiaasi tässä chatissa, ja menetät paikkasi jonossa."
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Eingin frá kundatænastuni svarar tær í hesum kjatti, og tú missir títt pláss í bíðirøðini."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personne du service client ne vous répondra dans ce chat, et vous perdrez votre place dans la file d'attente."
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enginn frá þjónustuveri mun svara þér í þessu spjalli og þú missir sæti þitt í biðröðinni."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niekas iš klientų aptarnavimo skyriaus jums šiame pokalbyje neatsakys, o jūs prarasite savo vietą eilėje."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neviens no klientu apkalpošanas dienesta jums šajā tērzēšanā neatbildēs, un jūs zaudēsiet savu vietu rindā."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen fra kundeservice kommer tilbake til deg i denne chatten, og du mister plassen din i køen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niemand van de klantenservice komt in deze chat bij je terug, en je verliest je plek in de wachtrij."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nikt z obsługi klienta nie odezwie się do Ciebie na tym czacie, a stracisz swoje miejsce w kolejce."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen från kundtjänst återkommer till dig i den här chatten, och du förlorar din plats i kön."
+          }
+        }
+      }
+    },
+    "livechat.leaveTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er du sikker på, at du vil forlade livechatten?"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Möchten Sie den Livechat wirklich verlassen?"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Möchten Sie den Livechat wirklich verlassen?"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Möchten Sie den Livechat wirklich verlassen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to leave the live chat?"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kas oled kindel, et soovid reaalajas vestlusest lahkuda?"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haluatko varmasti poistua livechatista?"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Vilt tú fara úr livechattinum?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voulez-vous vraiment quitter le chat en direct ?"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ertu viss um að þú viljir yfirgefa lifandi spjallið?"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ar tikrai norite palikti gyvą pokalbį?"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vai tiešām vēlaties pamest tiešsaistes tērzēšanu?"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er du sikker på at du vil forlate livechatten?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weet je zeker dat je de livechat wilt verlaten?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czy na pewno chcesz opuścić czat na żywo?"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Är du säker på att du vill lämna livechatten?"
           }
         }
       }

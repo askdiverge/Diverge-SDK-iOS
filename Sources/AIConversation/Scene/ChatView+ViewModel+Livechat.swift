@@ -14,6 +14,33 @@ extension ChatView.ViewModel {
         case hidden, start, end, offline
     }
 
+    /// The copy that asks the visitor to confirm leaving a session.
+    struct LivechatEndConfirmation {
+        let title: String
+        let message: String
+        let confirm: String
+        let cancel: String
+    }
+
+    /// Asks about giving up the agent during a chat, and about the place in the queue otherwise.
+    var livechatEndConfirmation: LivechatEndConfirmation {
+        if self.livechatStatus == .active {
+            LivechatEndConfirmation(
+                title: L10n.livechatEndTitle.string,
+                message: L10n.livechatEndMessage.string,
+                confirm: L10n.livechatEnd.string,
+                cancel: L10n.livechatEndCancel.string
+            )
+        } else {
+            LivechatEndConfirmation(
+                title: L10n.livechatLeaveTitle.string,
+                message: L10n.livechatLeaveMessage.string,
+                confirm: L10n.livechatLeaveConfirm.string,
+                cancel: L10n.livechatLeaveCancel.string
+            )
+        }
+    }
+
     var livechatControl: LivechatControl {
         if self.livechatStatus.isInSession { return .end }
         guard self.livechatConfig.enabled, self.livechatConfig.showLivechatLogo else { return .hidden }
