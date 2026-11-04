@@ -277,6 +277,8 @@ extension ChatView {
                 self.provider = provider
                 self.observe(provider)
 
+                // The chat opens without history: a failed page leaves the greeting, and after a
+                // 401 the next message starts a new session.
                 try? await provider.loadOlder()
                 self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)

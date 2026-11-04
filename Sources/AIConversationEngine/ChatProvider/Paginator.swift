@@ -21,6 +21,12 @@ struct Paginator {
     private(set) var isExhausted = false
     private var isLoading = false
 
+    /// Whether a loaded page pointed at an older one. A failed load changes nothing, so this stays
+    /// `false` until the first page arrives and returns to `false` with the last.
+    var hasOlderPages: Bool {
+        self.cursor != nil
+    }
+
     /// Cursor for the next page, locking the paginator until `commit`/`release`.
     /// `nil` is a valid cursor — it requests the first (newest) page.
     /// Throws `.busy` if a load is already in flight, `.exhausted` if no pages remain.

@@ -278,11 +278,168 @@ struct ChatProviderTests {
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("Hi"))]])
         #expect(snapshot?.user == [])
     }
+
+    @Test("a delete leaves the welcome on screen")
+    func welcomeSurvivesDelete() async throws {
+        let mock = MockChatService(.init(sendEvents: [self.textPart("reply")]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+        try await provider.delete()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a 401 on a send leaves the welcome on screen")
+    func welcomeSurvivesExpiredSend() async {
+        let provider: any ChatProviding = self.welcomeProvider(MockChatService(.init(sendError: .sessionExpired)))
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatProvider.SendFailure.sessionExpired) {
+            try await provider.send("hi")
+        }
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a 401 on a history load leaves the welcome on screen")
+    func welcomeSurvivesExpiredHistory() async {
+        let provider: any ChatProviding = self.welcomeProvider(MockChatService(.init(historyError: .sessionExpired)))
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("an expired session leaves the welcome on screen")
+    func welcomeSurvivesExpiry() async throws {
+        let mock = MockChatService(.init(sendEvents: [self.textPart("reply")]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+        await provider.expireSession()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a reset whose history reload fails leaves the welcome on screen")
+    func welcomeSurvivesFailedReload() async throws {
+        let mock = MockChatService(.init(
+            sendEvents: [self.textPart("reply")],
+            historyError: .transport(.http(.unhandled(status: 500, body: Data())))
+        ))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+        try await provider.reset()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a first page that fails still opens with the welcome")
+    func welcomeShowsAfterFailedFirstPage() async {
+        let mock = MockChatService(.init(historyError: .transport(.http(.unhandled(status: 500, body: Data())))))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("history that loads on a retry joins the welcome once, above it all")
+    func retryKeepsOneWelcome() async throws {
+        let mock = MockChatService(.init(
+            historyPages: [
+                MessagePage(messages: [], nextCursor: nil),
+                MessagePage(messages: [self.assistantMessage("a")], nextCursor: nil)
+            ],
+            historyFailingCalls: [0: .transport(.http(.unhandled(status: 500, body: Data())))]
+        ))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+        try await provider.loadOlder()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            .bot([.text(AttributedString("Hi")), .text(AttributedString("a"))])
+        ])
+    }
+
+    @Test("the welcome waits for the last page of history")
+    func welcomeWaitsForLastPage() async throws {
+        let mock = MockChatService(.init(historyPages: [
+            MessagePage(messages: [self.assistantMessage("new")], nextCursor: "older"),
+            MessagePage(messages: [self.userMessage("old")], nextCursor: nil)
+        ]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.turns.map(\.model) == [.bot([.text(AttributedString("new"))])])
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            self.welcomeTurn,
+            .user([.text(AttributedString("old"))]),
+            .bot([.text(AttributedString("new"))])
+        ])
+    }
+
+    @Test("the conversation continues beneath the welcome after a delete")
+    func sendAfterDeleteKeepsWelcomeFirst() async throws {
+        let mock = MockChatService(.init(sendEvents: [self.textPart("reply")]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.delete()
+        try await provider.send("hi")
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            self.welcomeTurn,
+            .user([.text(AttributedString("hi"))]),
+            .bot([.text(AttributedString("reply"))])
+        ])
+    }
+
+    @Test("the turn that carries the welcome keeps its id as a note joins it")
+    func welcomeTurnKeepsItsID() async throws {
+        let provider: any ChatProviding = self.welcomeProvider(MockChatService())
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+        let before = await snapshots.next()?.turns.first?.id
+        await provider.note(LivechatNote(kind: .queued))
+        let after = await snapshots.next()?.turns.first?.id
+
+        #expect(before != nil)
+        #expect(before == after)
+    }
 }
 
 // MARK: - Fixtures
 
 private extension ChatProviderTests {
+
+    /// The turn a conversation greeted with "Hi" opens with.
+    var welcomeTurn: ConversationSnapshot.Turn {
+        .bot([.text(AttributedString("Hi"))])
+    }
+
+    func welcomeProvider(_ service: MockChatService) -> ChatProvider {
+        ChatProvider(service: service, pageContext: { nil }, welcomeMessage: "Hi", acceptsImageUploadPrompts: true)
+    }
 
     /// The rich_text delta sequence that streams a single paragraph of `text`.
     func textDeltas(_ text: String, partId: String = "p") -> [StreamEvent] {
@@ -303,6 +460,17 @@ private extension ChatProviderTests {
         Message(
             messageId: "m",
             role: .assistant,
+            agent: nil,
+            parts: [.richText(RichText(partId: "", blocks: [.paragraph(.init(spans: [.text(text)]))]))],
+            createdAt: "2026-01-01T00:00:00.000Z"
+        )
+    }
+
+    /// A visitor history message carrying a single paragraph of `text`.
+    func userMessage(_ text: String) -> Message {
+        Message(
+            messageId: "u",
+            role: .user,
             agent: nil,
             parts: [.richText(RichText(partId: "", blocks: [.paragraph(.init(spans: [.text(text)]))]))],
             createdAt: "2026-01-01T00:00:00.000Z"

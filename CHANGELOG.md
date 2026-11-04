@@ -46,6 +46,8 @@
 - Presenting `AIChat.makeView()` from a SwiftUI sheet no longer shows a blank card: the chat keeps
   its state when the host's view re-renders. A failed first history page still shows the title and
   composer, so the visitor can type when `GET /messages` fails.
+- The chat no longer goes blank after a data deletion, an expired session or a failed history
+  load: the welcome message stays on screen and the visitor can keep writing.
 
 ## [1.0.0] - 2026-10-01
 
