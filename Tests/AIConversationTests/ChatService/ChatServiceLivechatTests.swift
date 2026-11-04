@@ -221,6 +221,41 @@ struct ChatServiceLivechatTests {
         #expect(script.requests[1].json?["reason"] as? String == "visitor_left")
         #expect(script.requests[2].json?.isEmpty == true)
     }
+
+    @Test("POST /livechat/feedback sends the rating and the trimmed feedback")
+    func feedbackBody() async throws {
+        let (sut, script) = ChatServiceFixtures.makeSUT(responses: [.init()])
+
+        try await sut.submitLivechatFeedback(LivechatFeedbackRequest(rating: 2, feedback: "  Too slow  "))
+
+        let request = try #require(script.requests.first)
+        #expect(request.url?.path() == "/api/v1/chat/livechat/feedback")
+        #expect(request.request.httpMethod == "POST")
+        #expect(request.header("Authorization") == "Bearer host-token")
+        #expect(request.json?["rating"] as? Int == 2)
+        #expect(request.json?["feedback"] as? String == "Too slow")
+    }
+
+    @Test("blank feedback is left out of the livechat feedback body")
+    func feedbackOmitsBlank() async throws {
+        let (sut, script) = ChatServiceFixtures.makeSUT(responses: [.init()])
+
+        try await sut.submitLivechatFeedback(LivechatFeedbackRequest(rating: 5, feedback: "   "))
+
+        #expect(script.requests.first?.json?["rating"] as? Int == 5)
+        #expect(script.requests.first?.json?["feedback"] == nil)
+    }
+
+    @Test("a 409 on livechat feedback (nothing left to rate) surfaces as conflict")
+    func feedbackConflict() async {
+        let (sut, _) = ChatServiceFixtures.makeSUT(responses: [.init(status: 409)])
+
+        await #expect {
+            try await sut.submitLivechatFeedback(LivechatFeedbackRequest(rating: 5, feedback: nil))
+        } throws: { error in
+            if case ChatServiceError.conflict = error { true } else { false }
+        }
+    }
 }
 
 @Suite("LivechatClientContext")

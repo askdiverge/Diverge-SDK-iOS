@@ -95,10 +95,12 @@ extension ChatView.ViewModel {
     @MainActor
     static func forTesting(
         provider: StubChatProviding,
+        onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
         submitAction: ActionSubmitter? = nil,
         fetchForm: FormFetcher? = nil,
         fetchSession: WaitingFormController.SessionFetcher? = nil,
         patchFormValues: WaitingFormController.ValuesPatcher? = nil,
+        submitLivechatFeedback: LivechatRatingController.Submitter? = nil,
         livechat: LivechatSession? = nil,
         contextProvider: (@Sendable () async -> String?)? = nil
     ) -> ChatView.ViewModel {
@@ -113,10 +115,12 @@ extension ChatView.ViewModel {
             service: service,
             contextProvider: contextProvider,
             conversationFlow: .topDown,
+            onLivechatSessionChange: onLivechatSessionChange,
             submitAction: submitAction,
             fetchForm: fetchForm,
             fetchSession: fetchSession,
             patchFormValues: patchFormValues,
+            submitLivechatFeedback: submitLivechatFeedback,
             livechat: livechat
         )
         viewModel.attachProviderForTesting(provider)
