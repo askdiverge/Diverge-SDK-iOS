@@ -55,6 +55,14 @@ extension ChatView {
         @ObservationIgnored let waitingForm: WaitingFormController
         /// Asks the visitor to rate a livechat session that ended while the chat was on screen.
         @ObservationIgnored let rating: LivechatRatingController
+        /// Conversation close-rating (`POST /rate`) while the host close button is used.
+        @ObservationIgnored let conversationRating: ConversationRatingController
+        /// Whether conversation close should present `/rate`.
+        @ObservationIgnored private let conversationRatingMode: AIChat.Rating
+        /// The host's `onClose` hook, called once the visitor has closed the chat.
+        @ObservationIgnored private let onClose: (@MainActor () -> Void)?
+        /// The visitor rated or skipped on close, so the host is told once the prompt has gone.
+        @ObservationIgnored private var closesAfterRating = false
         /// The host's `onLivechatSessionChange` hook.
         @ObservationIgnored private let onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)?
         /// The last session info delivered to the host, so an unchanged one isn't delivered again.
@@ -92,22 +100,44 @@ extension ChatView {
         /// Fetches a form definition. Defaults to ``ChatService/fetchForm``.
         typealias FormFetcher = @Sendable (String) async throws -> ChatFormDefinition
 
+        /// Whether tapping close should present the **conversation** `/rate` overlay.
+        var shouldOfferRating: Bool {
+            self.conversationRatingMode == .enabled
+                && self.onClose != nil
+                && !self.conversationRating.hasRated
+                && !(self.snapshot?.user.isEmpty ?? true)
+                && !self.livechatStatus.isInSession
+                && !self.isLivechatBusy
+                && !self.rating.hasPendingFeedback
+        }
+
+        /// True when the host provided ``AIChat/Configuration/onClose``.
+        var showsCloseButton: Bool {
+            self.onClose != nil
+        }
+
         init(
             service: ChatService,
             contextProvider: (@Sendable () async -> String?)?,
             conversationFlow: AIChat.ConversationFlow,
+            onClose: (@MainActor () -> Void)? = nil,
             onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
+            conversationRatingMode: AIChat.Rating = .enabled,
+            ratingSession: RatingSession = RatingSession(),
             submitAction: ActionSubmitter? = nil,
             fetchForm: FormFetcher? = nil,
             fetchSession: WaitingFormController.SessionFetcher? = nil,
             patchFormValues: WaitingFormController.ValuesPatcher? = nil,
             submitLivechatFeedback: LivechatRatingController.Submitter? = nil,
+            rateConversation: ConversationRatingController.Submitter? = nil,
             livechat: LivechatSession? = nil
         ) {
             self.service = service
             self.pageContext = { await contextProvider?() }
             self.conversationFlow = conversationFlow
+            self.onClose = onClose
             self.onLivechatSessionChange = onLivechatSessionChange
+            self.conversationRatingMode = conversationRatingMode
             self.submitAction = submitAction ?? { request in
                 try await service.submitAction(request)
             }
@@ -118,6 +148,12 @@ extension ChatView {
             self.rating = LivechatRatingController(submitFeedback: submitLivechatFeedback ?? { request in
                 try await service.submitLivechatFeedback(request)
             })
+            self.conversationRating = ConversationRatingController(
+                ratingSession: ratingSession,
+                submitRating: rateConversation ?? { request in
+                    try await service.rateConversation(request)
+                }
+            )
             self.livechat = livechat ?? LivechatSession(service: service)
             self.waitingForm = WaitingFormController(
                 fetchForm: fetchForm,
@@ -134,6 +170,39 @@ extension ChatView {
                 onSessionExpired: { [weak self] in await self?.endExpiredSession() },
                 refresh: { [weak self] in await self?.livechat.refresh() }
             )
+            self.conversationRating.bind(onSessionExpired: { [weak self] in await self?.endExpiredSession() })
+        }
+
+        /// The visitor tapped close: the conversation rating opens when one is due, and otherwise
+        /// the host's `onClose` is called.
+        func close() {
+            if self.shouldOfferRating {
+                self.conversationRating.begin()
+            } else {
+                self.onClose?()
+            }
+        }
+
+        /// The visitor skipped the rating: nothing is sent, and the host hears the close once the
+        /// prompt has gone.
+        func skipRating() {
+            self.closesAfterRating = true
+            self.conversationRating.dismiss()
+        }
+
+        /// Sends the rating. Once it is stored the host hears the close, after the prompt has
+        /// gone; a refused rating stays on the prompt.
+        func submitRating(score: Int, feedback: String?) async {
+            if await self.conversationRating.submit(score: score, feedback: feedback) {
+                self.closesAfterRating = true
+            }
+        }
+
+        /// The rating prompt finished going away; a close the visitor asked for goes to the host.
+        func ratingDidDismiss() {
+            guard self.closesAfterRating else { return }
+            self.closesAfterRating = false
+            self.onClose?()
         }
 
         /// A livechat loop parked while the chat is off screen holds its session; this ends it.
@@ -231,8 +300,7 @@ extension ChatView {
                     self.present(Notice(edge: .bottom, message: L10n.noticeSendFailed.string, autoDismiss: nil))
 
                 case .sessionExpired:
-                    self.formModels = [:]
-                    self.waitingForm.clear()
+                    self.dropConversationState()
                     throw SessionEnded()
                 }
             }
@@ -301,8 +369,7 @@ extension ChatView {
                 try await self.provider?.loadOlder()
 
             } catch ChatServiceError.sessionExpired {
-                self.formModels = [:]
-                self.waitingForm.clear()
+                self.dropConversationState()
                 throw SessionEnded()
 
             } catch {
@@ -330,8 +397,7 @@ extension ChatView {
                 await self.resumeLivechat()
                 return
             }
-            self.formModels = [:]
-            self.waitingForm.clear()
+            self.dropConversationState()
         }
 
         /// Request deletion of visitor data and end the session. Rethrows so the delete sheet can act on the
@@ -345,8 +411,7 @@ extension ChatView {
                 await self.resumeLivechat()
                 throw DeletionFailed()
             }
-            self.formModels = [:]
-            self.waitingForm.clear()
+            self.dropConversationState()
         }
 
         /// Test seam — attach a stub provider without bootstrapping `/config`.
@@ -422,9 +487,16 @@ extension ChatView {
         /// A 401 outside a send ended the session: the conversation and its form drafts go, as a
         /// send's own 401 clears them, so the next message starts the new session clean.
         private func endSession() async {
+            self.dropConversationState()
+            await self.provider?.expireSession()
+        }
+
+        /// Drops what belonged to the conversation that just ended, however it ended: its form
+        /// drafts, the waiting card and whether it was rated.
+        private func dropConversationState() {
             self.formModels = [:]
             self.waitingForm.clear()
-            await self.provider?.expireSession()
+            self.conversationRating.clearSession()
         }
 
         private func present(_ notice: Notice) {
@@ -484,6 +556,7 @@ extension ChatView.ViewModel {
     /// as the poller's own 401 does: the conversation clears, livechat stops, and the view shows
     /// the session-ended alert.
     func endExpiredSession() async {
+        self.dropConversationState()
         await self.provider?.expireSession()
         await self.livechat.teardown()
         self.livechatSessionEnded = true
@@ -533,7 +606,7 @@ extension ChatView.ViewModel {
         self.reportLivechatSessionIfChanged()
 
         if snapshot.sessionExpired {
-            self.waitingForm.clear()
+            self.dropConversationState()
             self.rating.update(previous: previous, state: snapshot.state, isRestored: snapshot.isRestored)
             await self.provider?.expireSession()
             self.livechatSessionEnded = true
@@ -541,6 +614,10 @@ extension ChatView.ViewModel {
         }
 
         self.waitingForm.statusChanged(to: status)
+        // An agent is taking over, so a close prompt still up no longer applies.
+        if status.isInSession {
+            self.conversationRating.dismiss()
+        }
 
         // Notes mark changes seen live; a restored session changed before this device looked.
         let notesChanges = !snapshot.isRestored
