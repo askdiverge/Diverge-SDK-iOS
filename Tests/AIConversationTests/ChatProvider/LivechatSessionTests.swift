@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import Synchronization
 import Testing
 @testable import AIConversationEngine
 
@@ -16,9 +15,9 @@ struct LivechatSessionTests {
     @Test("polls every 2 s while waiting")
     func waitingCadence() async throws {
         let service = MockChatService(.init(livechatState: LivechatState(status: .waiting)))
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             if log.count >= 2 { throw CancellationError() }
         }
         await session.startPolling(immediate: true)
@@ -31,9 +30,9 @@ struct LivechatSessionTests {
     func waitsOnSyncCursor() async throws {
         let service = MockChatService(.init(livechatState: LivechatState(status: .waiting)))
         service.livechatSyncCursor = "cursor"
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             if log.count >= 2 { throw CancellationError() }
         }
 
@@ -49,9 +48,9 @@ struct LivechatSessionTests {
     @Test("polls every 3 s once active")
     func activeCadence() async throws {
         let service = MockChatService(.init(livechatState: LivechatState(status: .active)))
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             throw CancellationError()
         }
         await session.startPolling(immediate: true)
@@ -64,9 +63,9 @@ struct LivechatSessionTests {
     func backoffThenReset() async throws {
         let service = MockChatService(.init(livechatState: LivechatState(status: .waiting)))
         service.livechatStateError = Self.serverError
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             if log.count == 2 { service.livechatStateError = nil }
             if log.count >= 3 { throw CancellationError() }
         }
@@ -110,9 +109,9 @@ struct LivechatSessionTests {
     @Test("bootstrap that can't read the state reports no session yet and retries with the poller")
     func bootstrapTransportFailure() async throws {
         let service = MockChatService(.init(livechatStateError: Self.serverError))
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             throw CancellationError()
         }
 
@@ -131,9 +130,9 @@ struct LivechatSessionTests {
     @Test("bootstrap after a 401 polls again once the state reads")
     func bootstrapAfterExpiryPolls() async throws {
         let service = MockChatService(.init(livechatStateError: .sessionExpired))
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             throw CancellationError()
         }
         #expect(await session.bootstrap() == .sessionExpired)
@@ -176,9 +175,9 @@ struct LivechatSessionTests {
             ]
         ))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
-        let log = Log<LivechatSnapshot>()
+        let log = Recorder<LivechatSnapshot>()
         let collector = Task {
-            for await snapshot in session.stream { log.append(snapshot) }
+            for await snapshot in session.stream { log.record(snapshot) }
         }
 
         await session.startPolling(immediate: true)
@@ -235,9 +234,9 @@ struct LivechatSessionTests {
     @Test("a handover whose follow-up state read fails still succeeds and keeps polling")
     func handoverSurvivesFailedRead() async throws {
         let service = MockChatService(.init(livechatStateError: Self.serverError))
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             throw CancellationError()
         }
         var snapshots = session.stream.makeAsyncIterator()
@@ -304,9 +303,9 @@ struct LivechatSessionTests {
     func unchangedTickIsQuiet() async throws {
         let service = MockChatService(.init(livechatState: LivechatState(status: .waiting)))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
-        let log = Log<LivechatSnapshot>()
+        let log = Recorder<LivechatSnapshot>()
         let collector = Task {
-            for await snapshot in session.stream { log.append(snapshot) }
+            for await snapshot in session.stream { log.record(snapshot) }
         }
 
         await session.bootstrap()
@@ -340,9 +339,9 @@ struct LivechatSessionTests {
     func handoverConflict() async throws {
         let service = MockChatService(.init(livechatHandoverError: .conflict))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
-        let log = Log<LivechatSnapshot>()
+        let log = Recorder<LivechatSnapshot>()
         let collector = Task {
-            for await snapshot in session.stream { log.append(snapshot) }
+            for await snapshot in session.stream { log.record(snapshot) }
         }
 
         await #expect(throws: ChatServiceError.self) {
@@ -362,9 +361,9 @@ struct LivechatSessionTests {
             livechatStateByCall: [1: LivechatFixtures.state(.waiting, version: 4)]
         ))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
-        let log = Log<LivechatSnapshot>()
+        let log = Recorder<LivechatSnapshot>()
         let collector = Task {
-            for await snapshot in session.stream { log.append(snapshot) }
+            for await snapshot in session.stream { log.record(snapshot) }
         }
 
         await session.bootstrap()
@@ -411,9 +410,9 @@ struct LivechatSessionTests {
             ]
         ))
         let session = LivechatSession(service: service) { _ in throw CancellationError() }
-        let log = Log<LivechatSnapshot>()
+        let log = Recorder<LivechatSnapshot>()
         let collector = Task {
-            for await snapshot in session.stream { log.append(snapshot) }
+            for await snapshot in session.stream { log.record(snapshot) }
         }
 
         await session.bootstrap()
@@ -565,9 +564,9 @@ struct LivechatSessionTests {
     @Test("a recovery read that fails after a 409 leaves the poller retrying it")
     func failedRecoveryReadKeepsPolling() async throws {
         let service = MockChatService(.init(livechatStateError: Self.serverError))
-        let log = Log<Duration>()
+        let log = Recorder<Duration>()
         let session = LivechatSession(service: service) { duration in
-            log.append(duration)
+            log.record(duration)
             throw CancellationError()
         }
 
@@ -620,9 +619,9 @@ struct LivechatSessionTests {
             await entered.open()
             await release.wait()
         }
-        let log = Log<LivechatSnapshot>()
+        let log = Recorder<LivechatSnapshot>()
         let collector = Task {
-            for await snapshot in session.stream { log.append(snapshot) }
+            for await snapshot in session.stream { log.record(snapshot) }
         }
 
         let refresh = Task { await session.freshFile(attachmentId: "att_1") }
@@ -887,17 +886,5 @@ private extension LivechatSessionTests {
     static let idleWaits: @Sendable (Duration) async throws -> Void = { duration in
         guard duration == Self.testIdle else { return }
         try await Task.sleep(for: .seconds(60))
-    }
-}
-
-/// Values appended from the poller's tasks and read by the test.
-private final class Log<Value: Sendable>: Sendable {
-    private let storage = Mutex<[Value]>([])
-
-    var values: [Value] { self.storage.withLock { $0 } }
-    var count: Int { self.storage.withLock { $0.count } }
-
-    func append(_ value: Value) {
-        self.storage.withLock { $0.append(value) }
     }
 }

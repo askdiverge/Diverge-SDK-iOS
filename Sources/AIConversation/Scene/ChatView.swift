@@ -166,6 +166,12 @@ private extension ChatView {
 
     var inputBar: some View {
         VStack(spacing: 0) {
+            if let model = self.viewModel.waitingForm.model {
+                self.waitingFormCard(model)
+                LivechatWaitingFormSaveChrome(model: model) {
+                    Task { await self.viewModel.waitingForm.save() }
+                }
+            }
             if self.viewModel.isAgentTyping {
                 AgentTypingIndicator(agentName: self.viewModel.livechatAgentName)
             }
@@ -179,6 +185,18 @@ private extension ChatView {
             // Align the bottom of VStack to the top of the input bar, above the typing row
             .alignmentGuide(.top) { $0[.bottom] }
         }
+    }
+
+    /// The waiting-room card above the composer. One scroll view hugs the card up to a capped
+    /// height and scrolls past it, so the save row and the composer stay on screen and the
+    /// fields keep their identity, and their focus, as the card grows.
+    func waitingFormCard(_ model: WaitingFormModel) -> some View {
+        ScrollView {
+            LivechatWaitingFormView(model: model, focus: self.$focusedFormField)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxHeight: self.appearance.spacing.units(48))
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
