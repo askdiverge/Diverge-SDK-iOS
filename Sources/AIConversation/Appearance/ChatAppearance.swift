@@ -155,13 +155,31 @@ extension ChatAppearance {
         static let disclosure = Image(systemName: "chevron.right")
     }
 
-    /// The chat's base font at `size`. Uses the config's custom family when it resolved — its faces
-    /// resolve per `weight` and per inline emphasis — otherwise the system font.
+    /// The chat's base font at `size`, scaling with Dynamic Type. Uses the config's custom family
+    /// when it resolved — its faces resolve per `weight` and per inline emphasis — otherwise the
+    /// system font in the text style of that size.
     func font(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         if let fontFamily = self.fontFamily {
             Font.custom(fontFamily, size: size).weight(weight)
         } else {
-            Font.system(size: size, weight: weight)
+            Font.system(Self.textStyle(ofSize: size), weight: weight)
+        }
+    }
+
+    /// The text style whose default size is `size`, so the design holds at the default setting.
+    /// `Font.system(size:)` would keep the size at every setting.
+    private static func textStyle(ofSize size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case ..<12: .caption2
+        case ..<13: .caption
+        case ..<15: .footnote
+        case ..<16: .subheadline
+        case ..<17: .callout
+        case ..<20: .body
+        case ..<22: .title3
+        case ..<28: .title2
+        case ..<34: .title
+        default: .largeTitle
         }
     }
 }
