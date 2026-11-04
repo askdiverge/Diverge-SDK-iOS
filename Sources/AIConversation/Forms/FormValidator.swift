@@ -55,27 +55,47 @@ enum FormValidator {
         return visible
     }
 
-    /// The first visible required field this app has no control for — a `file` field until photo
-    /// attach ships, or a type it doesn't know. While one is visible the form can't be completed.
-    static func blockingField(of form: ConversationForm, values: [String: String]) -> FormField? {
-        Self.visibleFields(of: form, values: values).first { field in
-            field.required && (field.type == .file || field.type == .unknown)
+    /// The first visible required field this app can't fill — a `file` field while photo attach
+    /// isn't offered for this form (see ``validate(form:values:files:offersFileFields:)``), or a
+    /// type it doesn't know. While one is visible the form can't be completed.
+    static func blockingField(
+        of form: ConversationForm,
+        values: [String: String],
+        offersFileFields: Bool
+    ) -> FormField? {
+        let fileFieldsFillable = offersFileFields && form.acceptsFileFields
+        return Self.visibleFields(of: form, values: values).first { field in
+            field.required && (field.type == .unknown || (field.type == .file && !fileFieldsFillable))
         }
     }
 
-    /// Validates the draft. Error strings are SDK-owned (the API supplies none on the client path).
+    /// Validates the draft. `files` holds keys that currently have a picked file.
+    /// Error strings are SDK-owned (the API supplies none on the client path).
     ///
-    /// A `file` or `.unknown` field never takes an answer here: a required one makes the form
-    /// unavailable (see ``blockingField(of:values:)``), and neither counts as filled. A contact or
-    /// custom form needs at least one answer, since its action can't be sent empty.
-    static func validate(form: ConversationForm, values: [String: String]) -> Result {
+    /// A `file` field is filled through the photo picker, so it takes an answer only while the host
+    /// offers photo attach (`offersFileFields`) and the form kind has a wire slot for it
+    /// (``ConversationForm/acceptsFileFields``). A `.unknown` field never takes one. A required
+    /// field that can't take an answer makes the form unavailable (see
+    /// ``blockingField(of:values:offersFileFields:)``). A contact or custom form needs at least one
+    /// answer, since its action can't be sent empty.
+    static func validate(
+        form: ConversationForm,
+        values: [String: String],
+        files: Set<String>,
+        offersFileFields: Bool
+    ) -> Result {
         var fieldErrors: [String: String] = [:]
         let visible = Self.visibleFields(of: form, values: values)
+        let fileFieldsFillable = offersFileFields && form.acceptsFileFields
 
         for field in visible {
             switch field.type {
-            case .file, .unknown:
+            case .unknown:
                 break
+            case .file:
+                if field.required, fileFieldsFillable, !files.contains(field.key) {
+                    fieldErrors[field.key] = L10n.formRequired.string
+                }
             case .email:
                 let trimmed = (values[field.key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if field.required, trimmed.isEmpty {
@@ -95,15 +115,23 @@ enum FormValidator {
         var formError: String?
         let min = Self.minimumAnswers(for: form)
         if min > 0 {
-            let filled = visible.filter { field in
-                field.type != .file && field.type != .unknown
-                    && !(values[field.key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }.count
+            let filled = visible.reduce(into: 0) { count, field in
+                switch field.type {
+                case .file:
+                    if fileFieldsFillable, files.contains(field.key) { count += 1 }
+                case .unknown:
+                    break
+                default:
+                    let trimmed = (values[field.key] ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty { count += 1 }
+                }
+            }
             if filled < min {
                 formError = L10n.formMinFilled(min).string
             }
         }
-        if Self.blockingField(of: form, values: values) != nil {
+        if Self.blockingField(of: form, values: values, offersFileFields: offersFileFields) != nil {
             formError = L10n.formUnavailable.string
         }
 

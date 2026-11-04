@@ -65,6 +65,11 @@ package struct OutgoingAttachment: Sendable, Equatable {
         self.init(kind: .file, data: data, mime: mime, filename: filename)
     }
 
+    /// A `data:` URL for the optimistic echo so ``MessageImageView`` can render without a fetch.
+    package var dataURL: URL? {
+        URL(string: "data:\(self.mimeType);base64,\(self.dataBase64)")
+    }
+
     /// `attachment` with the extension `mime` implies — the filename of a pick that has none.
     private static func defaultFilename(for mime: String) -> String {
         UTType(mimeType: mime)?.preferredFilenameExtension.map { "attachment.\($0)" } ?? "attachment"

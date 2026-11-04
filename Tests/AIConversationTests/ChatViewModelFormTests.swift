@@ -325,7 +325,7 @@ struct ChatViewModelFormTests {
 
         let draft = try #require(viewModel.formModels[self.thinForm.partId])
         #expect(!draft.hydrationFailed)
-        #expect(!draft.isCompletable)
+        #expect(!draft.isCompletable(offersFileFields: true))
     }
 
     @Test("a 401 on the definition ends the session: drafts go and the alert is raised")

@@ -12,9 +12,9 @@ package protocol ChatProviding: Sendable {
     /// Latest-wins stream of conversation snapshots to mirror onto the main actor.
     nonisolated var stream: AsyncStream<ConversationSnapshot> { get }
 
-    /// Sends a user message and folds the streamed reply into the conversation.
-    /// Fails with `SendFailure` so the VM can surface session-end vs. a retryable error.
-    func send(_ text: String) async throws(ChatProvider.SendFailure)
+    /// Sends a user message (text and/or attachments) and folds the streamed reply into the
+    /// conversation. Fails with `SendFailure` so the VM can surface session-end vs. a retryable error.
+    func send(_ text: String, attachments: [OutgoingAttachment]) async throws(ChatProvider.SendFailure)
 
     /// Loads the next older page of history.
     /// no-op while a load is in flight or no pages remain.
@@ -32,11 +32,23 @@ package protocol ChatProviding: Sendable {
     /// Appends an SDK-minted livechat boundary note (queued / agent joined / ended).
     func note(_ note: LivechatNote) async
 
-    /// Sends the visitor's text to the agent while a livechat session is active.
-    func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure)
+    /// Sends the visitor's text and/or attachments to the agent while a livechat session is active.
+    func sendLivechat(_ text: String, attachments: [OutgoingAttachment]) async throws(ChatProvider.SendFailure)
 
     /// Clears the conversation after a call outside the provider — the livechat poller, a form
     /// submit — saw the session end (401). During a send, reset or delete the clear waits until
     /// the operation finishes.
     func expireSession() async
+}
+
+extension ChatProviding {
+    /// Text-only convenience for call sites that never attach media.
+    package func send(_ text: String) async throws(ChatProvider.SendFailure) {
+        try await self.send(text, attachments: [])
+    }
+
+    /// Text-only livechat send.
+    package func sendLivechat(_ text: String) async throws(ChatProvider.SendFailure) {
+        try await self.sendLivechat(text, attachments: [])
+    }
 }

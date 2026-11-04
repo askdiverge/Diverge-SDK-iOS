@@ -45,6 +45,9 @@ extension ChatView {
         /// Shared loader for remote imagery injected into the view environment.
         @ObservationIgnored let imageLoader: ImageLoader
         @ObservationIgnored let conversationFlow: AIChat.ConversationFlow
+        /// Host-configured attachment sources; gates the composer attach control and upload prompts.
+        @ObservationIgnored let attachments: AIChat.Attachments
+        @ObservationIgnored private let encodeAttachment: AttachmentEncoder
         @ObservationIgnored private let service: ChatService
         @ObservationIgnored let pageContext: @Sendable () async -> String?
         @ObservationIgnored private var provider: (any ChatProviding)?
@@ -92,6 +95,17 @@ extension ChatView {
         /// Set when a call the visitor didn't start — a form definition fetch — saw the session
         /// end. The view shows the session-ended alert and resets it.
         var backgroundSessionEnded = false
+        /// Composer chips waiting for the next send.
+        var pendingAttachments: [PendingAttachment] = []
+        /// Picks still being loaded from the library or encoded into chips.
+        private var preparingAttachments = 0
+        /// Set when a conversation ends while a photo is being prepared, so it can't land in the
+        /// next one. Clears once nothing is preparing.
+        @ObservationIgnored private var discardsPreparedAttachment = false
+        /// True while a pick is being loaded or encoded into a chip.
+        var isEncodingAttachment: Bool {
+            self.preparingAttachments > 0
+        }
 
         /// Submits a marker-triggered action. Defaults to ``ChatService/submitAction``; tests
         /// inject a stub so form success / failure paths do not need a live network.
@@ -99,6 +113,10 @@ extension ChatView {
 
         /// Fetches a form definition. Defaults to ``ChatService/fetchForm``.
         typealias FormFetcher = @Sendable (String) async throws -> ChatFormDefinition
+
+        /// Encodes picked photo bytes off the main actor. Async so a test stub can suspend while
+        /// the in-flight state is observed, without blocking a cooperative-pool thread.
+        typealias AttachmentEncoder = @Sendable (Data, ImageAttachment.Options) async throws(ImageAttachment.Failure) -> ImageAttachment.Encoded
 
         /// Whether tapping close should present the **conversation** `/rate` overlay.
         var shouldOfferRating: Bool {
@@ -120,10 +138,12 @@ extension ChatView {
             service: ChatService,
             contextProvider: (@Sendable () async -> String?)?,
             conversationFlow: AIChat.ConversationFlow,
+            attachments: AIChat.Attachments,
             onClose: (@MainActor () -> Void)? = nil,
             onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
             conversationRatingMode: AIChat.Rating = .enabled,
             ratingSession: RatingSession = RatingSession(),
+            encodeAttachment: AttachmentEncoder? = nil,
             submitAction: ActionSubmitter? = nil,
             fetchForm: FormFetcher? = nil,
             fetchSession: WaitingFormController.SessionFetcher? = nil,
@@ -135,6 +155,14 @@ extension ChatView {
             self.service = service
             self.pageContext = { await contextProvider?() }
             self.conversationFlow = conversationFlow
+            self.attachments = attachments
+            if let encodeAttachment {
+                self.encodeAttachment = encodeAttachment
+            } else {
+                self.encodeAttachment = { data, options async throws(ImageAttachment.Failure) in
+                    try ImageAttachment.encode(data, options: options)
+                }
+            }
             self.onClose = onClose
             self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationRatingMode = conversationRatingMode
@@ -242,7 +270,8 @@ extension ChatView {
                 let provider = ChatProvider(
                     service: self.service,
                     pageContext: self.pageContext,
-                    welcomeMessage: config.display.welcomeMessage
+                    welcomeMessage: config.display.welcomeMessage,
+                    acceptsImageUploadPrompts: self.attachments == .photoLibrary
                 )
 
                 self.provider = provider
@@ -258,45 +287,62 @@ extension ChatView {
             }
         }
 
-        /// Sends a user message, to the agent while a livechat session is active and otherwise to the
-        /// assistant. Recoverable failures (busy, retryable) bounce inline as a notice so the input
-        /// stays stateless; a 401 ends the session and escapes as ``SessionEnded`` for the view to
-        /// alert on.
+        /// Sends a user message (draft text and any pending attachments), to the agent while a
+        /// livechat session is active and otherwise to the assistant. Recoverable failures
+        /// (busy, retryable) bounce inline as a notice so the input stays stateless; a 401 ends
+        /// the session and escapes as ``SessionEnded`` for the view to alert on.
         func send() async throws(SessionEnded) {
             if self.notice?.edge == .bottom { self.dismissNotice() }
             let text = self.currentMessage
+            let attachments = self.pendingAttachments
+            let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-            guard let provider = self.provider, !text.isEmpty else { return }
+            guard let provider = self.provider, hasText || !attachments.isEmpty else { return }
             guard !self.isSending, !self.isResetting else {
                 self.present(Notice(edge: .bottom, message: L10n.noticeBusy.string, autoDismiss: .seconds(1)))
+                return
+            }
+            // An agent session that refuses photos gets none; the text stays for the next send.
+            if !attachments.isEmpty, self.livechatStatus == .active, !self.livechatConfig.attachmentsEnabled {
+                self.dropPendingAttachmentsForLivechat()
                 return
             }
             self.isSending = true
             defer { self.isSending = false }
 
+            self.currentMessage = ""
+            self.pendingAttachments = []
+
             do {
-                self.currentMessage = ""
                 await self.livechat.endTyping()
-                try await self.deliver(text, via: provider)
+                try await self.deliver(
+                    hasText ? text : "",
+                    attachments: attachments.map(\.attachment),
+                    via: provider
+                )
 
             } catch {
                 switch error {
-                case .busy:
-                    self.currentMessage = text
+                case .busy(.streaming):
+                    self.restoreDraft(text: text, attachments: attachments)
                     self.present(Notice(edge: .bottom, message: L10n.noticeBusy.string, autoDismiss: .seconds(1)))
 
-                case .retry(popped: let lastMessage, body: let body):
-                    self.currentMessage = lastMessage.text
+                case .busy(.operation):
+                    // A reset or delete is in flight, and its own UI covers the wait.
+                    self.restoreDraft(text: text, attachments: attachments)
+
+                case .retry(popped: let draft, body: let body):
+                    self.restoreDraft(text: draft.text, attachments: attachments)
                     self.present(Notice(edge: .bottom, message: body ?? L10n.noticeSendFailed.string, autoDismiss: nil))
 
-                case .livechatInactive(popped: let lastMessage):
-                    // The agent session ended; the restored text goes to the assistant next time.
-                    self.currentMessage = lastMessage.text
+                case .livechatInactive(popped: let draft):
+                    // The agent session ended; the restored draft goes to the assistant next time.
+                    self.restoreDraft(text: draft.text, attachments: attachments)
                     self.present(Notice(edge: .bottom, message: L10n.noticeLivechatEnded.string, autoDismiss: nil))
                     await self.livechat.refresh()
 
-                case .livechatActive(popped: let lastMessage):
-                    self.currentMessage = lastMessage.text
+                case .livechatActive(popped: let draft):
+                    self.restoreDraft(text: draft.text, attachments: attachments)
                     self.present(Notice(edge: .bottom, message: L10n.noticeSendFailed.string, autoDismiss: nil))
 
                 case .sessionExpired:
@@ -304,6 +350,69 @@ extension ChatView {
                     throw SessionEnded()
                 }
             }
+        }
+
+        /// Holds the attach and send controls for as long as `work` runs — from loading the pick
+        /// out of the library through its encode — so a send waits for the photo it is meant for.
+        func preparingAttachment(_ work: () async -> Void) async {
+            self.preparingAttachments += 1
+            defer { self.finishPreparingAttachment() }
+            await work()
+        }
+
+        /// The one encode path for every composer / prompt / form photo destination.
+        func encode(_ data: Data, options: ImageAttachment.Options) async -> PendingAttachment? {
+            self.preparingAttachments += 1
+            defer { self.finishPreparingAttachment() }
+
+            do {
+                let encoded = try await Task.detached(priority: .userInitiated) { [encode = self.encodeAttachment] in
+                    try await encode(data, options)
+                }.value
+                guard !self.discardsPreparedAttachment else { return nil }
+                return PendingAttachment(
+                    thumbnail: Image(decorative: encoded.thumbnail, scale: 1),
+                    attachment: encoded.attachment,
+                    displayName: options.filename ?? L10n.mediaImageLabel.string
+                )
+            } catch ImageAttachment.Failure.tooLarge {
+                self.present(Notice(
+                    edge: .bottom,
+                    message: L10n.attachmentTooLarge.string,
+                    autoDismiss: .seconds(4)
+                ))
+                return nil
+            } catch {
+                self.presentAttachmentFailure()
+                return nil
+            }
+        }
+
+        private func finishPreparingAttachment() {
+            self.preparingAttachments -= 1
+            if self.preparingAttachments == 0 {
+                self.discardsPreparedAttachment = false
+            }
+        }
+
+        /// Surfaces a generic attachment-load failure from the view (picker / transferable miss).
+        func presentAttachmentFailure() {
+            self.present(Notice(
+                edge: .bottom,
+                message: L10n.attachmentFailed.string,
+                autoDismiss: .seconds(4)
+            ))
+        }
+
+        /// Clears composer chips when a livechat session that forbids attachments becomes active.
+        func dropPendingAttachmentsForLivechat() {
+            guard !self.pendingAttachments.isEmpty else { return }
+            self.pendingAttachments = []
+            self.present(Notice(
+                edge: .bottom,
+                message: L10n.livechatAttachmentsDropped.string,
+                autoDismiss: .seconds(4)
+            ))
         }
 
         /// Whether a form card in the given bot turn may still be filled — only the newest bot
@@ -315,6 +424,16 @@ extension ChatView {
         /// Sets a text or dropdown answer on the draft of form `partId`.
         func setFormValue(_ value: String, for key: String, inForm partId: String) {
             self.formModels[partId]?.setValue(value, for: key)
+        }
+
+        /// Attaches or clears a picked photo on a custom-form file field.
+        func setFormFile(_ file: PendingAttachment?, for key: String, inForm partId: String) {
+            self.formModels[partId]?.setFile(file, for: key)
+        }
+
+        /// Attaches or clears the support-ticket photo.
+        func setTicketAttachment(_ file: PendingAttachment?, inForm partId: String) {
+            self.formModels[partId]?.setTicketAttachment(file)
         }
 
         /// Fetches the definition of a thin custom form again after the first fetch failed.
@@ -333,7 +452,7 @@ extension ChatView {
             guard let model = self.formModels[partId], !model.isSubmitting, !model.isSubmitted,
                   !self.isStreaming(formIn: partId)
             else { return }
-            guard self.formModels[partId]?.validate() == true else { return }
+            guard self.formModels[partId]?.validate(offersFileFields: self.offersAttachments) == true else { return }
             guard let request = model.buildRequest() else {
                 self.formModels[partId]?.markFailed()
                 return
@@ -492,9 +611,12 @@ extension ChatView {
         }
 
         /// Drops what belonged to the conversation that just ended, however it ended: its form
-        /// drafts, the waiting card and whether it was rated.
+        /// drafts, the photos in the composer and any still being prepared, the waiting card and
+        /// whether it was rated.
         private func dropConversationState() {
             self.formModels = [:]
+            self.pendingAttachments = []
+            self.discardsPreparedAttachment = self.isEncodingAttachment
             self.waitingForm.clear()
             self.conversationRating.clearSession()
         }
@@ -665,6 +787,9 @@ extension ChatView.ViewModel {
                 $0.isEmpty ? nil : $0
             } ?? L10n.livechatAgentFallback.string
             await self.provider?.note(LivechatNote(kind: .agentJoined(displayName: name)))
+            if !self.livechatConfig.attachmentsEnabled {
+                self.dropPendingAttachmentsForLivechat()
+            }
         }
     }
 

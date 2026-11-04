@@ -11,6 +11,12 @@ import Testing
 @Suite("ConversationFormView — accessibility contract")
 struct ConversationFormAccessibilityTests {
 
+    @Test("a file field's buttons name the field; the ticket's attachment has no field to name")
+    func fileFieldLabels() {
+        #expect(FormFileField.accessibilityLabel("Add photo", fieldLabel: "Receipt") == "Receipt: Add photo")
+        #expect(FormFileField.accessibilityLabel("Add photo", fieldLabel: nil) == "Add photo")
+    }
+
     @Test("contact form label is wired to a non-empty string resource")
     func contactLabel() {
         let form = ConversationForm.contact(ShowContactForm(partId: "p", fields: []))

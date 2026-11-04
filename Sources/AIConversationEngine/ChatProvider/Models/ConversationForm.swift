@@ -85,4 +85,22 @@ package struct ConversationForm: Sendable, Equatable {
         if case .custom(_, _, _, let min) = self.kind { return min }
         return 0
     }
+
+    /// Whether custom-form `file` fields have a wire slot (`form_submission.files`).
+    package var acceptsFileFields: Bool {
+        if case .custom = self.kind { return true }
+        return false
+    }
+
+    /// Whether the ticket form accepts file attachments, else `false`.
+    package var attachmentsAccepted: Bool {
+        if case .supportTicket(let accepted, _) = self.kind { return accepted }
+        return false
+    }
+
+    /// Per-attachment byte cap for a ticket form, else `nil`.
+    package var maxAttachmentSizeBytes: Int? {
+        if case .supportTicket(_, let max) = self.kind { return max }
+        return nil
+    }
 }
