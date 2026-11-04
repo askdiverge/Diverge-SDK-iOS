@@ -32,8 +32,7 @@ struct ProductCardView: View {
                         case .success(let loaded):
                             loaded.resizable().scaledToFill()
                         case .failure:
-                            // TODO: replace with a real image-failure view
-                            EmptyView()
+                            ImageFailureView()
                         }
                     } placeholder: {
                         ProgressView()

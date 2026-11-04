@@ -1,6 +1,6 @@
 //
 //  Part.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-02.
 //
@@ -45,6 +45,8 @@ package enum Part: Decodable, Sendable, Equatable {
 
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // An unreadable or new part degrades to `.unknown`, which rendering skips; a throw would end
+        // the live stream.
         self = switch try? container.decode(PartType.self, forKey: .type) {
         case .richText: .richText(try RichText(from: decoder))
         case .table: .table(try Table(from: decoder))

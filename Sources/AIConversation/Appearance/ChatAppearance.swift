@@ -39,7 +39,7 @@ struct ChatAppearance {
         /// Ordered color stops for the assistant thinking-state border animation; empty when unset.
         let thinkingBorderGradient: [Color]
 
-        // TODO: not yet wire-driven — SDK constants until the config carries them.
+        // SDK constants: the config carries no value for these.
         let errorBackground: Color
         let errorForeground: Color
         let accentForeground: Color
@@ -63,7 +63,7 @@ extension ChatAppearance {
 
 extension ChatAppearance.Theme {
 
-    // TODO: SDK default palette until config supplies / extends the theme.
+    /// The palette a config theme that doesn't parse falls back to.
     static let `default` = ChatAppearance.Theme(
         accent: Color(hex: "#18191B") ?? .black,
         primaryText: Color(hex: "#121212") ?? .primary,

@@ -1,6 +1,6 @@
 //
 //  Identified.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-07-03.
 //
