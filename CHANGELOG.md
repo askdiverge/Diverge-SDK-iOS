@@ -41,6 +41,9 @@
   upgrading starts collecting photos: the privacy manifest now declares Photos or videos; update
   your App Store privacy label, or pass `.disabled`.
 
+- A "Show earlier messages" control above the conversation loads older history, and retries a
+  first page that failed. Visitors previously saw only the newest page.
+
 ### Fixed
 
 - Presenting `AIChat.makeView()` from a SwiftUI sheet no longer shows a blank card: the chat keeps

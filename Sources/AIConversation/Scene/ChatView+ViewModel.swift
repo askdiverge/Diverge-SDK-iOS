@@ -280,9 +280,9 @@ extension ChatView {
                 self.provider = provider
                 self.observe(provider)
 
-                // The chat opens without history: a failed page leaves the greeting, and after a
-                // 401 the next message starts a new session.
-                try? await provider.loadOlder()
+                // The chat opens without history: a failed page shows its notice and can be asked
+                // for again, and after a 401 the next message starts a new session.
+                try? await self.loadOlder()
                 self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)
                 self.phase = .ready
@@ -486,13 +486,16 @@ extension ChatView {
             }
         }
 
-        /// Loads the next older page of history. A recoverable failure surfaces as a top notice;
-        /// a 401 ends the session and escapes as ``SessionEnded`` for the view to alert on.
-        func loadOlder() async throws(SessionEnded) {
+        /// Loads the next older page of history, returning whether it loaded. A recoverable
+        /// failure surfaces as a top notice; a 401 ends the session and escapes as
+        /// ``SessionEnded`` for the view to alert on.
+        @discardableResult
+        func loadOlder() async throws(SessionEnded) -> Bool {
             if self.notice?.edge == .top { self.dismissNotice() }
 
             do {
                 try await self.provider?.loadOlder()
+                return true
 
             } catch ChatServiceError.sessionExpired {
                 self.dropConversationState()
@@ -504,6 +507,7 @@ extension ChatView {
                     message: L10n.noticeHistoryLoadFailed.string,
                     autoDismiss: .seconds(4)
                 ))
+                return false
             }
         }
 

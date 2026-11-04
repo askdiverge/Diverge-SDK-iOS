@@ -461,12 +461,14 @@ private extension ChatView {
         }
     }
 
-    /// Requests the next older page; a failure means the session is gone, so surface the ended alert.
-    func loadOlder() async {
+    /// Requests the next older page, returning whether it loaded; a thrown failure means the
+    /// session is gone, so surface the ended alert.
+    func loadOlder() async -> Bool {
         do {
-            try await self.viewModel.loadOlder()
+            return try await self.viewModel.loadOlder()
         } catch {
             self.showSessionEndedAlert = true
+            return false
         }
     }
 }

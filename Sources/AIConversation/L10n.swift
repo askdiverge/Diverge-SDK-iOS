@@ -11,6 +11,8 @@ import Foundation
 /// Keys are opaque identifiers — a missing catalog entry surfaces the key itself
 enum L10n {
 
+    static let historyLoadEarlier = string("history.loadEarlier")
+
     static let inputPlaceholder = string("input.placeholder")
     static let inputAttachPhoto = string("input.attachPhoto")
 
