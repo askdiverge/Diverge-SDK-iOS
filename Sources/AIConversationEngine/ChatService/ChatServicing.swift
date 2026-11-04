@@ -37,6 +37,21 @@ package protocol ChatServicing: Sendable {
     /// has as ``ChatServiceError/notFound``.
     func fetchForm(id: String) async throws(ChatServiceError) -> ChatFormDefinition
 
+    /// Session values for the waiting-room form. Session-bound — a 401 surfaces as
+    /// ``ChatServiceError/sessionExpired``.
+    func fetchSession() async throws(ChatServiceError) -> ChatSessionState
+
+    /// Partial update of session values through a form: only the keys sent change. The server skips
+    /// an empty value and keeps what it stored, so a value can be replaced but not removed, and it
+    /// rejects a body with no non-empty value with a 422 on `values`. A 409 means the visitor is no
+    /// longer waiting for an agent and surfaces as ``ChatServiceError/conflict``; a 404 means there
+    /// is no such form and surfaces as ``ChatServiceError/notFound``. Session-bound — a 401
+    /// surfaces as ``ChatServiceError/sessionExpired``.
+    func patchFormValues(
+        formId: String,
+        values: [String: String]
+    ) async throws(ChatServiceError) -> ChatSessionState
+
     /// Rotates the session — invalidates the current token and obtains a fresh
     /// one via the host's reset hook. The caller clears local conversation state.
     func resetConversation() async throws(ChatServiceError)

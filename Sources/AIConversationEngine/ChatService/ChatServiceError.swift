@@ -23,7 +23,8 @@ package enum ChatServiceError: Error {
     /// says what it means there.
     case conflict
 
-    /// A 404 from `GET /forms/{form_id}` — the backend has no form with that id.
+    /// A 404 from `GET /forms/{form_id}` or `PATCH /forms/{form_id}/values` — the backend has no
+    /// form with that id.
     case notFound
 
     /// The server terminated the message stream.

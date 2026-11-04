@@ -198,6 +198,38 @@ extension ChatService: ChatServicing {
             throw .notFound
         }
     }
+
+    package func fetchSession() async throws(ChatServiceError) -> ChatSessionState {
+        try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                try await self.network.get(
+                    url: self.url(for: .session),
+                    headers: self.headers(token: token)
+                )
+            }
+        }
+    }
+
+    package func patchFormValues(
+        formId: String,
+        values: [String: String]
+    ) async throws(ChatServiceError) -> ChatSessionState {
+        do {
+            return try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.patch(
+                        url: self.url(for: .forms).appending(component: formId).appending(component: "values"),
+                        payload: ChatFormValuesPatchRequest(values: values),
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        } catch .transport(.http(.unhandled(status: 404, body: _))) {
+            throw .notFound
+        }
+    }
 }
 
 // MARK: - Livechat
@@ -354,6 +386,7 @@ private extension ChatService {
         case messages = "api/v1/chat/messages"
         case actions = "api/v1/chat/actions"
         case forms = "api/v1/chat/forms"
+        case session = "api/v1/chat/session"
         case livechatSync = "api/v1/chat/livechat/sync"
         case livechatHandover = "api/v1/chat/livechat/handover"
         case livechatMessages = "api/v1/chat/livechat/messages"
