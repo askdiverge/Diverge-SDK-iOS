@@ -34,7 +34,7 @@ struct ConversationView<Content: View, Header: View>: View {
     var body: some View {
         ScrollViewReader { proxy in
             self.conversation(proxy)
-                .overlay(alignment: .bottomTrailing) {
+                .overlay(alignment: .bottom) {
                     ScrollToBottomButton(
                         isVisible: self.isScrolledAway && !self.isEditingForm && self.snapshot.turns.count > 1,
                         isStreaming: self.snapshot.streamingTurnID != nil
