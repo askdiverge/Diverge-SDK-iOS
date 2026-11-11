@@ -345,8 +345,8 @@ private extension ChatView {
             } action: { _, continues in
                 self.waitingFormContinues = continues
             }
-            .onChange(of: model.firstFieldWithError) { _, key in
-                guard let key else { return }
+            .onChange(of: model.fieldErrorReveals) {
+                guard let key = model.firstFieldWithError else { return }
                 withAnimation { proxy.scrollTo(key, anchor: .center) }
             }
         }

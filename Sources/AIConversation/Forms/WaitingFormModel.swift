@@ -34,6 +34,9 @@ final class WaitingFormModel {
     private(set) var fieldErrors: [String: String] = [:]
     private(set) var formError: String?
     private(set) var phase: Phase = .editing
+    /// Counts the saves that found a field with an error. The card scrolls to
+    /// ``firstFieldWithError`` on each, also when it is the field the last one found.
+    private(set) var fieldErrorReveals = 0
 
     var isSaving: Bool {
         if case .saving = self.phase { return true }
@@ -119,6 +122,7 @@ final class WaitingFormModel {
         let result = FormValidator.validate(form: self.form, values: self.values, files: [], offersFileFields: false)
         self.fieldErrors = result.fieldErrors
         self.formError = result.formError
+        self.revealFieldErrors()
         return result.isValid
     }
 
@@ -174,5 +178,12 @@ final class WaitingFormModel {
         )
         self.fieldErrors = applied.fieldErrors
         self.formError = applied.formError
+        self.revealFieldErrors()
+    }
+
+    private func revealFieldErrors() {
+        if !self.fieldErrors.isEmpty {
+            self.fieldErrorReveals += 1
+        }
     }
 }
