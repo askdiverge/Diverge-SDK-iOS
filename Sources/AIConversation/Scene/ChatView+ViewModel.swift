@@ -103,8 +103,8 @@ extension ChatView {
         /// conversation, and the chat stays with the assistant.
         private(set) var declinedHumanAgentPrompts: Set<String> = []
         var currentMessage = ""
-        /// Set when a call the visitor didn't start — a form definition fetch — saw the session
-        /// end. The view shows the session-ended alert and resets it.
+        /// Set when a call the visitor didn't start — the first history page or a form definition
+        /// fetch — saw the session end. The view shows the session-ended alert and resets it.
         var backgroundSessionEnded = false
         /// Composer chips waiting for the next send.
         var pendingAttachments: [PendingAttachment] = []
@@ -265,9 +265,14 @@ extension ChatView {
                 self.provider = provider
                 self.observe(provider)
 
-                // The chat opens without history: a failed page shows its notice and can be asked
-                // for again, and after a 401 the next message starts a new session.
-                _ = try? await self.loadOlder()
+                // The chat opens even when history doesn't: a failed page shows its notice and can
+                // be asked for again. A 401 means the session has ended, and the visitor hears it
+                // now rather than when their first message is refused.
+                do {
+                    try await self.loadOlder()
+                } catch {
+                    self.backgroundSessionEnded = true
+                }
                 self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)
                 self.phase = .ready
