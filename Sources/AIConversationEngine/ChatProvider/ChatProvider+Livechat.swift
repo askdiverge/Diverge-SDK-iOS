@@ -49,6 +49,7 @@ extension ChatProvider {
         do {
             let stored = try await self.postLivechat(text, attachments: attachments, page: page)
             self.livechatMessageIDs.insert(stored.messageId)
+            self.livechatLog.append(stored)
         } catch ChatServiceError.sessionExpired {
             self.endConversation()
             throw SendFailure.sessionExpired
@@ -90,6 +91,7 @@ extension ChatProvider {
                 guard !responses.isEmpty else { continue }
                 self.appendIncoming(responses)
             }
+            self.livechatLog.append(message)
             changed = true
         }
         if changed { self.publish() }

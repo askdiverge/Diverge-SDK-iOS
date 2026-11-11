@@ -327,7 +327,8 @@ extension ChatView {
                     self.present(Notice(edge: .bottom, message: L10n.noticeBusy.string, autoDismiss: .seconds(1)))
 
                 case .busy(.operation):
-                    // A reset or delete is in flight, and its own UI covers the wait.
+                    // A reset, a delete or a first history page that replaces the conversation is
+                    // in flight, and its own UI covers the wait.
                     self.restoreDraft(text: text, attachments: attachments)
 
                 case .retry(popped: let draft, body: let body):

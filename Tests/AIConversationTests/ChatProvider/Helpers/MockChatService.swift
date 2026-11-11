@@ -24,6 +24,8 @@ final class MockChatService: ChatServicing {
         var historyError: ChatServiceError?
         /// Thrown by the `fetchHistory` calls at these zero-based indices only.
         var historyFailingCalls: [Int: ChatServiceError] = [:]
+        /// Holds the `fetchHistory` calls at these zero-based indices until their gate opens.
+        var historyGates: [Int: AsyncGate] = [:]
         var resetError: ChatServiceError?
         var deleteError: ChatServiceError?
         var livechatState = LivechatState(status: .inactive)
@@ -136,6 +138,7 @@ final class MockChatService: ChatServicing {
     func fetchHistory(cursor: String?) async throws(ChatServiceError) -> MessagePage {
         let index = self.historyCallCount
         self.historyCallCount += 1
+        await self.stub.historyGates[index]?.wait()
         if let error = self.stub.historyError ?? self.stub.historyFailingCalls[index] {
             throw error
         }
