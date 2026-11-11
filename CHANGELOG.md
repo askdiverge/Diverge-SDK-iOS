@@ -78,6 +78,8 @@
 - A product or table image that fails to load shows a placeholder instead of an empty slot.
 - A sent message always lifts to the top of the conversation: an answer that arrived in quick
   parts could leave it short, with the reply below the fold.
+- A notice shown again soon after it went away, such as "Couldn't load older messages", stays up for
+  its full time instead of disappearing early.
 - A failed save of the waiting form says so beside Save, and a field with an error scrolls into
   view, instead of both staying out of sight inside the card.
 - A form no longer repeats "Fill in at least 1 field" under fields that already show an error, and
