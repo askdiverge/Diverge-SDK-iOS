@@ -224,6 +224,31 @@ struct ChatViewModelRatingTests {
         try await eventually { viewModel.shouldOfferRating }
     }
 
+    @Test("a livechat session that closed with nothing of its own to rate still asks for the conversation rating")
+    func closedSessionWithoutCSATAsks() async throws {
+        let service = MockChatService()
+        let provider = StubChatProviding()
+        let viewModel = ChatView.ViewModel.forTesting(
+            provider: provider,
+            livechat: LivechatSession(service: service) { _ in throw CancellationError() }
+        )
+        provider.publish(Self.snapshotWithUserTurn())
+        await Self.waitForSnapshot(viewModel)
+        service.livechatState = LivechatState(status: .waiting)
+        viewModel.startLivechat(with: try LivechatFixtures.decoder.decode(
+            LivechatConfig.self,
+            from: Data(#"{"enabled":true,"configured":true,"availability_status":"live"}"#.utf8)
+        ))
+        try await eventually { viewModel.livechatStatus == .waiting }
+
+        // The visitor left the queue before an agent joined, so the session has no rating.
+        service.livechatState = LivechatState(status: .closed, feedback: .notAvailable)
+        await viewModel.livechat.refresh()
+        try await eventually { viewModel.livechatStatus == .closed }
+
+        #expect(viewModel.shouldOfferRating == true)
+    }
+
     @Test(
         "a session ended by a send or a history load clears the rated flag, so the next conversation is asked",
         arguments: [true, false]

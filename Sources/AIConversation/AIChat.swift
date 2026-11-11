@@ -162,8 +162,9 @@ public extension AIChat {
     }
 
     /// Whether closing the chat first asks the visitor to rate the conversation (`POST /rate`).
-    /// The close control shows when ``Configuration`` has `onClose`. A livechat session with
-    /// feedback pending is rated through its own prompt, and closing then goes straight to the host.
+    /// The close control shows when ``Configuration`` has `onClose`. A livechat session that closed
+    /// with a rating of its own, still to give or given, is rated through its own prompt, and closing
+    /// after it goes straight to the host.
     enum Rating: Sendable {
         /// Ask for a 1–5 rating on close once the visitor has written in the conversation and
         /// hasn't rated it yet.

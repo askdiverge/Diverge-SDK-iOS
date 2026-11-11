@@ -99,8 +99,10 @@ onClose: { dismissChat() }
 
 **`rating`** — whether close asks for a conversation rating first. Defaults to `.enabled`. Pass
 `.disabled` to call `onClose` immediately. Livechat CSAT is separate and still offered when the
-server marks feedback pending after a session ends on screen. Whether the visitor has rated is
-remembered in memory by the `AIChat` instance, or across instances minted from `AIChat.configure`.
+server marks feedback pending after a session ends on screen. After a livechat session that closed
+with its own rating, still to give or given, close calls `onClose` without asking again. Whether the
+visitor has rated is remembered in memory by the `AIChat` instance, or across instances minted from
+`AIChat.configure`.
 A host that builds a new `AIChat(…)` for each presentation asks again on each close, so keep the
 instance, or use the shared configuration, when you use `onClose` with a rating.
 

@@ -29,6 +29,9 @@ final class LivechatRatingController {
     @ObservationIgnored private var isDone = false
     /// The latest session is closed with feedback still to give.
     @ObservationIgnored private(set) var hasPendingFeedback = false
+    /// The latest session is closed with a rating of its own, still to give or given. It replaces
+    /// the conversation rating on close.
+    @ObservationIgnored private(set) var closedSessionHasRating = false
     /// The chat is visible and the app active.
     @ObservationIgnored private var isOnScreen = true
     /// Bumped when a new session replaces the closed one, so a rating sent for the old one can't
@@ -54,6 +57,8 @@ final class LivechatRatingController {
     /// After a close the poller stops, so a rating given elsewhere shows when a send is refused.
     func update(previous: LivechatState.Status, state: LivechatState, isRestored: Bool) {
         self.hasPendingFeedback = state.status == .closed && state.feedback.status == .pending
+        self.closedSessionHasRating = state.status == .closed
+            && (state.feedback.status == .pending || state.feedback.status == .submitted)
         guard state.status == .closed else {
             self.sawClose = false
             self.isDone = false

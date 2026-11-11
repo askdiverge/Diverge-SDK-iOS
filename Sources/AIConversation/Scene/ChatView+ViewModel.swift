@@ -129,15 +129,16 @@ extension ChatView {
         /// the in-flight state is observed, without blocking a cooperative-pool thread.
         typealias AttachmentEncoder = @Sendable (Data, ImageAttachment.Options) async throws(ImageAttachment.Failure) -> ImageAttachment.Encoded
 
-        /// Whether tapping close should present the **conversation** `/rate` overlay. A closed
-        /// livechat session has its own CSAT, so a close after one asks nothing more.
+        /// Whether tapping close should present the **conversation** `/rate` overlay. A livechat
+        /// session that closed with a rating of its own (CSAT), given or still to give, is rated
+        /// there, so a close after it asks nothing more.
         var shouldOfferRating: Bool {
             self.conversationRatingMode == .enabled
                 && self.onClose != nil
                 && !self.conversationRating.hasRated
                 && !(self.snapshot?.user.isEmpty ?? true)
                 && !self.livechatStatus.isInSession
-                && self.livechatStatus != .closed
+                && !self.rating.closedSessionHasRating
                 && !self.isLivechatBusy
         }
 
