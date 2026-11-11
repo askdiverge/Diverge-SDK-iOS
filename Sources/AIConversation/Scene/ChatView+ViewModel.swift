@@ -52,7 +52,7 @@ extension ChatView {
         @ObservationIgnored let conversationFlow: AIChat.ConversationFlow
         /// Host-configured attachment sources; gates the composer attach control and upload prompts.
         @ObservationIgnored let attachments: AIChat.Attachments
-        @ObservationIgnored private let encodeAttachment: AttachmentEncoder
+        @ObservationIgnored let encodeAttachment: AttachmentEncoder
         @ObservationIgnored private let service: ChatService
         @ObservationIgnored let pageContext: @Sendable () async -> String?
         @ObservationIgnored private var provider: (any ChatProviding)?
@@ -103,10 +103,10 @@ extension ChatView {
         /// Composer chips waiting for the next send.
         var pendingAttachments: [PendingAttachment] = []
         /// Picks still being loaded from the library or encoded into chips.
-        private var preparingAttachments = 0
+        var preparingAttachments = 0
         /// Set when a conversation ends while a photo is being prepared, so it can't land in the
         /// next one. Clears once nothing is preparing.
-        @ObservationIgnored private var discardsPreparedAttachment = false
+        @ObservationIgnored var discardsPreparedAttachment = false
         /// True while a pick is being loaded or encoded into a chip.
         var isEncodingAttachment: Bool {
             self.preparingAttachments > 0
@@ -336,69 +336,6 @@ extension ChatView {
                     throw SessionEnded()
                 }
             }
-        }
-
-        /// Holds the attach and send controls for as long as `work` runs — from loading the pick
-        /// out of the library through its encode — so a send waits for the photo it is meant for.
-        func preparingAttachment(_ work: () async -> Void) async {
-            self.preparingAttachments += 1
-            defer { self.finishPreparingAttachment() }
-            await work()
-        }
-
-        /// The one encode path for every composer / prompt / form photo destination.
-        func encode(_ data: Data, options: ImageAttachment.Options) async -> PendingAttachment? {
-            self.preparingAttachments += 1
-            defer { self.finishPreparingAttachment() }
-
-            do {
-                let encoded = try await Task.detached(priority: .userInitiated) { [encode = self.encodeAttachment] in
-                    try await encode(data, options)
-                }.value
-                guard !self.discardsPreparedAttachment else { return nil }
-                return PendingAttachment(
-                    thumbnail: Image(decorative: encoded.thumbnail, scale: 1),
-                    attachment: encoded.attachment,
-                    displayName: options.filename ?? L10n.mediaImageLabel.string
-                )
-            } catch ImageAttachment.Failure.tooLarge {
-                self.present(Notice(
-                    edge: .bottom,
-                    message: L10n.attachmentTooLarge.string,
-                    autoDismiss: .seconds(4)
-                ))
-                return nil
-            } catch {
-                self.presentAttachmentFailure()
-                return nil
-            }
-        }
-
-        private func finishPreparingAttachment() {
-            self.preparingAttachments -= 1
-            if self.preparingAttachments == 0 {
-                self.discardsPreparedAttachment = false
-            }
-        }
-
-        /// Surfaces a generic attachment-load failure from the view (picker / transferable miss).
-        func presentAttachmentFailure() {
-            self.present(Notice(
-                edge: .bottom,
-                message: L10n.attachmentFailed.string,
-                autoDismiss: .seconds(4)
-            ))
-        }
-
-        /// Clears composer chips when a livechat session that forbids attachments becomes active.
-        func dropPendingAttachmentsForLivechat() {
-            guard !self.pendingAttachments.isEmpty else { return }
-            self.pendingAttachments = []
-            self.present(Notice(
-                edge: .bottom,
-                message: L10n.livechatAttachmentsDropped.string,
-                autoDismiss: .seconds(4)
-            ))
         }
 
         /// Whether a form card in the given bot turn may still be filled — only the newest bot

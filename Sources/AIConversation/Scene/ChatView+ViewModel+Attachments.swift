@@ -3,7 +3,7 @@
 //  AIConversation
 //
 
-import Foundation
+import SwiftUI
 import AIConversationEngine
 
 extension ChatView.ViewModel {
@@ -77,6 +77,69 @@ extension ChatView.ViewModel {
     ) async -> PendingAttachment? {
         let options = ImageAttachment.Options.action(filename: filename, maxDecodedBytes: maxBytes)
         return await self.encode(data, options: options)
+    }
+
+    /// Holds the attach and send controls for as long as `work` runs — from loading the pick
+    /// out of the library through its encode — so a send waits for the photo it is meant for.
+    func preparingAttachment(_ work: () async -> Void) async {
+        self.preparingAttachments += 1
+        defer { self.finishPreparingAttachment() }
+        await work()
+    }
+
+    /// The one encode path for every composer / prompt / form photo destination.
+    func encode(_ data: Data, options: ImageAttachment.Options) async -> PendingAttachment? {
+        self.preparingAttachments += 1
+        defer { self.finishPreparingAttachment() }
+
+        do {
+            let encoded = try await Task.detached(priority: .userInitiated) { [encode = self.encodeAttachment] in
+                try await encode(data, options)
+            }.value
+            guard !self.discardsPreparedAttachment else { return nil }
+            return PendingAttachment(
+                thumbnail: Image(decorative: encoded.thumbnail, scale: 1),
+                attachment: encoded.attachment,
+                displayName: options.filename ?? L10n.mediaImageLabel.string
+            )
+        } catch ImageAttachment.Failure.tooLarge {
+            self.present(Notice(
+                edge: .bottom,
+                message: L10n.attachmentTooLarge.string,
+                autoDismiss: .seconds(4)
+            ))
+            return nil
+        } catch {
+            self.presentAttachmentFailure()
+            return nil
+        }
+    }
+
+    private func finishPreparingAttachment() {
+        self.preparingAttachments -= 1
+        if self.preparingAttachments == 0 {
+            self.discardsPreparedAttachment = false
+        }
+    }
+
+    /// Surfaces a generic attachment-load failure from the view (picker / transferable miss).
+    func presentAttachmentFailure() {
+        self.present(Notice(
+            edge: .bottom,
+            message: L10n.attachmentFailed.string,
+            autoDismiss: .seconds(4)
+        ))
+    }
+
+    /// Clears composer chips when a livechat session that forbids attachments becomes active.
+    func dropPendingAttachmentsForLivechat() {
+        guard !self.pendingAttachments.isEmpty else { return }
+        self.pendingAttachments = []
+        self.present(Notice(
+            edge: .bottom,
+            message: L10n.livechatAttachmentsDropped.string,
+            autoDismiss: .seconds(4)
+        ))
     }
 
     /// Keeps the newest ``maxPendingAttachments`` entries.
