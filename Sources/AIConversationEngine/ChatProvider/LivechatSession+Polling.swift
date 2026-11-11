@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import AIConversationCore
 
 struct PollHandles {
     var task: Task<Void, Never>?
