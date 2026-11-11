@@ -84,6 +84,7 @@ private extension ConversationBottomFlowingList {
                         .frame(maxWidth: .infinity, alignment: self.alignment(turn.model))
                         .id(turn.id)
                 }
+                FormFieldClearance(isActive: self.isEditingForm)
             }
             .listRowInsets(
                 .init(

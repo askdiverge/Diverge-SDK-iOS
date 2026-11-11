@@ -26,6 +26,8 @@ struct ChatView: View {
     @State private var showSessionEndedAlert = false
     /// The waiting-room card has more below its fold.
     @State private var waitingFormContinues = false
+    /// The composer's height, which the conversation leaves room for below a focused form field.
+    @State private var composerHeight: CGFloat = 0
     @State private var privacyDestination: PrivacyDataDestination?
     @State private var isLoading = false
 #if canImport(PhotosUI)
@@ -244,7 +246,11 @@ private extension ChatView {
                 self.livechatToolbarItem
                 self.resetToolbarItem
             }
-            .safeAreaInset(edge: .bottom) { self.inputBar }
+            .environment(\.composerHeight, self.composerHeight)
+            .safeAreaInset(edge: .bottom) {
+                self.inputBar
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.composerHeight = $0 }
+            }
         }
         .safeAreaInset(edge: .top) { self.topNotice }
         .background(self.appearance.theme.background)
