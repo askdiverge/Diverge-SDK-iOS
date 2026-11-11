@@ -94,10 +94,12 @@ enum L10n {
     static let livechatActiveStatus = string("livechat.activeStatus")
 
     static let livechatTalkToPerson = string("livechat.talkToPerson")
+    static let livechatNoThanks = string("livechat.noThanks")
     static let livechatHumanAgentPrompt = string("livechat.humanAgentPrompt")
     static let livechatHumanAgentHint = string("livechat.humanAgentHint")
     static let livechatQueuedNote = string("livechat.queuedNote")
     static let livechatEndedNote = string("livechat.endedNote")
+    static let livechatEndedInactivityNote = string("livechat.endedInactivityNote")
     static let livechatAgentFallback = string("livechat.agentFallback")
     static let livechatAgentTyping = string("livechat.agentTyping")
     static let livechatAttachmentsDropped = string("livechat.attachmentsDropped")

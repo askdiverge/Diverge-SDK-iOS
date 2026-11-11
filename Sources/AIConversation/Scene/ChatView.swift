@@ -597,10 +597,12 @@ private extension ChatView {
             .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
 
         case .requestHumanAgent(let marker):
-            HumanAgentPromptView(viewModel: self.viewModel, partId: marker.partId, turnID: turnID)
-                .modifier(RelativeWidth(0.70, alignment: .leading))
-                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
-                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+            if !self.viewModel.declinedHumanAgentPrompts.contains(marker.partId) {
+                HumanAgentPromptView(viewModel: self.viewModel, partId: marker.partId, turnID: turnID)
+                    .modifier(RelativeWidth(0.70, alignment: .leading))
+                    .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+                    .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+            }
 
         case .livechatNote(let note):
             LivechatNoteRow(note: note)

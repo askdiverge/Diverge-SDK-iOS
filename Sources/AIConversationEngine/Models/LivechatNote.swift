@@ -17,6 +17,8 @@ package struct LivechatNote: Sendable, Equatable {
         case agentJoined(displayName: String)
         /// The livechat session ended.
         case ended
+        /// The backend closed the session because the visitor stopped replying.
+        case endedForInactivity
     }
 
     package let kind: Kind

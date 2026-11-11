@@ -121,21 +121,30 @@ struct ChatViewModelFormTests {
         let viewModel = ChatView.ViewModel.forTesting(provider: provider)
         let olderID = UUID()
         let newerID = UUID()
-        provider.publish(ConversationSnapshot(
-            user: [],
-            incoming: [
-                Identified(id: olderID, model: [.form(self.contact)]),
-                Identified(id: newerID, model: [.text(AttributedString("ok"))])
-            ],
-            isUserInitiatedConversation: false,
-            streamingTurnID: nil,
-            canLoadOlder: false
-        ))
+        let incoming = [
+            Identified(id: olderID, model: [ChatResponse.form(self.contact)]),
+            Identified(id: newerID, model: [ChatResponse.text(AttributedString("ok"))])
+        ]
+        provider.publish(self.snapshot(incoming, streaming: newerID))
+        try await eventually { viewModel.snapshot?.streamingTurnID == newerID }
+        provider.publish(self.snapshot(incoming, streaming: nil))
 
-        try await eventually { viewModel.snapshot?.lastBotTurnID == newerID }
+        try await eventually { viewModel.snapshot?.streamingTurnID == nil }
 
         #expect(viewModel.isFormEditable(inBotTurn: newerID))
         #expect(!viewModel.isFormEditable(inBotTurn: olderID))
+    }
+
+    @Test("a form restored from history is read-only, even in the newest bot turn")
+    func restoredFormIsReadOnly() async throws {
+        let provider = StubChatProviding()
+        let viewModel = ChatView.ViewModel.forTesting(provider: provider)
+        let turnID = UUID()
+        provider.publish(self.snapshot([Identified(id: turnID, model: [.form(self.contact)])], streaming: nil))
+
+        try await eventually { viewModel.snapshot?.lastBotTurnID == turnID }
+
+        #expect(!viewModel.isFormEditable(inBotTurn: turnID))
     }
 
     @Test("client validation blocks the submit without calling the service")
@@ -413,6 +422,19 @@ struct ChatViewModelFormTests {
             canLoadOlder: false
         ))
         try await eventually { viewModel.formModels[form.partId] != nil }
+    }
+
+    private func snapshot(
+        _ incoming: [Identified<[ChatResponse]>],
+        streaming: UUID?
+    ) -> ConversationSnapshot {
+        ConversationSnapshot(
+            user: [],
+            incoming: incoming,
+            isUserInitiatedConversation: false,
+            streamingTurnID: streaming,
+            canLoadOlder: false
+        )
     }
 
     private func fillContact(in viewModel: ChatView.ViewModel) {

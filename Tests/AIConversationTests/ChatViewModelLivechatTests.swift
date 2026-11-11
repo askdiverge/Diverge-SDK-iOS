@@ -274,15 +274,19 @@ struct ChatViewModelLivechatTests {
 extension ChatViewModelLivechatTests {
 
     /// Publishes a bot turn holding a `request_human_agent` card and returns the turn's id.
+    /// Shows a talk-to-a-person card the way a live reply brings it: streaming, then finished.
     func showPrompt(on provider: StubChatProviding, in viewModel: ChatView.ViewModel) async throws -> UUID {
         let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
-        provider.publish(ConversationSnapshot(
-            user: [],
-            incoming: [card],
-            isUserInitiatedConversation: false,
-            streamingTurnID: nil,
-            canLoadOlder: false
-        ))
+        for streaming in [card.id, nil] {
+            provider.publish(ConversationSnapshot(
+                user: [],
+                incoming: [card],
+                isUserInitiatedConversation: false,
+                streamingTurnID: streaming,
+                canLoadOlder: false
+            ))
+            try await eventually { viewModel.snapshot?.streamingTurnID == streaming }
+        }
         try await eventually { viewModel.snapshot?.lastBotTurnID == card.id }
         return card.id
     }

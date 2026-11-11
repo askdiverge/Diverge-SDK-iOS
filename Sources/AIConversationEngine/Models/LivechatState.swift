@@ -16,6 +16,12 @@ package struct LivechatState: Decodable, Sendable, Equatable {
     /// ISO 8601 date-time the agent joined; `nil` while waiting.
     package let agentJoinedAt: String?
     package let closedBy: ClosedBy?
+    /// The agent who closed the session; `nil` while open, and when the visitor or the backend's
+    /// inactivity sweep closed it.
+    package let closedByAgentId: String?
+    /// Why the session closed, as the closing side stated it; `nil` while open or when none was
+    /// given. The backend's inactivity sweep sets `inactivity`.
+    package let closeReason: String?
     package let feedback: Feedback
     /// Monotonic session version. A poll response older than one already applied is dropped.
     package let stateVersion: Int?
@@ -24,6 +30,16 @@ package struct LivechatState: Decodable, Sendable, Equatable {
     package var isInSession: Bool {
         self.status.isInSession
     }
+
+    /// Whether the backend's inactivity sweep closed the session: it closes as the agent side,
+    /// with no agent, and the reason `inactivity`.
+    package var isClosedForInactivity: Bool {
+        self.status == .closed && self.closedBy == .agent && (self.closedByAgentId ?? "").isEmpty
+            && self.closeReason == Self.inactivityCloseReason
+    }
+
+    /// The `close_reason` the backend's inactivity sweep sets.
+    static let inactivityCloseReason = "inactivity"
 
     /// Where the visitor's latest livechat session stands, decided by the backend: `inactive`
     /// before any handover, `waiting` in the queue, `active` with an agent, and `closed` once
@@ -76,6 +92,8 @@ extension LivechatState {
             isAgentTyping: false,
             agentJoinedAt: nil,
             closedBy: nil,
+            closedByAgentId: nil,
+            closeReason: nil,
             feedback: Feedback(status: feedback),
             stateVersion: nil
         )
