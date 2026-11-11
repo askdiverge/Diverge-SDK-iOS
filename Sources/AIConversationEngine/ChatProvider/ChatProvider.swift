@@ -22,9 +22,11 @@ package actor ChatProvider: ChatProviding {
     private let continuation: ChatStream.Continuation
 
     /// Synthetic greeting from config — a plain string, wrapped into a `ChatResponse`
-    /// Pinned as the first `incoming`
-    /// Re-seeded on `clear()` so it survives reset.
+    /// each time the conversation is published. See ``welcome``.
     private let welcomeMessage: String?
+
+    /// The turn that carries the greeting, whichever pane leads the conversation.
+    private let welcomeTurnID = UUID()
 
     /// Whether `request_image_upload` markers render. Off when the host disabled attachments.
     private let acceptsImageUploadPrompts: Bool
@@ -94,18 +96,30 @@ package actor ChatProvider: ChatProviding {
         return contents
     }
 
-    /// True only while the synthetic welcome is present (history exhausted). It opens the
-    /// conversation, so the bot leads the interleave.
-    private var showsWelcome: Bool {
-        self.welcomeMessage != nil && self.paginator.isExhausted
+    /// The greeting, while no older page is known to sit above the conversation. It stays out of
+    /// the panes and joins the published snapshot, so a conversation emptied by a delete, an
+    /// expired session or a failed first page opens with it, and history lands beneath it.
+    private var welcome: ChatResponse? {
+        guard !self.paginator.hasOlderPages else { return nil }
+        return self.welcomeMessage.map { .text(AttributedString($0)) }
+    }
+
+    /// The bot pane as published. The greeting opens the first turn when the bot leads, and is a
+    /// turn of its own ahead of a visitor's first message.
+    private var publishedIncoming: [Identified<[ChatResponse]>] {
+        guard let welcome = self.welcome else { return self.incoming }
+        guard self.botLeads, let first = self.incoming.first else {
+            return [Identified(id: self.welcomeTurnID, model: [welcome])] + self.incoming
+        }
+        return [Identified(id: self.welcomeTurnID, model: [welcome] + first.model)] + self.incoming.dropFirst()
     }
 
     private func publish() {
         self.continuation.yield(
             .init(
                 user: self.user,
-                incoming: self.incoming,
-                isUserInitiatedConversation: !self.botLeads,
+                incoming: self.publishedIncoming,
+                isUserInitiatedConversation: self.welcome == nil && !self.botLeads,
                 streamingTurnID: self.streamingTurnID
             )
         )
@@ -481,7 +495,7 @@ private extension ChatProvider {
     }
 
     /// Drops all conversation state and resets pagination — after a successful reset
-    /// or delete the next session starts clean (the welcome is re-seeded).
+    /// or delete the next session starts clean.
     func clear() {
         self.user = []
         self.incoming = []
@@ -568,16 +582,6 @@ private extension ChatProvider {
                 runs[runs.count - 1] = .bot(responses + message.parts.compactMap { self.incoming($0, role: message.role) })
             default:
                 runs.append(.bot(message.parts.compactMap { self.incoming($0, role: message.role) }))
-            }
-        }
-
-        // Once history is exhausted this is the true start — pin the synthetic greeting above it.
-        if self.showsWelcome, let welcome = self.welcomeMessage {
-            let greeting = ChatResponse.text(AttributedString(welcome))
-            if case .bot(let responses) = runs.first {
-                runs[0] = .bot([greeting] + responses)
-            } else {
-                runs.insert(.bot([greeting]), at: 0)
             }
         }
 
