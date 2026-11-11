@@ -349,6 +349,8 @@ extension ChatView {
 
                 case .sessionExpired:
                     self.dropConversationState()
+                    // The conversation is gone, but what the visitor just wrote can still be sent.
+                    self.restoreDraft(text: text, attachments: attachments)
                     throw SessionEnded()
                 }
             }
