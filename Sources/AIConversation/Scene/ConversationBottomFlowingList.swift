@@ -47,7 +47,7 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(.bottom, for: .initialOffset)
                 .onChange(of: self.snapshot, initial: true) { old, new in
-                    if let turnID = self.olderTurns.landing(from: old.turns.map(\.id), to: new.turns.map(\.id)) {
+                    if case .landed(let turnID?) = self.olderTurns.landing(from: old.turns, to: new.turns) {
                         self.scrollTask.land(on: turnID, proxy: proxy)
                         return
                     }

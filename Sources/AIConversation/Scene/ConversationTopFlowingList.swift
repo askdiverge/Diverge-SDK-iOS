@@ -61,15 +61,19 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(.bottom, for: .initialOffset)
                 .onChange(of: self.snapshot, initial: true) { old, new in
-                    if let turnID = self.olderTurns.landing(from: old.turns.map(\.id), to: new.turns.map(\.id)) {
+                    let landing = self.olderTurns.landing(from: old.turns, to: new.turns)
+                    if case .landed(let turnID?) = landing {
                         self.scrollTask.land(on: turnID, proxy: proxy)
+                    }
+                    // A user turn that a page of history brings isn't a send.
+                    if old.user.last?.id != new.user.last?.id, landing == .none {
+                        self.userTurnChanged(new.user.last?.id, proxy: proxy)
                     }
                     // Open at the newest turn once, afterwards a send lifts to the top instead.
                     guard self.isInitialLoad else { return }
                     self.scrollToNewest(proxy)
                     self.isInitialLoad = false
                 }
-                .onChange(of: self.snapshot.user.last?.id) { _, userID in self.userTurnChanged(userID, proxy: proxy) }
                 .onChange(of: self.snapshot.incoming.last?.id) { self.answerArrived(proxy) }
                 .onChange(of: self.isInputFocused) { _, focused in
                     guard focused else { return }
@@ -203,8 +207,6 @@ private extension ConversationTopFlowingList {
     /// The newest user turn changed: a turn that arrived arms an exchange, one that left retires the
     /// exchange it belonged to rather than arming the turn it uncovers.
     func userTurnChanged(_ userID: UUID?, proxy: ScrollViewProxy) {
-        // A turn loaded from history isn't a send.
-        guard !self.olderTurns.isArmed else { return }
         if self.exchange != nil, !self.isArmed {
             self.retire(proxy)
         } else {
