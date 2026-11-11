@@ -43,6 +43,9 @@ extension ChatView {
         private(set) var isLivechatBusy = false
         /// The visitor asked to leave a session and is deciding whether to.
         var isConfirmingLivechatEnd = false
+        /// The status the leave question was asked about. A confirmation counts only while the
+        /// session still stands there.
+        @ObservationIgnored private var livechatEndQuestion: LivechatState.Status?
         /// Set when the poller sees the visitor session end (401). The view shows the session-ended
         /// alert and clears it.
         var livechatSessionEnded = false
@@ -619,17 +622,21 @@ extension ChatView.ViewModel {
             defer { self.isLivechatBusy = false }
             await self.requestLivechat()
         case .end:
+            self.livechatEndQuestion = self.livechatStatus
             self.isConfirmingLivechatEnd = true
         case .hidden:
             break
         }
     }
 
-    /// The visitor confirmed leaving. A session that ended while the question was up stays ended,
-    /// so a late answer can't queue the visitor again.
+    /// The visitor confirmed leaving. The answer counts only for the session the question asked
+    /// about: one that ended meanwhile stays ended, so a late answer can't queue the visitor again,
+    /// and an agent who joined the queue meanwhile keeps their chat.
     func confirmEndLivechat() async {
         self.isConfirmingLivechatEnd = false
-        guard !self.isLivechatBusy, self.livechatControl == .end else { return }
+        let asked = self.livechatEndQuestion
+        self.livechatEndQuestion = nil
+        guard !self.isLivechatBusy, self.livechatControl == .end, asked == self.livechatStatus else { return }
         self.isLivechatBusy = true
         defer { self.isLivechatBusy = false }
         await self.endLivechat()
@@ -698,10 +705,12 @@ extension ChatView.ViewModel {
         guard snapshot.generation >= self.livechatFloor else { return }
         let previous = snapshot.previousStatus
         let status = snapshot.state.status
-        self.livechatStatus = status
-        if !status.isInSession {
+        // The leave question was asked about the session as it stood, so a change of status takes
+        // it down: an agent joining turns leaving the queue into ending their chat.
+        if status != self.livechatStatus {
             self.isConfirmingLivechatEnd = false
         }
+        self.livechatStatus = status
         self.livechatAgentName = snapshot.state.activeAgent?.displayName
         self.isAgentTyping = status == .active && snapshot.state.isAgentTyping
         self.reportLivechatSessionIfChanged()

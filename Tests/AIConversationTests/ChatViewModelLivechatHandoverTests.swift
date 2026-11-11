@@ -76,6 +76,7 @@ extension ChatViewModelLivechatTests {
         try await self.start(viewModel, in: .active, on: service)
         service.livechatState = LivechatState(status: .inactive)
 
+        await viewModel.toggleLivechat()
         await viewModel.confirmEndLivechat()
 
         try await eventually { viewModel.livechatStatus == .inactive }
@@ -95,6 +96,24 @@ extension ChatViewModelLivechatTests {
 
         #expect(service.livechatCloseCallCount == 0)
         #expect(service.livechatHandoverCallCount == 0)
+    }
+
+    @Test("an agent who joins while the visitor is asked about leaving the queue takes the question down and keeps the chat")
+    func agentJoiningCancelsTheQuestion() async throws {
+        let (viewModel, service, _) = self.makeSUT()
+        try await self.start(viewModel, in: .waiting, on: service)
+        await viewModel.toggleLivechat()
+        #expect(viewModel.isConfirmingLivechatEnd)
+
+        service.livechatState = LivechatState(status: .active)
+        await viewModel.livechat.refresh()
+        try await eventually { viewModel.livechatStatus == .active }
+        #expect(!viewModel.isConfirmingLivechatEnd)
+
+        await viewModel.confirmEndLivechat()
+
+        #expect(service.livechatCloseCallCount == 0)
+        #expect(viewModel.livechatStatus == .active)
     }
 
     @Test("the question asks about the agent during a chat, and the queue while waiting")
