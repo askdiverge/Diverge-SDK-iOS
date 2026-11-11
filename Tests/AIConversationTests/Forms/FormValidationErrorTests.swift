@@ -184,13 +184,41 @@ struct FormValidationErrorTests {
         #expect(two.isValid)
     }
 
-    @Test("a field's own error replaces the minimum-answers message")
+    @Test("a required field's own error replaces the minimum-answers message it would satisfy")
     func fieldErrorReplacesMinimumMessage() {
         let result = FormValidator.validate(form: self.contact, values: [:], files: [], offersFileFields: true)
 
         #expect(result.fieldErrors["name"] == L10n.formRequired.string)
         #expect(result.formError == nil)
         #expect(!result.isValid)
+    }
+
+    @Test("an invalid answer shows its error beside the minimum-answers message the form still owes")
+    func invalidAnswerKeepsMinimumMessage() {
+        let form = Self.custom(minFilledFields: 2, fields: [
+            .init(key: "email", label: "Email", type: .email),
+            .init(key: "a", label: "A"),
+            .init(key: "b", label: "B")
+        ])
+
+        let result = FormValidator.validate(form: form, values: ["email": "not-an-email"], files: [], offersFileFields: true)
+
+        #expect(result.fieldErrors == ["email": L10n.formInvalidEmail.string])
+        #expect(result.formError == L10n.formMinFilled(2).string)
+    }
+
+    @Test("required fields that wouldn't reach the minimum leave the minimum-answers message up")
+    func requiredFieldsShortOfMinimum() {
+        let form = Self.custom(minFilledFields: 2, fields: [
+            .init(key: "a", label: "A", required: true),
+            .init(key: "b", label: "B"),
+            .init(key: "c", label: "C")
+        ])
+
+        let result = FormValidator.validate(form: form, values: [:], files: [], offersFileFields: true)
+
+        #expect(result.fieldErrors == ["a": L10n.formRequired.string])
+        #expect(result.formError == L10n.formMinFilled(2).string)
     }
 
     @Test("an edit clears the form's error, and the next submit checks again")
@@ -208,6 +236,17 @@ struct FormValidationErrorTests {
 
         model.validate(offersFileFields: true)
         #expect(model.formError == L10n.formMinFilled(1).string)
+    }
+
+    /// A custom form of `fields` that needs `minFilledFields` answers.
+    private static func custom(minFilledFields: Int, fields: [FormField]) -> ConversationForm {
+        ConversationForm.custom(ShowForm(
+            partId: "part_form_1",
+            formId: "f",
+            name: "F",
+            fields: fields,
+            minFilledFields: minFilledFields
+        ))
     }
 
     /// A custom form with a required `receipt` field of `type` and an optional note.

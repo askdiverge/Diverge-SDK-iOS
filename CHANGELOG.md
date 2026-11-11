@@ -82,8 +82,8 @@
   its full time instead of disappearing early.
 - A failed save of the waiting form says so beside Save, and a field with an error scrolls into
   view, instead of both staying out of sight inside the card.
-- A form no longer repeats "Fill in at least 1 field" under fields that already show an error, and
-  the message clears as soon as the visitor edits the form.
+- A form no longer repeats "Fill in at least 1 field" when its required fields already say what is
+  missing, and the message clears as soon as the visitor edits the form.
 - The jump-to-newest button stays off a form field while it has the keyboard.
 - A form field near the end of the newest reply scrolls clear of the composer while the visitor
   types in it, and the form's Submit button can be scrolled into view without closing the keyboard.
