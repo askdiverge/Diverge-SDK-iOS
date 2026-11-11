@@ -61,6 +61,8 @@
   longer lingers on a conversation with nothing to scroll to. Wrapped bullet lines align under
   their text.
 - Text scales with Dynamic Type on chatbots with no custom font.
+- A heading in an assistant reply (`### Delivery`) shows as a bold line, as on the web widget,
+  instead of with its `#` marks.
 - A product or table image that fails to load shows a placeholder instead of an empty slot.
 - A sent message always lifts to the top of the conversation: an answer that arrived in quick
   parts could leave it short, with the reply below the fold.
