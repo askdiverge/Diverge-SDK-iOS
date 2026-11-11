@@ -80,6 +80,11 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                     self.exchange?.isHeld = false
                     self.scrollToNewest(proxy, animated: true)
                 }
+                .onChange(of: self.isEditingForm) { _, editing in
+                    // The reader is filling in a form in the answer, so its errors and growing
+                    // fields no longer lift the message back to the top.
+                    if editing { self.exchange?.isHeld = false }
+                }
         }
     }
 }
@@ -93,7 +98,8 @@ private extension ConversationTopFlowingList {
         var userHeight: CGFloat = 0
         /// Keyed by id so a fresh answer reads as unmeasured rather than the previous answer's height.
         var bot: (id: UUID, height: CGFloat)?
-        /// The list keeps the user turn at the top while the answer lays out, until the reader moves it.
+        /// The list keeps the user turn at the top while the answer lays out, until the reader moves it
+        /// or starts filling in a form.
         var isHeld = true
     }
 
