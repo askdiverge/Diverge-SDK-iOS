@@ -45,8 +45,9 @@ package enum Part: Decodable, Sendable, Equatable {
 
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        // An unreadable or new part degrades to `.unknown`, which rendering skips; a throw would end
-        // the live stream.
+        // An unreadable or new `type` decodes to `.unknown`, which rendering skips, and so does a
+        // media part or marker that fails to decode. A malformed `rich_text`, `table` or `products`
+        // part throws, and the message it belongs to fails to decode with it.
         self = switch try? container.decode(PartType.self, forKey: .type) {
         case .richText: .richText(try RichText(from: decoder))
         case .table: .table(try Table(from: decoder))
