@@ -89,6 +89,9 @@
   types in it, and the form's Submit button can be scrolled into view without closing the keyboard.
 - Long form field labels wrap instead of being cut off, a dropdown shows the same red outline as a
   text field when it has an error, and a picked form photo no longer shows the field's raw key.
+- A rich text, table or products part the SDK can't read is left out, and the rest of the reply
+  still shows: it used to end the reply mid-stream, or stop a page of older messages or a live
+  chat update from loading.
 
 ## [1.0.0] - 2026-10-01
 

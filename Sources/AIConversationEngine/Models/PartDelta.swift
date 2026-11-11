@@ -60,10 +60,15 @@ package enum PartDelta: Decodable, Sendable, Equatable {
     }
 
     package init(from decoder: any Decoder) throws {
+        // A delta that doesn't decode, from an unreadable or new action to a payload missing a
+        // field, is `.unknown`, which the buffer skips; a throw would end the live stream.
+        self = (try? Self.decoded(from: decoder)) ?? .unknown
+    }
+
+    /// The delta `decoder` holds. Throws when its payload doesn't match its action.
+    private static func decoded(from decoder: any Decoder) throws -> PartDelta {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        // An unreadable or new action degrades to `.unknown`, which the buffer skips; a throw would
-        // end the live stream.
-        self = switch try? container.decode(Action.self, forKey: .action) {
+        return switch try? container.decode(Action.self, forKey: .action) {
         case .startPart:
             // `start_part` opens rich_text/products/table — discriminate on `part_type`.
             switch try? container.decode(StartPartType.self, forKey: .partType) {
