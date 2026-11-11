@@ -62,6 +62,19 @@ struct LivechatModelsTests {
         #expect(settings.maxAttachmentSizeBytes == 5_242_880)
     }
 
+    @Test("a session the inactivity sweep closed reads as closed for inactivity")
+    func inactivityClose() throws {
+        let swept = try self.decodeClosedState(closedBy: "agent", agentId: nil, reason: "inactivity")
+        let byAgent = try self.decodeClosedState(closedBy: "agent", agentId: "agent_7", reason: "inactivity")
+        let byVisitor = try self.decodeClosedState(closedBy: "customer", agentId: nil, reason: "Chat reset")
+
+        #expect(swept.closeReason == "inactivity")
+        #expect(swept.isClosedForInactivity)
+        #expect(byAgent.closedByAgentId == "agent_7")
+        #expect(!byAgent.isClosedForInactivity)
+        #expect(!byVisitor.isClosedForInactivity)
+    }
+
     @Test("request_human_agent marker decodes")
     func humanAgentMarker() throws {
         let json = Data("""
@@ -137,6 +150,21 @@ struct LivechatModelsTests {
     }
 
     // MARK: - Fixtures
+
+    /// Decodes a closed `/livechat/state` body with the given closing side, agent and reason.
+    private func decodeClosedState(closedBy: String, agentId: String?, reason: String) throws -> LivechatState {
+        let agent = agentId.map { "\"\($0)\"" } ?? "null"
+        return try self.decoder.decode(LivechatState.self, from: Data("""
+        {
+          "status": "closed",
+          "is_agent_typing": false,
+          "closed_by": "\(closedBy)",
+          "closed_by_agent_id": \(agent),
+          "close_reason": "\(reason)",
+          "feedback": { "status": "not_available" }
+        }
+        """.utf8))
+    }
 
     /// Decodes a minimal `/config` body, with `extra` appended after `theme`.
     private func decodeConfig(extra: String) throws -> ChatConfig {

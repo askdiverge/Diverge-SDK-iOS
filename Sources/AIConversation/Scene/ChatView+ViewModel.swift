@@ -96,6 +96,12 @@ extension ChatView {
         /// Drafts of the conversation's forms by `part_id`, created when a snapshot first brings
         /// the form so a draft survives list recycling.
         private(set) var formModels: [String: FormSubmissionModel] = [:]
+        /// Bot turns whose reply streamed while this chat was open. A form restored from history
+        /// stays read-only, the way the web widget does not reopen a form on reload.
+        private var liveTurnIDs: Set<UUID> = []
+        /// `request_human_agent` cards the visitor answered "No thanks". They leave the
+        /// conversation, and the chat stays with the assistant.
+        private(set) var declinedHumanAgentPrompts: Set<String> = []
         var currentMessage = ""
         /// Set when a call the visitor didn't start — a form definition fetch — saw the session
         /// end. The view shows the session-ended alert and resets it.
@@ -338,10 +344,11 @@ extension ChatView {
             }
         }
 
-        /// Whether a form card in the given bot turn may still be filled — only the newest bot
-        /// turn's forms are actionable (the server rejects older `part_id`s).
+        /// Whether a form card in the given bot turn may still be filled: the turn is the newest
+        /// bot turn (the server rejects older `part_id`s) and its reply streamed while the chat
+        /// was open.
         func isFormEditable(inBotTurn turnID: UUID) -> Bool {
-            self.snapshot?.lastBotTurnID == turnID
+            self.snapshot?.lastBotTurnID == turnID && self.liveTurnIDs.contains(turnID)
         }
 
         /// Sets a text or dropdown answer on the draft of form `partId`.
@@ -484,6 +491,9 @@ extension ChatView {
             let stream = provider.stream
             Task { [weak self] in
                 for await snapshot in stream {
+                    if let streaming = snapshot.streamingTurnID, self?.liveTurnIDs.contains(streaming) == false {
+                        self?.liveTurnIDs.insert(streaming)
+                    }
                     self?.prepareForms(in: snapshot)
                     self?.snapshot = snapshot
                 }
@@ -543,6 +553,8 @@ extension ChatView {
         /// whether it was rated.
         private func dropConversationState() {
             self.formModels = [:]
+            self.liveTurnIDs = []
+            self.declinedHumanAgentPrompts = []
             self.pendingAttachments = []
             self.discardsPreparedAttachment = self.isEncodingAttachment
             self.waitingForm.clear()
@@ -617,6 +629,12 @@ extension ChatView.ViewModel {
         self.isLivechatBusy = true
         defer { self.isLivechatBusy = false }
         await self.requestLivechat(partId: partId)
+    }
+
+    /// Answers "No thanks" to the `request_human_agent` card `partId`: the card leaves the
+    /// conversation, no handover is requested, and the chat stays with the assistant.
+    func declineHumanAgentPrompt(partId: String) {
+        self.declinedHumanAgentPrompts.insert(partId)
     }
 
     /// Ends the chat after a request outside the poller found the visitor session expired (401),
@@ -700,7 +718,8 @@ extension ChatView.ViewModel {
             await self.provider?.appendLivechat(snapshot.messages)
         }
         if !snapshot.isRestored, previous.isInSession, status == .closed {
-            await self.provider?.note(LivechatNote(kind: .ended))
+            let kind: LivechatNote.Kind = snapshot.state.isClosedForInactivity ? .endedForInactivity : .ended
+            await self.provider?.note(LivechatNote(kind: kind))
         }
         self.rating.update(previous: previous, state: snapshot.state, isRestored: snapshot.isRestored)
     }

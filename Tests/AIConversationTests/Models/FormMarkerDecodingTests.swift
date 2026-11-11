@@ -8,7 +8,7 @@ import Testing
 @testable import AIConversationEngine
 
 /// Pins how the contact-form, support-ticket and custom-form markers decode: every key the
-/// contract requires must be present, and a `show_form` may carry its fields empty.
+/// contract requires must be present, and a `show_form` may arrive as a reference to its form.
 @Suite("Form markers — decoding against the API contract")
 struct FormMarkerDecodingTests {
 
@@ -90,10 +90,24 @@ struct FormMarkerDecodingTests {
 
     // MARK: - show_form
 
-    @Test("a show_form without its name or fields fails to decode")
-    func showFormWithoutDefinitionThrows() {
+    @Test("a show_form that only references its form decodes empty, for the client to hydrate")
+    func showFormReferenceOnly() throws {
+        let form = try self.decode(ShowForm.self, #"{"type":"show_form","form_id":"frm_1","part_id":"p_1"}"#)
+
+        #expect(form.partId == "p_1")
+        #expect(form.formId == "frm_1")
+        #expect(form.name == nil)
+        #expect(form.fields.isEmpty)
+        #expect(form.minFilledFields == 0)
+    }
+
+    @Test("a show_form with a malformed field fails to decode")
+    func showFormMalformedFieldThrows() {
         #expect(throws: DecodingError.self) {
-            try self.decode(ShowForm.self, #"{"type":"show_form","form_id":"frm_1","part_id":"p_1"}"#)
+            try self.decode(
+                ShowForm.self,
+                #"{"type":"show_form","form_id":"frm_1","part_id":"p_1","fields":[{"key":"email","label":null}]}"#
+            )
         }
     }
 

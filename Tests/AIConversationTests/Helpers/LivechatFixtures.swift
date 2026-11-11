@@ -22,6 +22,8 @@ enum LivechatFixtures {
             isAgentTyping: false,
             agentJoinedAt: nil,
             closedBy: nil,
+            closedByAgentId: nil,
+            closeReason: nil,
             feedback: LivechatState.Feedback(status: .notAvailable),
             stateVersion: version
         )

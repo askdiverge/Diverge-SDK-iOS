@@ -44,6 +44,18 @@
 - A "Show earlier messages" control above the conversation loads older history, and retries a
   first page that failed. Visitors previously saw only the newest page.
 
+- The "talk to a person" card offers "No thanks", which removes the card and keeps the chat with
+  the assistant, as the web widget does.
+- A livechat session the backend closes for inactivity ends with its own note, telling the visitor
+  they can continue with the assistant or contact customer service again.
+
+### Changed
+
+- A custom form the assistant sends as a reference only (`show_form` with `form_id` and
+  `part_id`) now loads its definition from `GET /forms/{id}` instead of being skipped.
+- Forms and "talk to a person" cards restored from history are read-only, as on the web widget;
+  only those in a reply received while the chat is open can be filled or accepted.
+
 ### Fixed
 
 - Presenting `AIChat.makeView()` from a SwiftUI sheet no longer shows a blank card: the chat keeps

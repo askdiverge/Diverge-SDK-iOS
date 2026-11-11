@@ -23,6 +23,8 @@ struct LivechatNoteRow: View {
             return L10n.livechatAgentJoinedNote(name).string
         case .ended:
             return L10n.livechatEndedNote.string
+        case .endedForInactivity:
+            return L10n.livechatEndedInactivityNote.string
         }
     }
 }
