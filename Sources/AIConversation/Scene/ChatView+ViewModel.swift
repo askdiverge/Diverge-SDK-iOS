@@ -121,11 +121,12 @@ extension ChatView {
             self.preparingAttachments > 0
         }
 
-        /// Submits a marker-triggered action. Defaults to ``ChatService/submitAction``; tests
-        /// inject a stub so form success / failure paths do not need a live network.
+        /// Submits a marker-triggered action, such as a form. ``Dependencies/live(service:)`` sends
+        /// it with ``ChatService/submitAction(_:)``.
         typealias ActionSubmitter = @Sendable (SubmitActionRequest) async throws -> SubmitActionResponse
 
-        /// Fetches a form definition. Defaults to ``ChatService/fetchForm``.
+        /// Fetches a form definition by its id. ``Dependencies/live(service:)`` fetches it with
+        /// ``ChatService/fetchForm(id:)``.
         typealias FormFetcher = @Sendable (String) async throws -> ChatFormDefinition
 
         /// Encodes picked photo bytes off the main actor. Async so a test stub can suspend while
