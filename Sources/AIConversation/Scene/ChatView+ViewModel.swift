@@ -456,6 +456,7 @@ extension ChatView {
                 return
             }
             self.dropConversationState()
+            self.dropComposerPhotos()
         }
 
         /// Request deletion of visitor data and end the session. Rethrows so the delete sheet can act on the
@@ -470,6 +471,7 @@ extension ChatView {
                 throw DeletionFailed()
             }
             self.dropConversationState()
+            self.dropComposerPhotos()
         }
 
         /// Test seam — attach a stub provider without bootstrapping `/config`.
@@ -554,16 +556,21 @@ extension ChatView {
         }
 
         /// Drops what belonged to the conversation that just ended, however it ended: its form
-        /// drafts, the photos in the composer and any still being prepared, the waiting card and
-        /// whether it was rated.
+        /// drafts, the waiting card and whether it was rated. The composer keeps its draft, text
+        /// and photos, so a message the visitor hasn't sent can still go to the next session.
         private func dropConversationState() {
             self.formModels = [:]
             self.liveTurnIDs = []
             self.declinedHumanAgentPrompts = []
-            self.pendingAttachments = []
-            self.discardsPreparedAttachment = self.isEncodingAttachment
             self.waitingForm.clear()
             self.conversationRating.clearSession()
+        }
+
+        /// Drops the photos in the composer and any still being prepared, when the visitor resets
+        /// the conversation or deletes their data.
+        private func dropComposerPhotos() {
+            self.pendingAttachments = []
+            self.discardsPreparedAttachment = self.isEncodingAttachment
         }
 
         func present(_ notice: Notice) {
