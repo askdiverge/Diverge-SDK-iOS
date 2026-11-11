@@ -57,9 +57,9 @@
   web chat does, so a stray tap doesn't lose their place.
 - Reopening the chat during a livechat session shows the queue or agent note again, and the
   waiting form fades along its bottom edge when there is more to scroll to.
-- The jump-to-newest button sits in the trailing corner, clear of a form's Submit label, and no
-  longer lingers on a conversation with nothing to scroll to. Wrapped bullet lines align under
-  their text.
+- The jump-to-newest button sits centred above the composer, as on the web widget, and no longer
+  lingers on a conversation with nothing to scroll to. Wrapped bullet lines align under their
+  text.
 - Text scales with Dynamic Type on chatbots with no custom font.
 - A heading in an assistant reply (`### Delivery`) shows as a bold line, as on the web widget,
   instead of with its `#` marks.
