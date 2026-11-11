@@ -83,6 +83,7 @@ private extension ConversationView {
                             .transition(.opacity)
                             .id(turn.id)
                     }
+                    FormFieldClearance(isActive: self.isEditingForm)
                 } header: {
                     self.header()
                 }

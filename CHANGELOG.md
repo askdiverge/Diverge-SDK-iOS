@@ -71,6 +71,8 @@
 - A form no longer repeats "Fill in at least 1 field" under fields that already show an error, and
   the message clears as soon as the visitor edits the form.
 - The jump-to-newest button stays off a form field while it has the keyboard.
+- A form field near the end of the newest reply scrolls clear of the composer while the visitor
+  types in it, and the form's Submit button can be scrolled into view without closing the keyboard.
 - Long form field labels wrap instead of being cut off, a dropdown shows the same red outline as a
   text field when it has an error, and a picked form photo no longer shows the field's raw key.
 

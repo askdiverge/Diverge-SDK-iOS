@@ -139,6 +139,7 @@ private extension ConversationTopFlowingList {
                 }
 
                 self.buffer
+                FormFieldClearance(isActive: self.isEditingForm)
             }
             .listRowInsets(
                 .init(
