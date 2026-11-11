@@ -24,6 +24,8 @@ struct ChatView: View {
     @FocusState private var focusedFormField: String?
 
     @State private var showSessionEndedAlert = false
+    /// The waiting-room card has more below its fold.
+    @State private var waitingFormContinues = false
     @State private var privacyDestination: PrivacyDataDestination?
     @State private var isLoading = false
 #if canImport(PhotosUI)
@@ -130,6 +132,17 @@ private extension ChatView {
                 Button(L10n.sessionEndedDismiss.string, role: .cancel) { } // NO-OP
             } message: {
                 Text(L10n.sessionEndedMessage)
+            }
+            .alert(
+                self.viewModel.livechatEndConfirmation.title,
+                isPresented: self.$viewModel.isConfirmingLivechatEnd
+            ) {
+                Button(self.viewModel.livechatEndConfirmation.confirm, role: .destructive) {
+                    Task { await self.viewModel.confirmEndLivechat() }
+                }
+                Button(self.viewModel.livechatEndConfirmation.cancel, role: .cancel) { } // NO-OP
+            } message: {
+                Text(self.viewModel.livechatEndConfirmation.message)
             }
             .onChange(of: self.viewModel.backgroundSessionEnded) { _, ended in
                 guard ended else { return }
@@ -312,14 +325,33 @@ private extension ChatView {
 
     /// The waiting-room card above the composer. One scroll view hugs the card up to a capped
     /// height and scrolls past it, so the save row and the composer stay on screen and the
-    /// fields keep their identity, and their focus, as the card grows.
+    /// fields keep their identity, and their focus, as the card grows. A fade along the bottom
+    /// says there is more to scroll to.
     func waitingFormCard(_ model: WaitingFormModel) -> some View {
         ScrollView {
             LivechatWaitingFormView(model: model, focus: self.$focusedFormField)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentSize.height - geometry.visibleRect.maxY > 1
+        } action: { _, continues in
+            self.waitingFormContinues = continues
+        }
         .frame(maxHeight: self.appearance.spacing.units(48))
         .fixedSize(horizontal: false, vertical: true)
+        .overlay(alignment: .bottom) {
+            if self.waitingFormContinues {
+                LinearGradient(
+                    colors: [self.appearance.theme.botSurface.opacity(0), self.appearance.theme.botSurface],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: self.appearance.spacing.units(8))
+                .padding(.horizontal, self.appearance.spacing.units(4))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
     }
 
     @ViewBuilder

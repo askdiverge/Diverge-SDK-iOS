@@ -189,7 +189,7 @@ struct ChatViewModelRatingTests {
         #expect(closes.count == 0)
     }
 
-    @Test("rating waits while livechat is open or has feedback pending, and resumes once it hasn't")
+    @Test("a livechat session holds the rating back, and a closed one has asked enough until the next conversation")
     func livechatGatesConversationRating() async throws {
         let service = MockChatService()
         let provider = StubChatProviding()
@@ -216,6 +216,10 @@ struct ChatViewModelRatingTests {
 
         service.livechatState = LivechatState(status: .closed, feedback: .submitted)
         await viewModel.livechat.refresh()
+        try await eventually { !viewModel.rating.hasPendingFeedback }
+        #expect(viewModel.shouldOfferRating == false)
+
+        await viewModel.livechat.teardown()
         try await eventually { viewModel.shouldOfferRating }
     }
 
