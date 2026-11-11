@@ -328,11 +328,17 @@ struct ChatViewModelAttachmentTests {
         let provider = StubChatProviding()
         let viewModel = ChatView.ViewModel.forTesting(provider: provider)
 
-        provider.publish(ConversationSnapshot(user: [], incoming: [], isUserInitiatedConversation: false, streamingTurnID: UUID()))
+        provider.publish(ConversationSnapshot(
+            user: [],
+            incoming: [],
+            isUserInitiatedConversation: false,
+            streamingTurnID: UUID(),
+            canLoadOlder: false
+        ))
         try await eventually { viewModel.isStreaming }
         #expect(!viewModel.canAttach)
 
-        provider.publish(ConversationSnapshot(user: [], incoming: [], isUserInitiatedConversation: false, streamingTurnID: nil))
+        provider.publish(ConversationSnapshot(user: [], incoming: [], isUserInitiatedConversation: false, streamingTurnID: nil, canLoadOlder: false))
         try await eventually { !viewModel.isStreaming }
         #expect(viewModel.canAttach)
     }

@@ -1,6 +1,6 @@
 //
 //  ChatProvider.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-11.
 //
@@ -120,7 +120,8 @@ package actor ChatProvider: ChatProviding {
                 user: self.user,
                 incoming: self.publishedIncoming,
                 isUserInitiatedConversation: self.welcome == nil && !self.botLeads,
-                streamingTurnID: self.streamingTurnID
+                streamingTurnID: self.streamingTurnID,
+                canLoadOlder: !self.paginator.isExhausted
             )
         )
     }
@@ -141,9 +142,7 @@ extension ChatProvider {
         guard !text.isEmpty || !attachments.isEmpty else { return }
 
         // Single-flight — reject a send while a reply is already streaming.
-        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
-
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         // Mint the in-flight turn and mark it live before the first suspension, so concurrent
@@ -166,6 +165,7 @@ extension ChatProvider {
         // Reveal placeholder only if the reply is slow enough to warrant it — a fast
         // reply overwrites index 0 before this fires
         let reveal = Task {
+            // Only cancellation throws here, and the guard below handles that.
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
             self.publish()
@@ -189,8 +189,7 @@ extension ChatProvider {
             self.publish()
 
         } catch ChatServiceError.sessionExpired {
-            self.clear()
-            self.publish()
+            self.endConversation()
             throw SendFailure.sessionExpired
 
         } catch ChatServiceError.stream(let error) {
@@ -242,7 +241,8 @@ extension ChatProvider {
     }
 
     /// Loads the next older page of history and prepends it. No-op when a load is
-    /// already in flight or no pages remain. Drives both the first load and refresh.
+    /// already in flight or no pages remain. Drives both the first load and the visitor's
+    /// request for earlier messages.
     package func loadOlder() async throws {
         do {
             let cursor = try self.paginator.next()
@@ -259,8 +259,7 @@ extension ChatProvider {
         } catch Paginator.Failure.exhausted {
             // No more history available, do nothing
         } catch ChatServiceError.sessionExpired {
-            self.clear()
-            self.publish()
+            self.endConversation()
             throw ChatServiceError.sessionExpired
 
         } catch {
@@ -277,8 +276,7 @@ extension ChatProvider {
     /// Opportunistically loads history for new session.
     /// If the rotation fails the conversation is left intact.
     package func reset() async throws {
-        guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         try await self.service.resetConversation()
@@ -294,13 +292,11 @@ extension ChatProvider {
     /// Throws on failure so the caller can revert the control and surface the error.
     /// a failed delete leaves the conversation intact.
     package func delete() async throws {
-        guard !self.isBusy else { throw SendFailure.busy(self.streamingTurnID != nil ? .streaming : .operation) }
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         try await self.service.deleteData()
-        self.clear()
-        self.publish()
+        self.endConversation()
     }
 
 }
@@ -339,8 +335,7 @@ extension ChatProvider {
     ) async throws(SendFailure) {
         // The API takes a message of at least one part.
         guard !text.isEmpty || !attachments.isEmpty else { return }
-        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
-        self.isBusy = true
+        try self.beginOperation()
         defer { self.finishOperation() }
 
         let page = await self.pageContext()
@@ -352,8 +347,7 @@ extension ChatProvider {
             let stored = try await self.postLivechat(text, attachments: attachments, page: page)
             self.livechatMessageIDs.insert(stored.messageId)
         } catch ChatServiceError.sessionExpired {
-            self.clear()
-            self.publish()
+            self.endConversation()
             throw SendFailure.sessionExpired
         } catch ChatServiceError.conflict {
             self.popLastUserBubbles(count: echo.count)
@@ -374,8 +368,7 @@ extension ChatProvider {
             self.expiresAfterOperation = true
             return
         }
-        self.clear()
-        self.publish()
+        self.endConversation()
     }
 }
 
@@ -454,13 +447,18 @@ private extension ChatProvider {
         }.joined(separator: "\n")
     }
 
+    /// Claims the provider for a send, reset or delete, which must not interleave.
+    func beginOperation() throws(SendFailure) {
+        guard !self.isBusy else { throw .busy(self.streamingTurnID != nil ? .streaming : .operation) }
+        self.isBusy = true
+    }
+
     /// Ends a send, reset or delete, then folds in the livechat messages held back meanwhile.
     func finishOperation() {
         self.isBusy = false
         if self.expiresAfterOperation {
             self.expiresAfterOperation = false
-            self.clear()
-            self.publish()
+            self.endConversation()
             return
         }
         let deferred = self.deferredLivechat
@@ -494,8 +492,15 @@ private extension ChatProvider {
         if changed { self.publish() }
     }
 
-    /// Drops all conversation state and resets pagination — after a successful reset
-    /// or delete the next session starts clean.
+    /// Empties a conversation that ended with nothing to load in its place: a delete or an
+    /// expired session.
+    func endConversation() {
+        self.clear()
+        self.paginator.finish()
+        self.publish()
+    }
+
+    /// Drops all conversation state and resets pagination, so a reset's reload starts clean.
     func clear() {
         self.user = []
         self.incoming = []
@@ -519,7 +524,8 @@ private extension ChatProvider {
             millis = Int64(String(digits.prefix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)) ?? 0
             whole = String(timestamp[..<dot]) + rest.dropFirst(digits.count)
         }
-        guard let date = ISO8601DateFormatter().date(from: whole) else { return nil }
+        // A timestamp that doesn't parse has no place in the order, which is what `nil` says.
+        guard let date = try? Date(whole, strategy: .iso8601) else { return nil }
         return Int64(date.timeIntervalSince1970) * 1000 + millis
     }
 

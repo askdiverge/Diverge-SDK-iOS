@@ -1,6 +1,6 @@
 //
 //  Paginator.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-11.
 //
@@ -47,6 +47,13 @@ struct Paginator {
 
     /// Records a failed load: unlocks without advancing, so the same cursor retries.
     mutating func release() {
+        self.isLoading = false
+    }
+
+    /// Ends pagination: the conversation it paged through is gone, and no history replaces it.
+    mutating func finish() {
+        self.cursor = nil
+        self.isExhausted = true
         self.isLoading = false
     }
 }

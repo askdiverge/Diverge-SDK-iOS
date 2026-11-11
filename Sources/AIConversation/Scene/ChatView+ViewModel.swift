@@ -28,6 +28,9 @@ extension ChatView {
         private(set) var avatar: Image?
         private(set) var logo: HeaderLogo?
         private(set) var notice: Notice?
+        /// Dismisses the notice on screen. Each notice replaces it, so an older timer can't cut a
+        /// newer notice short.
+        @ObservationIgnored private var noticeTimer: Task<Void, Never>?
 
         /// Livechat as `/config` describes it, and the session's status as the poller last saw it.
         private(set) var livechatConfig = LivechatConfig.serverDefaults
@@ -142,56 +145,32 @@ extension ChatView {
             contextProvider: (@Sendable () async -> String?)?,
             conversationFlow: AIChat.ConversationFlow,
             attachments: AIChat.Attachments,
-            onClose: (@MainActor () -> Void)? = nil,
-            onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
-            conversationRatingMode: AIChat.Rating = .enabled,
-            ratingSession: RatingSession = RatingSession(),
-            encodeAttachment: AttachmentEncoder? = nil,
-            submitAction: ActionSubmitter? = nil,
-            fetchForm: FormFetcher? = nil,
-            fetchSession: WaitingFormController.SessionFetcher? = nil,
-            patchFormValues: WaitingFormController.ValuesPatcher? = nil,
-            submitLivechatFeedback: LivechatRatingController.Submitter? = nil,
-            rateConversation: ConversationRatingController.Submitter? = nil,
-            livechat: LivechatSession? = nil
+            onClose: (@MainActor () -> Void)?,
+            onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)?,
+            conversationRatingMode: AIChat.Rating,
+            ratingSession: RatingSession,
+            dependencies: Dependencies
         ) {
             self.service = service
             self.pageContext = { await contextProvider?() }
             self.conversationFlow = conversationFlow
             self.attachments = attachments
-            if let encodeAttachment {
-                self.encodeAttachment = encodeAttachment
-            } else {
-                self.encodeAttachment = { data, options async throws(ImageAttachment.Failure) in
-                    try ImageAttachment.encode(data, options: options)
-                }
-            }
+            self.encodeAttachment = dependencies.encodeAttachment
             self.onClose = onClose
             self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationRatingMode = conversationRatingMode
-            self.submitAction = submitAction ?? { request in
-                try await service.submitAction(request)
-            }
-            let fetchForm = fetchForm ?? { id in
-                try await service.fetchForm(id: id)
-            }
-            self.fetchForm = fetchForm
-            self.rating = LivechatRatingController(submitFeedback: submitLivechatFeedback ?? { request in
-                try await service.submitLivechatFeedback(request)
-            })
+            self.submitAction = dependencies.submitAction
+            self.fetchForm = dependencies.fetchForm
+            self.rating = LivechatRatingController(submitFeedback: dependencies.submitLivechatFeedback)
             self.conversationRating = ConversationRatingController(
                 ratingSession: ratingSession,
-                submitRating: rateConversation ?? { request in
-                    try await service.rateConversation(request)
-                }
+                submitRating: dependencies.rateConversation
             )
-            self.livechat = livechat ?? LivechatSession(service: service)
+            self.livechat = dependencies.livechat
             self.waitingForm = WaitingFormController(
-                fetchForm: fetchForm,
-                fetchSession: fetchSession ?? { try await service.fetchSession() },
-                patchValues: patchFormValues ?? { formId, values in
-                    try await service.patchFormValues(formId: formId, values: values)
-                }
+                fetchForm: dependencies.fetchForm,
+                fetchSession: dependencies.fetchSession,
+                patchValues: dependencies.patchFormValues
             )
             // Product/table imagery fills ~half-width, ~800px covers 3x.
             self.imageLoader = ImageLoader(maxPixelSize: 800) { try await service.fetchData($0) }
@@ -280,9 +259,9 @@ extension ChatView {
                 self.provider = provider
                 self.observe(provider)
 
-                // The chat opens without history: a failed page leaves the greeting, and after a
-                // 401 the next message starts a new session.
-                try? await provider.loadOlder()
+                // The chat opens without history: a failed page shows its notice and can be asked
+                // for again, and after a 401 the next message starts a new session.
+                try? await self.loadOlder()
                 self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)
                 self.phase = .ready
@@ -486,13 +465,16 @@ extension ChatView {
             }
         }
 
-        /// Loads the next older page of history. A recoverable failure surfaces as a top notice;
-        /// a 401 ends the session and escapes as ``SessionEnded`` for the view to alert on.
-        func loadOlder() async throws(SessionEnded) {
+        /// Loads the next older page of history, returning whether it loaded. A recoverable
+        /// failure surfaces as a top notice; a 401 ends the session and escapes as
+        /// ``SessionEnded`` for the view to alert on.
+        @discardableResult
+        func loadOlder() async throws(SessionEnded) -> Bool {
             if self.notice?.edge == .top { self.dismissNotice() }
 
             do {
                 try await self.provider?.loadOlder()
+                return true
 
             } catch ChatServiceError.sessionExpired {
                 self.dropConversationState()
@@ -504,6 +486,7 @@ extension ChatView {
                     message: L10n.noticeHistoryLoadFailed.string,
                     autoDismiss: .seconds(4)
                 ))
+                return false
             }
         }
 
@@ -548,6 +531,7 @@ extension ChatView {
 
         /// Pre-loads a config image once, downsampled, so it isn't re-fetched during rendering.
         private func loadImage(_ url: URL?, maxPixelSize: CGFloat) async -> Image? {
+            // A logo or avatar that won't load leaves the chat without it.
             guard
                 let url,
                 let data = try? await self.service.fetchData(url)
@@ -628,18 +612,21 @@ extension ChatView {
             self.conversationRating.clearSession()
         }
 
-        private func present(_ notice: Notice) {
+        func present(_ notice: Notice) {
             guard notice != self.notice else { return }
             self.notice = notice
+            self.noticeTimer?.cancel()
             guard let delay = notice.autoDismiss else { return }
-            Task { [weak self] in
+            self.noticeTimer = Task { [weak self] in
+                // Only cancellation throws here, and the guard below handles that.
                 try? await Task.sleep(for: delay)
-                guard self?.notice == notice else { return }
+                guard !Task.isCancelled else { return }
                 self?.notice = nil
             }
         }
 
         func dismissNotice() {
+            self.noticeTimer?.cancel()
             self.notice = nil
         }
     }

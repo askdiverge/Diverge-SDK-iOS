@@ -383,7 +383,8 @@ struct ChatViewModelLivechatTests {
             user: [Identified(model: [.text(AttributedString("hi"))])],
             incoming: [card, Identified(model: [.text(AttributedString("later"))])],
             isUserInitiatedConversation: false,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }
 
@@ -400,7 +401,8 @@ struct ChatViewModelLivechatTests {
             user: [Identified(model: [.text(AttributedString("hi"))])],
             incoming: [card],
             isUserInitiatedConversation: true,
-            streamingTurnID: card.id
+            streamingTurnID: card.id,
+            canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }
 
@@ -667,7 +669,8 @@ struct ChatViewModelLivechatTests {
             user: [Identified(model: [.text(AttributedString("hi"))])],
             incoming: [],
             isUserInitiatedConversation: true,
-            streamingTurnID: UUID()
+            streamingTurnID: UUID(),
+            canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }
 
@@ -782,7 +785,8 @@ private extension ChatViewModelLivechatTests {
             user: [],
             incoming: [card],
             isUserInitiatedConversation: false,
-            streamingTurnID: nil
+            streamingTurnID: nil,
+            canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot?.lastBotTurnID == card.id }
         return card.id

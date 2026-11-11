@@ -39,7 +39,7 @@ struct ChatAppearance {
         /// Ordered color stops for the assistant thinking-state border animation; empty when unset.
         let thinkingBorderGradient: [Color]
 
-        // TODO: not yet wire-driven — SDK constants until the config carries them.
+        // SDK constants: the config carries no value for these.
         let errorBackground: Color
         let errorForeground: Color
         let accentForeground: Color
@@ -63,7 +63,7 @@ extension ChatAppearance {
 
 extension ChatAppearance.Theme {
 
-    // TODO: SDK default palette until config supplies / extends the theme.
+    /// The palette a config theme that doesn't parse falls back to.
     static let `default` = ChatAppearance.Theme(
         accent: Color(hex: "#18191B") ?? .black,
         primaryText: Color(hex: "#121212") ?? .primary,
@@ -155,13 +155,31 @@ extension ChatAppearance {
         static let disclosure = Image(systemName: "chevron.right")
     }
 
-    /// The chat's base font at `size`. Uses the config's custom family when it resolved — its faces
-    /// resolve per `weight` and per inline emphasis — otherwise the system font.
+    /// The chat's base font at `size`, scaling with Dynamic Type. Uses the config's custom family
+    /// when it resolved — its faces resolve per `weight` and per inline emphasis — otherwise the
+    /// system font in the text style of that size.
     func font(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         if let fontFamily = self.fontFamily {
             Font.custom(fontFamily, size: size).weight(weight)
         } else {
-            Font.system(size: size, weight: weight)
+            Font.system(Self.textStyle(ofSize: size), weight: weight)
+        }
+    }
+
+    /// The text style whose default size is `size`, so the design holds at the default setting.
+    /// `Font.system(size:)` would keep the size at every setting.
+    private static func textStyle(ofSize size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case ..<12: .caption2
+        case ..<13: .caption
+        case ..<15: .footnote
+        case ..<16: .subheadline
+        case ..<17: .callout
+        case ..<20: .body
+        case ..<22: .title3
+        case ..<28: .title2
+        case ..<34: .title
+        default: .largeTitle
         }
     }
 }

@@ -1,6 +1,6 @@
 //
 //  ChatConfig.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-05-26.
 //
@@ -143,7 +143,8 @@ extension ChatConfig.Theme {
             package let borderColor: ChatConfig.Hex?
         }
     }
-// TODO: - fix
+
+    /// The composer's colours.
     package struct Input: Decodable, Sendable, Equatable {
         package let textColor: ChatConfig.Hex
         package let placeholderColor: ChatConfig.Hex

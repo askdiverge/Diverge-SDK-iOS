@@ -1,6 +1,6 @@
 //
 //  ConversationSnapshot.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-16.
 //
@@ -18,6 +18,9 @@ package struct ConversationSnapshot: Sendable, Equatable {
 
     /// The turn whose reply is currently streaming, else `nil`
     package let streamingTurnID: UUID?
+
+    /// Whether older turns may remain to load: pages are left, or the first page hasn't loaded.
+    package let canLoadOlder: Bool
 }
 
 extension ConversationSnapshot {

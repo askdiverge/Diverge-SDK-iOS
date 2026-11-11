@@ -461,12 +461,14 @@ private extension ChatView {
         }
     }
 
-    /// Requests the next older page; a failure means the session is gone, so surface the ended alert.
-    func loadOlder() async {
+    /// Requests the next older page, returning whether it loaded; a thrown failure means the
+    /// session is gone, so surface the ended alert.
+    func loadOlder() async -> Bool {
         do {
-            try await self.viewModel.loadOlder()
+            return try await self.viewModel.loadOlder()
         } catch {
             self.showSessionEndedAlert = true
+            return false
         }
     }
 }
@@ -672,6 +674,7 @@ private extension ChatView {
 #if canImport(PhotosUI)
     /// Loads the picked photo bytes and routes them to the composer, a prompt, or a form field.
     func ingest(_ item: PhotosPickerItem, destination: PhotoDestination) async {
+        // The visitor hears the same failure as for a photo that won't encode.
         guard let data = try? await item.loadTransferable(type: Data.self) else {
             self.viewModel.presentAttachmentFailure()
             return

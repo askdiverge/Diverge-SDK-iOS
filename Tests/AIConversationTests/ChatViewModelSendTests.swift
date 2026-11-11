@@ -27,6 +27,21 @@ struct ChatViewModelSendTests {
         #expect(viewModel.notice?.message == (reason == .streaming ? L10n.noticeBusy.string : nil))
     }
 
+    @Test("a notice shown again after being dismissed stays for its full time")
+    func noticeShownAgainLastsItsFullTime() async throws {
+        let viewModel = ChatView.ViewModel.forTesting(provider: StubChatProviding())
+        let notice = Notice(edge: .top, message: "hi", autoDismiss: .milliseconds(500))
+
+        viewModel.present(notice)
+        try await Task.sleep(for: .milliseconds(300))
+        viewModel.dismissNotice()
+        viewModel.present(notice)
+        try await Task.sleep(for: .milliseconds(300))
+
+        #expect(viewModel.notice == notice)
+        try await eventually { viewModel.notice == nil }
+    }
+
     @Test("a send the session expired under goes back in the composer")
     func expiredSendKeepsDraft() async {
         let viewModel = ChatView.ViewModel.forTesting(provider: StubChatProviding(sendFailure: .sessionExpired))

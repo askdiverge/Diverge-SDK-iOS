@@ -1,6 +1,6 @@
 //
 //  PartDelta.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-05-26.
 //
@@ -61,6 +61,8 @@ package enum PartDelta: Decodable, Sendable, Equatable {
 
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // An unreadable or new action degrades to `.unknown`, which the buffer skips; a throw would
+        // end the live stream.
         self = switch try? container.decode(Action.self, forKey: .action) {
         case .startPart:
             // `start_part` opens rich_text/products/table — discriminate on `part_type`.

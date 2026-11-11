@@ -1,6 +1,6 @@
 //
 //  StreamEvent.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-05-26.
 //
@@ -60,6 +60,8 @@ package enum StreamEvent: Decodable, Sendable, Equatable {
 
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // A new event degrades to `.unknown`, which the provider ignores; a throw would end the
+        // live stream.
         self = switch try? container.decode(Name.self, forKey: .type) {
         case .status: .status(try container.decode(Status.self, forKey: .data))
         case .partDelta: try container.decode(DeltaEvent.self, forKey: .data).event

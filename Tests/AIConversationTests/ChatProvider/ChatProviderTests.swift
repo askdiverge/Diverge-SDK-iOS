@@ -188,6 +188,43 @@ struct ChatProviderTests {
         #expect(mock.historyCallCount == 1)
     }
 
+    @Test("older turns can be asked for until the last page, and again after a failed first page")
+    func canLoadOlderFollowsThePages() async throws {
+        let mock = MockChatService(.init(
+            historyPages: [
+                MessagePage(messages: [], nextCursor: nil),
+                MessagePage(messages: [self.assistantMessage("new")], nextCursor: "older"),
+                MessagePage(messages: [self.assistantMessage("old")], nextCursor: nil)
+            ],
+            historyFailingCalls: [0: .transport(.http(.unhandled(status: 500, body: Data())))]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+        #expect(await snapshots.next()?.canLoadOlder == true)
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.canLoadOlder == true)
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.canLoadOlder == false)
+    }
+
+    @Test("a conversation that ended has nothing older to offer")
+    func endedConversationOffersNothingOlder() async throws {
+        let mock = MockChatService()
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.delete()
+
+        #expect(await snapshots.next()?.canLoadOlder == false)
+        #expect(mock.historyCallCount == 0)
+    }
+
     // MARK: - reset / delete
 
     @Test("reset rotates the session, clears, and reloads history")

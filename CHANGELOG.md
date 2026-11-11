@@ -41,6 +41,9 @@
   upgrading starts collecting photos: the privacy manifest now declares Photos or videos; update
   your App Store privacy label, or pass `.disabled`.
 
+- A "Show earlier messages" control above the conversation loads older history, and retries a
+  first page that failed. Visitors previously saw only the newest page.
+
 ### Fixed
 
 - Presenting `AIChat.makeView()` from a SwiftUI sheet no longer shows a blank card: the chat keeps
@@ -57,6 +60,8 @@
 - The jump-to-newest button sits in the trailing corner, clear of a form's Submit label, and no
   longer lingers on a conversation with nothing to scroll to. Wrapped bullet lines align under
   their text.
+- Text scales with Dynamic Type on chatbots with no custom font.
+- A product or table image that fails to load shows a placeholder instead of an empty slot.
 - Long form field labels wrap instead of being cut off, a dropdown shows the same red outline as a
   text field when it has an error, and a picked form photo no longer shows the field's raw key.
 

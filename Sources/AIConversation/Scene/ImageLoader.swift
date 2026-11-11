@@ -68,6 +68,7 @@ actor ImageLoader {
 
     private func persist(_ task: Task<Image, Error>, for url: URL) async {
         defer { self.inFlight[url] = nil }
+        // Callers hear a failure from `task.value`; this only skips caching it.
         guard let image = try? await task.value else { return }
         self.cache.setObject(Entry(image), forKey: url as NSURL)
     }
