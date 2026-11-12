@@ -17,17 +17,17 @@ The OS deployment floor and the Swift toolchain requirement are independent. Rel
 ## Installation
 
 In Xcode: **File → Add Package Dependencies…** → paste  
-`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **1.0.0** (Up to Next Major).
+`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **1.1.0** (Up to Next Major).
 
 Or in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "1.0.0")
+    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "1.1.0")
 ]
 ```
 
-Add the **`AIConversation`** product. Prefer SemVer pins / the `v1.0.0` GitHub Release — do not track `main`.
+Add the **`AIConversation`** product. Prefer SemVer pins / the `v1.1.0` GitHub Release — do not track `main`.
 
 ## Usage
 

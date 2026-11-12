@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-12
+
 ### Added
 
 - Contact, support-ticket and custom forms render in the conversation, validate locally, and
