@@ -13,11 +13,12 @@ import AIConversationEngine
 /// full-resolution link, a freshly signed one when the stored link is temporary, and hands it to
 /// `openURL`; inline `data:` uploads render but are not tappable.
 ///
-/// Signed attachment URLs expire (the API mints them with a short TTL), so the tile has two
-/// unavailable states that share one look: the load failed, or `urlExpiresAt` has passed. In
-/// either VoiceOver hears "unavailable", and the tap still opens a fresh link. One tap resolves at
-/// a time, and the tile going away cancels it, so nothing opens after the chat closes. A link
-/// `resolveURL` can't re-sign stops being tappable.
+/// Signed attachment URLs expire (the API mints them with a short TTL). The tile shows the
+/// unavailable look when its image fails to load, which is how an expired link that isn't loaded
+/// yet shows; an image already loaded stays when its link expires. VoiceOver hears "unavailable",
+/// and the tap still opens a fresh link. One tap resolves at a time, and the tile going away
+/// cancels it, so nothing opens after the chat closes. A tap that can't re-sign the link leaves it
+/// for the next tap to try again.
 ///
 /// The tile deliberately keeps `botSurface` / `secondaryText` in the user pane too: it is a
 /// media frame, not a speech bubble, and one treatment keeps the two panes visually paired
@@ -31,16 +32,13 @@ struct MessageImageView: View {
     let resolveURL: @MainActor (MessageImage) async -> URL?
 
     @State private var loadFailed = false
-    @State private var expired = false
     /// The tap resolving the link, while it does.
     @State private var opening: Task<Void, Never>?
-    /// Set when the stored link expired and the log couldn't re-sign it.
+    /// Set when the stored link expired and the last tap couldn't re-sign it.
     @State private var linkExpired = false
 
-    /// `isExpired()` covers the first render before the watcher runs; `expired` covers the TTL
-    /// passing while the tile is on screen.
     private var isAvailable: Bool {
-        !self.loadFailed && !self.expired && !self.image.isExpired()
+        !self.loadFailed
     }
 
     /// `openURL` only handles http(s). Inline `data:` URLs (visitor uploads in normal chat)
@@ -58,10 +56,9 @@ struct MessageImageView: View {
                         let url = await self.resolveURL(self.image)
                         self.opening = nil
                         guard !Task.isCancelled else { return }
+                        self.linkExpired = url == nil
                         if let url {
                             self.openURL(url)
-                        } else {
-                            self.linkExpired = true
                         }
                     }
                 } label: {
@@ -69,7 +66,6 @@ struct MessageImageView: View {
                 }
                 .buttonStyle(.plain)
                 .contentShape(.rect)
-                .disabled(self.linkExpired)
                 .accessibilityHint(Self.accessibilityHint(canOpen: !self.linkExpired))
                 .onDisappear {
                     self.opening?.cancel()
@@ -83,7 +79,6 @@ struct MessageImageView: View {
                     .accessibilityAddTraits(.isImage)
             }
         }
-        .watchExpiry(self.image.urlExpiry, isExpired: self.$expired)
         .accessibilityLabel(Self.accessibilityLabel(for: self.image, isAvailable: self.isAvailable))
     }
 
@@ -100,17 +95,12 @@ struct MessageImageView: View {
         }
     }
 
-    /// An expired URL is not worth a request — show the unavailable state straight away.
-    @ViewBuilder
+    /// The image, or the unavailable look when it won't load. An expired link is still asked for:
+    /// the loader may hold the image already.
     private var tile: some View {
-        if self.expired || self.image.isExpired() {
+        ClippedRemoteImage(url: self.image.thumbnailUrl ?? self.image.url) {
             self.unavailable
-                .background(self.appearance.theme.botSurface)
-        } else {
-            ClippedRemoteImage(url: self.image.thumbnailUrl ?? self.image.url) {
-                self.unavailable
-                    .onAppear { self.loadFailed = true }
-            }
+                .onAppear { self.loadFailed = true }
         }
     }
 

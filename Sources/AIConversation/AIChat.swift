@@ -63,6 +63,9 @@ public final class AIChat {
     private let configuration: Configuration
     private let service: ChatService
     let ratingSession: RatingSession
+    /// The identity of the views this instance mints, so a view a host builds from another
+    /// instance in the same place starts that instance's session.
+    private let viewIdentity = UUID()
 
     /// Registers shared configuration for the no-argument ``init()``. Stores the config
     /// only — it neither returns nor retains an instance. Call once, typically at launch.
@@ -119,6 +122,7 @@ public extension AIChat {
                 dependencies: .live(service: self.service)
             )
         )
+        .id(self.viewIdentity)
         .environment(\.openURL, self.openURL)
     }
 

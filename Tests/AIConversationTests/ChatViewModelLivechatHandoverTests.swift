@@ -305,4 +305,53 @@ extension ChatViewModelLivechatTests {
         try await eventually { viewModel.livechatStatus == .inactive }
         #expect(service.livechatCloseCallCount == 0)
     }
+
+    @Test("a delete that fails leaves the livechat session as it was")
+    func failedDeleteKeepsSession() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        try await eventually { provider.notes.count == 1 }
+        provider.deleteError = ChatServiceError.transport(.connection(URLError(.timedOut)))
+
+        await #expect(throws: ChatView.DeletionFailed.self) {
+            try await viewModel.delete()
+        }
+
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(viewModel.livechatStatus == .active)
+        #expect(provider.notes.count == 1)
+    }
+
+    @Test("a delete while a send is in flight is refused and leaves livechat running")
+    func deleteDuringSendIsRefused() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        let deleted = Recorder<Bool>()
+        provider.whileSendingLivechat = {
+            do {
+                try await viewModel.delete()
+                deleted.record(true)
+            } catch {
+                deleted.record(false)
+            }
+        }
+        viewModel.editDraft("hi")
+
+        try await viewModel.send()
+
+        #expect(deleted.values == [false])
+        #expect(viewModel.livechatStatus == .active)
+    }
+
+    @Test("a reset that fails after closing the session says so")
+    func failedResetAfterCloseShowsNotice() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        provider.resetError = ChatServiceError.transport(.connection(URLError(.timedOut)))
+        try await self.start(viewModel, in: .active, on: service)
+
+        await viewModel.reset()
+
+        #expect(service.livechatCloseCallCount == 1)
+        #expect(viewModel.notice?.message == L10n.noticeSendFailed.string)
+    }
 }

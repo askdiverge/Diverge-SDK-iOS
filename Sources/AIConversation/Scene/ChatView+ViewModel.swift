@@ -78,6 +78,13 @@ extension ChatView {
         @ObservationIgnored private let onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)?
         /// The last session info delivered to the host, so an unchanged one isn't delivered again.
         @ObservationIgnored private var lastReportedLivechatSession: AIChat.LivechatSessionInfo?
+        /// Set once the livechat state has been read, or livechat isn't configured. Until then the
+        /// host hears nothing, so a reopened chat doesn't report the default `inactive` over an
+        /// open session.
+        @ObservationIgnored private var knowsLivechatState = false
+        /// Livechat snapshots held while a delete decides whether the visitor goes, so a delete that
+        /// fails leaves the session as it was. `nil` while snapshots apply as they arrive.
+        @ObservationIgnored private var heldLivechat: [LivechatSnapshot]?
         /// The chat is visible, and the app is active. The host hears about the session, and the
         /// visitor is asked for a rating, only while both hold; see ``screenChanged()``.
         @ObservationIgnored var isChatVisible = true
@@ -88,9 +95,15 @@ extension ChatView {
         /// A reset is closing the session, replacing the visitor or clearing the conversation; a
         /// send waits for it.
         @ObservationIgnored private var isResetting = false
+        /// A history page is on its way. A first page that replaces the conversation holds the
+        /// provider, so a reset or delete waits for it.
+        private(set) var isLoadingHistory = false
         /// Bumped by delete, so a handover that was waiting on the host's page context when the
         /// visitor's data went doesn't go ahead.
         @ObservationIgnored private(set) var livechatEpoch = 0
+        /// Bumped by reset and delete, which replace the visitor, so a form request's 401 that
+        /// belongs to the replaced visitor doesn't end the new conversation.
+        @ObservationIgnored private var conversationEpoch = 0
         /// Livechat snapshots older than this generation belong to a visitor a reset or delete
         /// replaced, and are dropped.
         @ObservationIgnored private var livechatFloor: UInt64 = 0
@@ -149,6 +162,12 @@ extension ChatView {
         /// True when the host provided ``AIChat/Configuration/onClose``.
         var showsCloseButton: Bool {
             self.onClose != nil
+        }
+
+        /// Whether a delete can run now: no send, reset or history page holds the provider, which
+        /// would refuse it before the host heard of it.
+        var canDeleteData: Bool {
+            !self.isSending && !self.isResetting && !self.isLoadingHistory
         }
 
         init(
@@ -278,12 +297,19 @@ extension ChatView {
                 } catch {
                     self.backgroundSessionEnded = true
                 }
+                // The view went away mid-start and cancelled what was still loading, the history
+                // or an image among it; its next appearance starts again.
+                guard !Task.isCancelled else {
+                    self.provider = nil
+                    self.phase = .loading
+                    return
+                }
                 self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)
                 self.phase = .ready
 
             } catch {
-                self.phase = .failed
+                self.phase = Task.isCancelled ? .loading : .failed
             }
         }
 
@@ -347,6 +373,7 @@ extension ChatView {
                     self.present(Notice(edge: .bottom, message: L10n.noticeSendFailed.string, autoDismiss: nil))
 
                 case .sessionExpired:
+                    await self.fenceLivechat()
                     self.dropConversationState()
                     // The conversation is gone, but what the visitor just wrote can still be sent.
                     self.restoreDraft(text: text, attachments: attachments)
@@ -399,6 +426,7 @@ extension ChatView {
                 return
             }
             guard self.formModels[partId]?.beginSubmitting() == true else { return }
+            let epoch = self.conversationEpoch
 
             do {
                 let response = try await self.submitAction(request)
@@ -409,6 +437,8 @@ extension ChatView {
                     Task { [livechat = self.livechat] in await livechat.bootstrap() }
                 }
             } catch ChatServiceError.sessionExpired {
+                // A form sent before a reset or delete belonged to the visitor it replaced.
+                guard epoch == self.conversationEpoch else { return }
                 await self.endSession()
                 throw SessionEnded()
             } catch ChatServiceError.conflict {
@@ -426,16 +456,21 @@ extension ChatView {
         @discardableResult
         func loadOlder() async throws(SessionEnded) -> Bool {
             if self.notice?.edge == .top { self.dismissNotice() }
+            self.isLoadingHistory = true
+            defer { self.isLoadingHistory = false }
 
             do {
                 try await self.provider?.loadOlder()
                 return true
 
             } catch ChatServiceError.sessionExpired {
+                await self.fenceLivechat()
                 self.dropConversationState()
                 throw SessionEnded()
 
             } catch {
+                // A page whose caller went away, such as a start the view cancelled, didn't fail.
+                guard !Task.isCancelled else { return false }
                 self.present(Notice(
                     edge: .top,
                     message: L10n.noticeHistoryLoadFailed.string,
@@ -446,19 +481,26 @@ extension ChatView {
         }
 
         /// Resets the conversation. An open livechat session is closed first, because nobody could
-        /// close it once the visitor is replaced. A reset during a send does nothing, so the session
-        /// is closed only for a reset the provider will accept.
+        /// close it once the visitor is replaced; the view asks the visitor to confirm that. A reset
+        /// during a send or a history load does nothing, and a rotation that fails after a close
+        /// leaves the conversation in place with a notice.
         func reset() async {
-            guard !self.isLivechatBusy, !self.isSending, !self.isResetting else { return }
+            guard !self.isLivechatBusy, !self.isSending, !self.isResetting, !self.isLoadingHistory else { return }
             self.isResetting = true
             defer { self.isResetting = false }
+            let closesSession = self.livechatStatus.isInSession
             guard await self.closeLivechatBeforeReset() else { return }
             await self.fenceLivechat()
+            self.conversationEpoch += 1
             do {
                 try await self.provider?.reset()
             } catch {
-                // A failed reset leaves the conversation, and its form drafts, as they were.
+                // A failed reset leaves the conversation, and its form drafts, as they were. The
+                // session it closed stays closed, so the visitor hears the reset didn't happen.
                 await self.resumeLivechat()
+                if closesSession {
+                    self.presentLivechatNotice(L10n.noticeSendFailed)
+                }
                 return
             }
             self.dropConversationState()
@@ -466,16 +508,23 @@ extension ChatView {
         }
 
         /// Request deletion of visitor data and end the session. Rethrows so the delete sheet can act on the
-        /// hook's suspension point — success dismisses it, a failure leaves it open for the host.
+        /// hook's suspension point — success dismisses it, a failure leaves it open for the host. A
+        /// send or reset in flight would refuse it before the host heard of it, so the sheet's confirm
+        /// waits for them. Livechat snapshots are held until the delete settles, so a delete that
+        /// fails leaves the session as it was.
         func delete() async throws(DeletionFailed) {
+            guard self.canDeleteData else { throw DeletionFailed() }
             self.livechatEpoch += 1
-            await self.fenceLivechat()
+            self.conversationEpoch += 1
+            self.heldLivechat = []
             do {
                 try await self.provider?.delete()
             } catch {
-                await self.resumeLivechat()
+                await self.releaseHeldLivechat()
                 throw DeletionFailed()
             }
+            await self.fenceLivechat()
+            await self.releaseHeldLivechat()
             self.dropConversationState()
             self.dropComposerPhotos()
         }
@@ -528,11 +577,14 @@ extension ChatView {
 
         private func hydrateCustomForm(partId: String, formId: String) {
             self.formModels[partId]?.beginHydrating()
+            let epoch = self.conversationEpoch
             Task { [weak self, fetchForm = self.fetchForm] in
                 do {
                     let definition = try await fetchForm(formId)
                     self?.formModels[partId]?.applyHydratedDefinition(definition)
                 } catch ChatServiceError.sessionExpired {
+                    // A fetch started before a reset or delete belonged to the visitor it replaced.
+                    guard epoch == self?.conversationEpoch else { return }
                     await self?.endSession()
                     self?.backgroundSessionEnded = true
                 } catch ChatServiceError.notFound {
@@ -554,9 +606,11 @@ extension ChatView {
             }
         }
 
-        /// A 401 outside a send ended the session: the conversation and its form drafts go, as a
-        /// send's own 401 clears them, so the next message starts the new session clean.
+        /// A 401 outside a send ended the session: livechat stops, and the conversation and its form
+        /// drafts go, as a send's own 401 clears them, so the next message starts the new session
+        /// clean.
         private func endSession() async {
+            await self.fenceLivechat()
             self.dropConversationState()
             await self.provider?.expireSession()
         }
@@ -609,7 +663,12 @@ extension ChatView.ViewModel {
     /// is already open, so a reopened chat picks up where it left off.
     func startLivechat(with config: LivechatConfig) {
         self.livechatConfig = config
-        guard config.configured else { return }
+        guard config.configured else {
+            // No session can open, so `inactive` is the state.
+            self.knowsLivechatState = true
+            self.reportLivechatSessionIfChanged()
+            return
+        }
         Task { [livechat = self.livechat] in await livechat.bootstrap() }
     }
 
@@ -663,9 +722,9 @@ extension ChatView.ViewModel {
     /// as the poller's own 401 does: the conversation clears, livechat stops, and the view shows
     /// the session-ended alert.
     func endExpiredSession() async {
+        await self.fenceLivechat()
         self.dropConversationState()
         await self.provider?.expireSession()
-        await self.livechat.teardown()
         self.livechatSessionEnded = true
     }
 
@@ -698,13 +757,32 @@ extension ChatView.ViewModel {
         let stream = self.livechat.stream
         Task { [weak self] in
             for await snapshot in stream {
-                await self?.apply(snapshot)
+                await self?.receive(snapshot)
             }
         }
     }
 
+    /// Applies a snapshot, or holds it while a delete decides whether the visitor goes.
+    private func receive(_ snapshot: LivechatSnapshot) async {
+        guard self.heldLivechat == nil else {
+            self.heldLivechat?.append(snapshot)
+            return
+        }
+        await self.apply(snapshot)
+    }
+
+    /// Applies the snapshots held during a delete, in order, then lets new ones through.
+    private func releaseHeldLivechat() async {
+        while let next = self.heldLivechat?.first {
+            self.heldLivechat?.removeFirst()
+            await self.apply(next)
+        }
+        self.heldLivechat = nil
+    }
+
     private func apply(_ snapshot: LivechatSnapshot) async {
         guard snapshot.generation >= self.livechatFloor else { return }
+        self.knowsLivechatState = true
         let previous = snapshot.previousStatus
         let status = snapshot.state.status
         // The leave question was asked about the session as it stood, so a change of status takes
@@ -757,9 +835,9 @@ extension ChatView.ViewModel {
     }
 
     /// Delivers the session to the host's `onLivechatSessionChange` when it changed, while the chat
-    /// is on screen.
+    /// is on screen and once its state is known.
     private func reportLivechatSessionIfChanged() {
-        guard self.isChatVisible, self.isSceneActive else { return }
+        guard self.knowsLivechatState, self.isChatVisible, self.isSceneActive else { return }
         let info = AIChat.LivechatSessionInfo(self.livechatStatus, agentName: self.livechatAgentName)
         guard info != self.lastReportedLivechatSession else { return }
         self.lastReportedLivechatSession = info

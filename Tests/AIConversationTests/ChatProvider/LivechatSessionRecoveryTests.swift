@@ -101,6 +101,25 @@ extension LivechatSessionTests {
         #expect(log.values.flatMap(\.messages).map(\.messageId) == ["old", "new"])
     }
 
+    @Test("a lower state_version that a fresh read repeats applies even when the replacement session has closed")
+    func closedReplacementSessionApplies() async throws {
+        let service = MockChatService(.init(livechatState: LivechatFixtures.state(.active, version: 7)))
+        let session = LivechatSession(service: service) { _ in throw CancellationError() }
+        let log = Recorder<LivechatSnapshot>()
+        let collector = Task {
+            for await snapshot in session.stream { log.record(snapshot) }
+        }
+
+        await session.bootstrap()
+        service.livechatState = LivechatFixtures.state(.closed, version: 3)
+        await session.refresh()
+        try await Task.sleep(for: .milliseconds(20))
+        await session.stopPolling()
+        collector.cancel()
+
+        #expect(log.values.map(\.state.status) == [.active, .closed])
+    }
+
     @Test("a new generation accepts a lower state_version")
     func generationResetsVersionWatermark() async {
         let service = MockChatService(.init(livechatState: LivechatFixtures.state(.waiting, version: 50)))

@@ -286,6 +286,32 @@ struct ChatViewModelFormTests {
         #expect(viewModel.formModels.isEmpty)
     }
 
+    @Test("a 401 for a form sent before a reset doesn't end the conversation that replaced it")
+    func staleFormExpiryAfterReset() async throws {
+        let provider = StubChatProviding()
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        let viewModel = ChatView.ViewModel.forTesting(
+            provider: provider,
+            submitAction: { _ in
+                await entered.open()
+                await release.wait()
+                throw ChatServiceError.sessionExpired
+            }
+        )
+        try await self.show(self.contact, on: provider, in: viewModel)
+        self.fillContact(in: viewModel)
+        let submit = Task { try await viewModel.submitForm(partId: self.contact.partId) }
+        await entered.wait()
+
+        await viewModel.reset()
+        await release.open()
+        try await submit.value
+
+        #expect(provider.expireCount == 0)
+        #expect(!viewModel.backgroundSessionEnded)
+    }
+
     @Test("failed reset keeps form drafts")
     func failedResetKeepsDrafts() async throws {
         let provider = StubChatProviding()

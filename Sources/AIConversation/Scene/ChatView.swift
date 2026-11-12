@@ -15,7 +15,8 @@ import PhotosUI
 struct ChatView: View {
 
     /// Held as state so a host re-render, which builds a new `ChatView` and a new model, keeps the
-    /// model this view already bootstrapped. A new presentation starts a model of its own.
+    /// model this view already bootstrapped. A new presentation starts a model of its own, and so
+    /// does a view minted by another `AIChat`, which `makeView()` gives an identity of its own.
     @State private var viewModel: ViewModel
 
     @Environment(\.openURL) private var openURL
@@ -30,6 +31,8 @@ struct ChatView: View {
     @State private var composerHeight: CGFloat = 0
     @State private var privacyDestination: PrivacyDataDestination?
     @State private var isLoading = false
+    /// The leave question a reset asks while the visitor is queued or talking to an agent.
+    @State private var resetConfirmation: ViewModel.LivechatEndConfirmation?
 #if canImport(PhotosUI)
     @State private var photoPickerItem: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
@@ -127,6 +130,7 @@ private extension ChatView {
                             self.openURL(url)
                         }
                     },
+                    canDeleteData: self.viewModel.canDeleteData,
                     onDeleteData: { try await self.viewModel.delete() }
                 )
             )
@@ -145,6 +149,16 @@ private extension ChatView {
                 Button(self.viewModel.livechatEndConfirmation.cancel, role: .cancel) { } // NO-OP
             } message: {
                 Text(self.viewModel.livechatEndConfirmation.message)
+            }
+            .alert(
+                self.resetConfirmation?.title ?? "",
+                isPresented: self.isConfirmingReset,
+                presenting: self.resetConfirmation
+            ) { confirmation in
+                Button(confirmation.confirm, role: .destructive) { self.performReset() }
+                Button(confirmation.cancel, role: .cancel) { } // NO-OP
+            } message: { confirmation in
+                Text(confirmation.message)
             }
             .onChange(of: self.viewModel.backgroundSessionEnded) { _, ended in
                 guard ended else { return }
@@ -199,6 +213,16 @@ private extension ChatView {
                 if !isPresented, self.viewModel.rating.model != nil {
                     self.viewModel.rating.dismiss()
                 }
+            }
+        )
+    }
+
+    /// The reset's leave question is up while it holds its copy.
+    var isConfirmingReset: Binding<Bool> {
+        Binding(
+            get: { self.resetConfirmation != nil },
+            set: { isPresented in
+                if !isPresented { self.resetConfirmation = nil }
             }
         )
     }
@@ -285,7 +309,11 @@ private extension ChatView {
             } label: {
                 ChatAppearance.Symbol.reset
             }
-            .disabled(self.viewModel.snapshot?.streamingTurnID != nil || self.viewModel.isLivechatBusy)
+            .disabled(
+                self.viewModel.snapshot?.streamingTurnID != nil
+                    || self.viewModel.isLivechatBusy
+                    || self.viewModel.isLoadingHistory
+            )
         }
     }
 
@@ -298,7 +326,17 @@ private extension ChatView {
         }
     }
 
+    /// A reset ends a chat with an agent, or the place in the queue, so it asks first, as the
+    /// livechat control does.
     func reset() {
+        guard !self.viewModel.livechatStatus.isInSession else {
+            self.resetConfirmation = self.viewModel.livechatEndConfirmation
+            return
+        }
+        self.performReset()
+    }
+
+    func performReset() {
         Task {
             self.isLoading = true
             await self.viewModel.reset()
@@ -314,8 +352,12 @@ private extension ChatView {
                     Task { await self.viewModel.waitingForm.save() }
                 }
             }
-            if self.viewModel.isAgentTyping {
-                AgentTypingIndicator(agentName: self.viewModel.livechatAgentName)
+            // The row keeps its place for the whole agent chat, so typing starting and stopping
+            // doesn't move the conversation under it.
+            if self.viewModel.livechatStatus == .active {
+                AgentTypingIndicator(agentName: self.viewModel.livechatAgentName, isTyping: self.viewModel.isAgentTyping)
+                    .frame(maxWidth: .infinity)
+                    .background(self.appearance.theme.background)
             }
             self.chatInput
         }

@@ -78,7 +78,7 @@ struct ChatProviderLivechatTests {
         #expect(Set(mock.livechatSendOperationIds).count == 1)
     }
 
-    @Test("a livechat send whose retry fails too is popped, and the next send gets a new operation id")
+    @Test("a livechat send whose retry fails too is popped; sending it again reuses its operation id, another message doesn't")
     func failedRetryIsPopped() async {
         let mock = MockChatService(.init(livechatSendError: .transport(.connection(URLError(.timedOut)))))
         let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
@@ -91,9 +91,50 @@ struct ChatProviderLivechatTests {
         await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
             try await provider.sendLivechat("hi")
         }
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "bye", attachments: []), body: nil)) {
+            try await provider.sendLivechat("bye")
+        }
 
-        #expect(mock.livechatSendOperationIds.count == 4)
-        #expect(Set(mock.livechatSendOperationIds).count == 2)
+        let ids = mock.livechatSendOperationIds
+        #expect(ids.count == 6)
+        #expect(Set(ids.prefix(4)).count == 1)
+        #expect(Set(ids).count == 2)
+    }
+
+    @Test("a resend the server answers with the copy the poller showed isn't shown twice")
+    func resendOfStoredMessageIsShownOnce() async throws {
+        let stored = LivechatFixtures.message("lc_1", role: .user, text: "hi")
+        let mock = MockChatService(.init(
+            livechatSendResponse: stored,
+            livechatSendFailingCalls: [
+                0: .transport(.connection(URLError(.timedOut))),
+                1: .transport(.connection(URLError(.timedOut)))
+            ]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
+            try await provider.sendLivechat("hi")
+        }
+        await provider.appendLivechat([stored])
+        try await provider.sendLivechat("hi")
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.user.map(\.model) == [[.text(AttributedString("hi"))]])
+        #expect(Set(mock.livechatSendOperationIds).count == 1)
+    }
+
+    @Test("a livechat send that fails with a server error is posted again under the same operation id")
+    func serverErrorIsRetriedOnce() async {
+        let mock = MockChatService(.init(livechatSendError: .transport(.http(.unhandled(status: 502, body: Data())))))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
+            try await provider.sendLivechat("hi")
+        }
+
+        #expect(mock.livechatSendOperationIds.count == 2)
+        #expect(Set(mock.livechatSendOperationIds).count == 1)
     }
 
     @Test("a 401 on the retried livechat send ends the session")
@@ -351,6 +392,37 @@ struct ChatProviderLivechatTests {
         let snapshot = await snapshots.next()
         #expect(snapshot?.user.isEmpty == true)
         #expect(snapshot?.incoming.isEmpty == true)
+    }
+
+    @Test("a 401 on an older page during a reply clears the conversation once the reply settles")
+    func historyExpiryDuringReplyWaits() async throws {
+        let mock = MockChatService(.init(
+            sendError: .transport(.http(.unhandled(status: 500, body: Data()))),
+            historyPages: [MessagePage(messages: [], nextCursor: "older")],
+            historyFailingCalls: [1: .sessionExpired]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        try await provider.loadOlder()
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        mock.sendHold = {
+            await entered.open()
+            await release.wait()
+        }
+        let send = Task { try await provider.send("hi") }
+        await entered.wait()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+        await release.open()
+        _ = try? await send.value
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.user.isEmpty == true)
+        #expect(snapshot?.incoming.isEmpty == true)
+        #expect(snapshot?.canLoadOlder == false)
     }
 
     @Test("a livechat message already in history isn't appended again")

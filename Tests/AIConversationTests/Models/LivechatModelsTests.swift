@@ -16,6 +16,26 @@ struct LivechatModelsTests {
         return jsonDecoder
     }()
 
+    @Test("a sync message that doesn't decode is left out, and the state and the other messages arrive")
+    func syncSkipsUndecodableMessage() throws {
+        let sync = try self.decoder.decode(LivechatSync.self, from: Data("""
+        {
+          "state": { "status": "active", "is_agent_typing": false, "feedback": { "status": "not_available" } },
+          "messages": [
+            { "message_id": "m1", "role": "agent", "parts": [], "created_at": "2026-01-01T00:00:00Z", "sequence_number": 1 },
+            { "message_id": "m2", "role": "agent", "agent": { "agent_id": "a1", "display_name": null },
+              "parts": [], "created_at": "2026-01-01T00:00:01Z", "sequence_number": 2 },
+            { "message_id": "m3", "role": "agent", "parts": [], "created_at": "2026-01-01T00:00:02Z", "sequence_number": 3 }
+          ],
+          "has_more": false,
+          "sync_cursor": null
+        }
+        """.utf8))
+
+        #expect(sync.state.status == .active)
+        #expect(sync.messages.map(\.messageId) == ["m1", "m3"])
+    }
+
     @Test("ChatConfig defaults livechat when the block is absent")
     func configAbsentLivechatDefaults() throws {
         let config = try self.decodeConfig(extra: "")

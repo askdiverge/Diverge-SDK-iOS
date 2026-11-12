@@ -34,6 +34,9 @@ struct BulletedText: View {
                     }
                 }
             }
+            // VoiceOver reads the lines as one element with their bullets, as one `Text` reads.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(self.text))
         } else {
             Text(self.text)
         }

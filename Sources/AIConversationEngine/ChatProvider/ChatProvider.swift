@@ -65,9 +65,13 @@ package actor ChatProvider: ChatProviding {
     /// order. A streaming reply owns the newest bot turn, and a livechat send's id isn't known
     /// until its POST returns, so they are folded in when the operation finishes.
     var deferredLivechat: [DeferredLivechat] = []
-    /// Set when the poller saw the session end during an operation; the conversation clears when
-    /// the operation finishes, so a streaming reply never writes into emptied panes.
+    /// Set when a call outside the operation — the poller, a form submit, a history page — saw the
+    /// session end while it ran; the conversation clears when the operation finishes, so a
+    /// streaming reply never writes into emptied panes.
     var expiresAfterOperation = false
+    /// A livechat message whose post may have been stored though no response said so. Sending the
+    /// same message again reuses its operation id, so the server answers with the stored copy.
+    var unsettledLivechatSend: UnsettledLivechatSend?
     /// The livechat messages folded into the panes since they were last cleared. A first history
     /// page that replaces the panes brings back the ones it doesn't hold.
     var livechatLog: [LivechatMessage] = []
@@ -176,7 +180,8 @@ extension ChatProvider {
         } catch Paginator.Failure.exhausted {
             // No more history available, do nothing
         } catch ChatServiceError.sessionExpired {
-            self.endConversation()
+            // A reply may still be streaming into the panes, so the clear waits for it to settle.
+            self.expireSession()
             throw ChatServiceError.sessionExpired
 
         } catch {
@@ -265,8 +270,10 @@ extension ChatProvider {
     private func replacePanes(with page: MessagePage) {
         let log = self.livechatLog
         let deferred = self.deferredLivechat
+        let unsettled = self.unsettledLivechatSend
         self.clear()
         self.deferredLivechat = deferred
+        self.unsettledLivechatSend = unsettled
         self.paginator.commit(nextCursor: page.nextCursor)
         self.historyHead = page.messages.compactMap { Self.milliseconds(of: $0.createdAt) }.max()
         self.prepend(page.messages)
@@ -294,6 +301,7 @@ extension ChatProvider {
         self.historyHead = nil
         self.botLeads = false
         self.deferredLivechat = []
+        self.unsettledLivechatSend = nil
     }
 
 }

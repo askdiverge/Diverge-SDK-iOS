@@ -43,6 +43,30 @@ struct LivechatSessionCallbackTests {
         ])
     }
 
+    @Test("the host hears nothing until the session has been read, then its status")
+    func nothingBeforeStateIsRead() async throws {
+        let (viewModel, service, infos) = self.makeSUT()
+
+        await viewModel.setVisible(true)
+        #expect(infos.values.isEmpty)
+
+        try await self.start(viewModel, in: .waiting, on: service)
+        try await eventually { infos.count == 1 }
+        #expect(infos.values == [AIChat.LivechatSessionInfo(status: .waiting)])
+    }
+
+    @Test("without livechat the host hears inactive once the chat starts")
+    func unconfiguredReportsInactive() async throws {
+        let (viewModel, _, infos) = self.makeSUT()
+
+        viewModel.startLivechat(with: try LivechatFixtures.decoder.decode(
+            LivechatConfig.self,
+            from: Data(#"{"enabled":false,"configured":false,"availability_status":"offline"}"#.utf8)
+        ))
+
+        #expect(infos.values == [AIChat.LivechatSessionInfo(status: .inactive)])
+    }
+
     @Test("changes seen while the chat is off screen reach the host once it is back")
     func offScreenChangesWait() async throws {
         let (viewModel, service, infos) = self.makeSUT()
