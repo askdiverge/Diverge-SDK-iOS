@@ -98,6 +98,8 @@
 - Links and bold text written in Markdown in the configured subtitle, such as a link to the
   privacy policy, render as links and bold, as on the web widget, instead of showing their
   brackets and asterisks. The links open through `onOpenLink`, or the browser when it isn't set.
+- A message the visitor sends before their previous one has a reply, such as a second message to
+  a livechat agent, scrolls into view instead of staying hidden below the composer.
 
 ## [1.0.0] - 2026-10-01
 

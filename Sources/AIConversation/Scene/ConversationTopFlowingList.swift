@@ -68,6 +68,9 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                     // A user turn that a page of history brings isn't a send.
                     if old.user.last?.id != new.user.last?.id, landing == .none {
                         self.userTurnChanged(new.user.last?.id, proxy: proxy)
+                    } else if landing == .none, let joinedID = new.joinedUserTurnID(since: old) {
+                        // A send that joined the newest visitor turn arms the exchange as a new turn does.
+                        self.arm(joinedID, proxy: proxy)
                     }
                     // A page that replaced the conversation took the exchange's user turn with it,
                     // so the next send starts an exchange of its own.
