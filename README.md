@@ -17,17 +17,17 @@ The OS deployment floor and the Swift toolchain requirement are independent. Rel
 ## Installation
 
 In Xcode: **File → Add Package Dependencies…** → paste  
-`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **1.0.0** (Up to Next Major).
+`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **1.1.0** (Up to Next Major).
 
 Or in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "1.0.0")
+    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "1.1.0")
 ]
 ```
 
-Add the **`AIConversation`** product. Prefer SemVer pins / the `v1.0.0` GitHub Release — do not track `main`.
+Add the **`AIConversation`** product. Prefer SemVer pins / the `v1.1.0` GitHub Release — do not track `main`.
 
 ## Usage
 
@@ -52,8 +52,10 @@ chat.makeView()
 present(chat.makeViewController(), animated: true)
 ```
 
-You don't have to store the `AIChat` instance unless you explicitly want the session to outlive the
-presentation lifecycle.
+Keep the `AIChat` for as long as its chat is on screen: create it when you present the chat, not
+inside a view's `body`, where every re-render would start the chat again. You don't have to keep it
+after the presentation ends unless you want the session to outlive it. Every `AIChat()` made after
+`AIChat.configure(_:)` is the same app-wide chat.
 
 ## Configuration
 
@@ -99,8 +101,10 @@ onClose: { dismissChat() }
 
 **`rating`** — whether close asks for a conversation rating first. Defaults to `.enabled`. Pass
 `.disabled` to call `onClose` immediately. Livechat CSAT is separate and still offered when the
-server marks feedback pending after a session ends on screen. Whether the visitor has rated is
-remembered in memory by the `AIChat` instance, or across instances minted from `AIChat.configure`.
+server marks feedback pending after a session ends on screen. After a livechat session that closed
+with its own rating, still to give or given, close calls `onClose` without asking again. Whether the
+visitor has rated is remembered in memory by the `AIChat` instance, or across instances minted from
+`AIChat.configure`.
 A host that builds a new `AIChat(…)` for each presentation asks again on each close, so keep the
 instance, or use the shared configuration, when you use `onClose` with a rating.
 

@@ -264,7 +264,7 @@ package actor LivechatSession {
             self.expire(generation: gen)
             return nil
         } catch {
-            // The caller opens the stored link instead, and the server serves or refuses it.
+            // The caller falls back to the stored link while it is valid; a later tap reads again.
             return nil
         }
         for message in sync.messages.reversed() {

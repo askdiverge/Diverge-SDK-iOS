@@ -22,7 +22,7 @@ struct ChatProviderLivechatTests {
 
         let snapshot = await snapshots.next()
         #expect(snapshot?.user.map(\.model) == [[.text(AttributedString("hi"))]])
-        #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("ok"))]])
+        #expect(snapshot?.incoming.map(\.model) == [[.agentText(AttributedString("ok"), agent: nil)]])
     }
 
     @Test("a poll that returns the message while its POST is in flight doesn't duplicate it")
@@ -78,7 +78,7 @@ struct ChatProviderLivechatTests {
         #expect(Set(mock.livechatSendOperationIds).count == 1)
     }
 
-    @Test("a livechat send whose retry fails too is popped, and the next send gets a new operation id")
+    @Test("a livechat send whose retry fails too is popped; sending it again reuses its operation id, another message doesn't")
     func failedRetryIsPopped() async {
         let mock = MockChatService(.init(livechatSendError: .transport(.connection(URLError(.timedOut)))))
         let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
@@ -91,9 +91,50 @@ struct ChatProviderLivechatTests {
         await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
             try await provider.sendLivechat("hi")
         }
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "bye", attachments: []), body: nil)) {
+            try await provider.sendLivechat("bye")
+        }
 
-        #expect(mock.livechatSendOperationIds.count == 4)
-        #expect(Set(mock.livechatSendOperationIds).count == 2)
+        let ids = mock.livechatSendOperationIds
+        #expect(ids.count == 6)
+        #expect(Set(ids.prefix(4)).count == 1)
+        #expect(Set(ids).count == 2)
+    }
+
+    @Test("a resend the server answers with the copy the poller showed isn't shown twice")
+    func resendOfStoredMessageIsShownOnce() async throws {
+        let stored = LivechatFixtures.message("lc_1", role: .user, text: "hi")
+        let mock = MockChatService(.init(
+            livechatSendResponse: stored,
+            livechatSendFailingCalls: [
+                0: .transport(.connection(URLError(.timedOut))),
+                1: .transport(.connection(URLError(.timedOut)))
+            ]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
+            try await provider.sendLivechat("hi")
+        }
+        await provider.appendLivechat([stored])
+        try await provider.sendLivechat("hi")
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.user.map(\.model) == [[.text(AttributedString("hi"))]])
+        #expect(Set(mock.livechatSendOperationIds).count == 1)
+    }
+
+    @Test("a livechat send that fails with a server error is posted again under the same operation id")
+    func serverErrorIsRetriedOnce() async {
+        let mock = MockChatService(.init(livechatSendError: .transport(.http(.unhandled(status: 502, body: Data())))))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: nil)) {
+            try await provider.sendLivechat("hi")
+        }
+
+        #expect(mock.livechatSendOperationIds.count == 2)
+        #expect(Set(mock.livechatSendOperationIds).count == 1)
     }
 
     @Test("a 401 on the retried livechat send ends the session")
@@ -204,7 +245,7 @@ struct ChatProviderLivechatTests {
         #expect(await snapshots.next()?.incoming.map(\.model) == [[
             .text(AttributedString("reply")),
             .livechatNote(.init(kind: .agentJoined(displayName: "Alice"))),
-            .text(AttributedString("agent"))
+            .agentText(AttributedString("agent"), agent: nil)
         ]])
     }
 
@@ -217,6 +258,7 @@ struct ChatProviderLivechatTests {
             incoming: [reply, notes],
             isUserInitiatedConversation: true,
             streamingTurnID: nil,
+            liveTurnIDs: [],
             canLoadOlder: false
         )
 
@@ -281,8 +323,32 @@ struct ChatProviderLivechatTests {
         let snapshot = await snapshots.next()
         #expect(snapshot?.user.map(\.model) == [[.text(AttributedString("hi"))]])
         #expect(snapshot?.incoming.map(\.model) == [[
-            .text(AttributedString("hello")),
+            .agentText(AttributedString("hello"), agent: nil),
             .systemNote(AttributedString("closed"))
+        ]])
+    }
+
+    @Test("an agent's text carries the agent who sent it, from history and from the livechat log")
+    func agentTextCarriesAgent() async throws {
+        let alice = try LivechatFixtures.agent("Alice")
+        // Newest first, as a page arrives: "first" opens the bot turn and "second" joins it.
+        let history = [
+            Self.historyMessage("h2", role: .agent, text: "second", createdAt: "2026-01-01T00:00:01Z", agent: alice),
+            Self.historyMessage("h1", role: .agent, text: "first", agent: alice)
+        ]
+        let mock = MockChatService(.init(historyPages: [MessagePage(messages: history, nextCursor: nil)]))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        try await provider.loadOlder()
+
+        await provider.appendLivechat([
+            LivechatFixtures.message("a1", role: .agent, text: "hello", createdAt: "2026-01-01T00:00:02Z", agent: alice)
+        ])
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        #expect(await snapshots.next()?.incoming.map(\.model) == [[
+            .agentText(AttributedString("first"), agent: alice),
+            .agentText(AttributedString("second"), agent: alice),
+            .agentText(AttributedString("hello"), agent: alice)
         ]])
     }
 
@@ -301,9 +367,13 @@ struct ChatProviderLivechatTests {
         let turns = await snapshots.next()?.turns.map(\.model)
         #expect(turns == [
             .user([.text(AttributedString("hi"))]),
-            .bot([.text(AttributedString("reply")), .text(AttributedString("one")), .text(AttributedString("two"))]),
+            .bot([
+                .text(AttributedString("reply")),
+                .agentText(AttributedString("one"), agent: nil),
+                .agentText(AttributedString("two"), agent: nil)
+            ]),
             .user([.text(AttributedString("thanks"))]),
-            .bot([.text(AttributedString("welcome"))])
+            .bot([.agentText(AttributedString("welcome"), agent: nil)])
         ])
     }
 
@@ -326,7 +396,7 @@ struct ChatProviderLivechatTests {
 
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.incoming.map(\.model) == [
-            [.text(AttributedString("reply")), .text(AttributedString("agent"))]
+            [.text(AttributedString("reply")), .agentText(AttributedString("agent"), agent: nil)]
         ])
     }
 
@@ -353,6 +423,37 @@ struct ChatProviderLivechatTests {
         #expect(snapshot?.incoming.isEmpty == true)
     }
 
+    @Test("a 401 on an older page during a reply clears the conversation once the reply settles")
+    func historyExpiryDuringReplyWaits() async throws {
+        let mock = MockChatService(.init(
+            sendError: .transport(.http(.unhandled(status: 500, body: Data()))),
+            historyPages: [MessagePage(messages: [], nextCursor: "older")],
+            historyFailingCalls: [1: .sessionExpired]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        try await provider.loadOlder()
+        let entered = AsyncGate()
+        let release = AsyncGate()
+        mock.sendHold = {
+            await entered.open()
+            await release.wait()
+        }
+        let send = Task { try await provider.send("hi") }
+        await entered.wait()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+        await release.open()
+        _ = try? await send.value
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.user.isEmpty == true)
+        #expect(snapshot?.incoming.isEmpty == true)
+        #expect(snapshot?.canLoadOlder == false)
+    }
+
     @Test("a livechat message already in history isn't appended again")
     func historyMessageIsNotReplayed() async throws {
         let history = Message(
@@ -369,7 +470,7 @@ struct ChatProviderLivechatTests {
         await provider.appendLivechat([LivechatFixtures.message("a1", role: .agent, text: "agent")])
 
         var snapshots = provider.stream.makeAsyncIterator()
-        #expect(await snapshots.next()?.incoming.map(\.model) == [[.text(AttributedString("agent"))]])
+        #expect(await snapshots.next()?.incoming.map(\.model) == [[.agentText(AttributedString("agent"), agent: nil)]])
     }
 
     @Test("the log's copies of messages history shows under other ids aren't appended again")
@@ -393,7 +494,7 @@ struct ChatProviderLivechatTests {
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
             .user([.text(AttributedString("hi"))]),
-            .bot([.text(AttributedString("agent")), .text(AttributedString("later"))])
+            .bot([.agentText(AttributedString("agent"), agent: nil), .agentText(AttributedString("later"), agent: nil)])
         ])
     }
 
@@ -408,7 +509,7 @@ struct ChatProviderLivechatTests {
 
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
-            .bot([.text(AttributedString("hello"))]),
+            .bot([.agentText(AttributedString("hello"), agent: nil)]),
             .user([.text(AttributedString("hi"))]),
             .bot([.text(AttributedString("reply"))]),
             .user([.text(AttributedString("again"))]),
@@ -461,7 +562,7 @@ struct ChatProviderLivechatTests {
         var snapshots = provider.stream.makeAsyncIterator()
         #expect(await snapshots.next()?.turns.map(\.model) == [
             .user([.text(AttributedString("hi"))]),
-            .bot([.text(AttributedString("one")), .text(AttributedString("two"))]),
+            .bot([.agentText(AttributedString("one"), agent: nil), .agentText(AttributedString("two"), agent: nil)]),
             .user([.text(AttributedString("thanks"))])
         ])
     }
@@ -528,12 +629,13 @@ private extension ChatProviderLivechatTests {
         _ id: String,
         role: Message.Role,
         text: String,
-        createdAt: String = "2026-01-01T00:00:00Z"
+        createdAt: String = "2026-01-01T00:00:00Z",
+        agent: LivechatAgent? = nil
     ) -> Message {
         Message(
             messageId: id,
             role: role,
-            agent: nil,
+            agent: agent,
             parts: [.richText(RichText(partId: "p_\(id)", blocks: [.paragraph(.init(spans: [.text(text)]))]))],
             createdAt: createdAt
         )

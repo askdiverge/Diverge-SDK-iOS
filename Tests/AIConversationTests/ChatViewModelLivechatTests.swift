@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftUI
 import Testing
 @testable import AIConversation
 @testable import AIConversationEngine
@@ -47,6 +48,29 @@ struct ChatViewModelLivechatTests {
 
         try await eventually { viewModel.livechatSessionEnded }
         #expect(provider.expireCount == 1)
+    }
+
+    @Test("a message refused for an expired session keeps its photos when the poller sees the session end too")
+    func expiryKeepsTheRefusedDraft() async throws {
+        let attachment = try #require(OutgoingAttachment(kind: .image, data: "AA==", mime: "image/jpeg", filename: nil))
+        let photo = PendingAttachment(
+            thumbnail: Image(systemName: "photo"),
+            attachment: attachment,
+            displayName: L10n.mediaImageLabel.string
+        )
+        let (viewModel, _, _) = self.makeSUT(
+            .init(livechatStateError: .sessionExpired),
+            provider: StubChatProviding(sendFailure: .sessionExpired)
+        )
+        viewModel.currentMessage = "here"
+        viewModel.pendingAttachments = [photo]
+
+        await #expect(throws: ChatView.SessionEnded.self) { try await viewModel.send() }
+        viewModel.startLivechat(with: try Self.config())
+        try await eventually { viewModel.livechatSessionEnded }
+
+        #expect(viewModel.currentMessage == "here")
+        #expect(viewModel.pendingAttachments == [photo])
     }
 
     // MARK: Header control and placeholder
@@ -274,15 +298,20 @@ struct ChatViewModelLivechatTests {
 extension ChatViewModelLivechatTests {
 
     /// Publishes a bot turn holding a `request_human_agent` card and returns the turn's id.
+    /// Shows a talk-to-a-person card the way a live reply brings it: streaming, then finished.
     func showPrompt(on provider: StubChatProviding, in viewModel: ChatView.ViewModel) async throws -> UUID {
         let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
-        provider.publish(ConversationSnapshot(
-            user: [],
-            incoming: [card],
-            isUserInitiatedConversation: false,
-            streamingTurnID: nil,
-            canLoadOlder: false
-        ))
+        for streaming in [card.id, nil] {
+            provider.publish(ConversationSnapshot(
+                user: [],
+                incoming: [card],
+                isUserInitiatedConversation: false,
+                streamingTurnID: streaming,
+                liveTurnIDs: [card.id],
+                canLoadOlder: false
+            ))
+            try await eventually { viewModel.snapshot?.streamingTurnID == streaming }
+        }
         try await eventually { viewModel.snapshot?.lastBotTurnID == card.id }
         return card.id
     }

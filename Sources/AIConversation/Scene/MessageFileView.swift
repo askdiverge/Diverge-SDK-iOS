@@ -12,7 +12,8 @@ import AIConversationEngine
 /// the link to open, a freshly signed one when the stored link is temporary, and hands it to
 /// `openURL`, which the host can route through `onOpenLink`. One tap resolves at a time, and the
 /// row going away cancels it, so nothing opens after the chat closes. A file whose link can't be
-/// opened, or whose expired link can't be re-signed, shows the unavailable copy.
+/// opened, or whose expired link the last tap couldn't re-sign, shows the unavailable copy; the
+/// latter stays tappable, so the next tap tries again.
 struct MessageFileView: View {
 
     @Environment(\.appearance) private var appearance
@@ -23,7 +24,7 @@ struct MessageFileView: View {
 
     /// The tap resolving the link, while it does.
     @State private var opening: Task<Void, Never>?
-    /// Set when the stored link expired and the log couldn't re-sign it.
+    /// Set when the stored link expired and the last tap couldn't re-sign it.
     @State private var linkExpired = false
 
     var body: some View {
@@ -34,10 +35,9 @@ struct MessageFileView: View {
                 let url = await self.resolveURL(self.file)
                 self.opening = nil
                 guard !Task.isCancelled else { return }
+                self.linkExpired = url == nil
                 if let url {
                     self.openURL(url)
-                } else {
-                    self.linkExpired = true
                 }
             }
         } label: {
@@ -74,7 +74,8 @@ struct MessageFileView: View {
         .buttonStyle(.plain)
         .contentShape(.rect)
         .minimumTouchTarget(alignment: .leading)
-        .disabled(!canOpen)
+        // A link the last tap couldn't re-sign may re-sign on the next, once the network is back.
+        .disabled(!Self.canOpen(self.file, linkExpired: false))
         .accessibilityLabel(Self.accessibilityLabel(for: self.file, linkExpired: self.linkExpired))
         .accessibilityHint(canOpen ? L10n.mediaOpenHint.string : "")
         .onDisappear {

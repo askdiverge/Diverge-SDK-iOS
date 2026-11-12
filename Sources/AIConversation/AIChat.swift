@@ -57,29 +57,50 @@ public final class AIChat {
 
     private static var sharedConfiguration: Configuration?
     /// Instances minted from the shared configuration are one app-wide chat, so whether it has
-    /// been rated outlives each of them.
+    /// been rated, the cards that arrived live and the identity of its view outlive each of them.
     private static var sharedRatingSession = RatingSession()
+    private static var sharedLiveCards = LiveCards()
+    private static var sharedViewIdentity = UUID()
 
     private let configuration: Configuration
     private let service: ChatService
     let ratingSession: RatingSession
+    let liveCards: LiveCards
+    /// The identity of the views this chat mints, so a view a host builds from another chat in the
+    /// same place starts that chat's session.
+    private let viewIdentity: UUID
 
     /// Registers shared configuration for the no-argument ``init()``. Stores the config
     /// only — it neither returns nor retains an instance. Call once, typically at launch.
     public static func configure(_ configuration: Configuration) {
         Self.sharedConfiguration = configuration
         Self.sharedRatingSession = RatingSession()
+        Self.sharedLiveCards = LiveCards()
+        Self.sharedViewIdentity = UUID()
     }
 
     /// Direct initialisation — equivalent to ``configure(_:)`` followed by ``init()``, except that
-    /// whether the conversation has been rated is remembered by this instance alone.
+    /// the chat belongs to this instance alone: whether it has been rated, and the chat a view
+    /// minted from it shows.
     public convenience init(_ configuration: Configuration) {
-        self.init(configuration: configuration, ratingSession: RatingSession())
+        self.init(
+            configuration: configuration,
+            ratingSession: RatingSession(),
+            liveCards: LiveCards(),
+            viewIdentity: UUID()
+        )
     }
 
-    private init(configuration: Configuration, ratingSession: RatingSession) {
+    private init(
+        configuration: Configuration,
+        ratingSession: RatingSession,
+        liveCards: LiveCards,
+        viewIdentity: UUID
+    ) {
         self.configuration = configuration
         self.ratingSession = ratingSession
+        self.liveCards = liveCards
+        self.viewIdentity = viewIdentity
         // The  hooks wire straight to the service / token store.
         self.service = ChatService(
             tokenProvider: configuration.tokenProvider,
@@ -97,7 +118,12 @@ public final class AIChat {
         guard let configuration = Self.sharedConfiguration else {
             preconditionFailure("AIChat() requires AIChat.configure(_:) to be called first.")
         }
-        self.init(configuration: configuration, ratingSession: Self.sharedRatingSession)
+        self.init(
+            configuration: configuration,
+            ratingSession: Self.sharedRatingSession,
+            liveCards: Self.sharedLiveCards,
+            viewIdentity: Self.sharedViewIdentity
+        )
     }
 }
 
@@ -116,9 +142,11 @@ public extension AIChat {
                 onLivechatSessionChange: self.configuration.onLivechatSessionChange,
                 conversationRatingMode: self.configuration.rating,
                 ratingSession: self.ratingSession,
+                liveCards: self.liveCards,
                 dependencies: .live(service: self.service)
             )
         )
+        .id(self.viewIdentity)
         .environment(\.openURL, self.openURL)
     }
 
@@ -162,8 +190,9 @@ public extension AIChat {
     }
 
     /// Whether closing the chat first asks the visitor to rate the conversation (`POST /rate`).
-    /// The close control shows when ``Configuration`` has `onClose`. A livechat session with
-    /// feedback pending is rated through its own prompt, and closing then goes straight to the host.
+    /// The close control shows when ``Configuration`` has `onClose`. A livechat session with a
+    /// rating of its own is rated through its own prompt when it closes while the chat is open, and
+    /// closing after that prompt, or after the visitor rated the session, goes straight to the host.
     enum Rating: Sendable {
         /// Ask for a 1–5 rating on close once the visitor has written in the conversation and
         /// hasn't rated it yet.

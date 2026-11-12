@@ -118,6 +118,9 @@ extension ChatAppearance {
         /// talk-to-a-person card — the handoff CTA.
         static let person = Image(systemName: "person")
 
+        /// agent message — stands in for the agent's photo when there is none.
+        static let agentAvatar = Image(systemName: "person.fill")
+
         /// file row — an agent or assistant attachment.
         static let file = Image(systemName: "doc")
 
@@ -166,8 +169,10 @@ extension ChatAppearance {
         }
     }
 
-    /// The text style whose default size is `size`, so the design holds at the default setting.
-    /// `Font.system(size:)` would keep the size at every setting.
+    /// The text style whose default size on iOS is `size`, so the design holds at the default
+    /// setting; a size between two styles takes the smaller. `Font.system(size:)` would keep the size
+    /// at every setting. macOS sizes the same styles smaller (`.body` is 13 pt), so the macOS Harness
+    /// shows the chat smaller than designed, with 11 to 13 pt all at 10 pt.
     private static func textStyle(ofSize size: CGFloat) -> Font.TextStyle {
         switch size {
         case ..<12: .caption2

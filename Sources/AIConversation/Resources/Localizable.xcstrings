@@ -5374,6 +5374,107 @@
         }
       }
     },
+    "livechat.endedInactivityNote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chatten blev lukket, fordi vi ikke hørte fra dig. Du kan fortsætte med AI-chatten eller kontakte kundeservice igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Chat wurde geschlossen, weil wir nichts von Ihnen gehört haben. Sie können mit dem KI-Chat fortfahren oder den Kundenservice erneut kontaktieren."
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Chat wurde geschlossen, weil wir nichts von Ihnen gehört haben. Sie können mit dem KI-Chat fortfahren oder den Kundenservice erneut kontaktieren."
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Chat wurde geschlossen, weil wir nichts von Ihnen gehört haben. Sie können mit dem KI-Chat fortfahren oder den Kundenservice erneut kontaktieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The chat was closed because we didn't hear from you. You can continue with the AI chat or contact customer service again."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vestlus suleti, sest me ei kuulnud teist. Võid jätkata AI-vestlust või võtta uuesti ühendust klienditeenindusega."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keskustelu suljettiin, koska emme kuulleet sinusta. Voit jatkaa tekoälychatissa tai ottaa uudelleen yhteyttä asiakaspalveluun."
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kjattið varð stongt, tí vit hoyrdu einki frá tær. Tú kanst halda fram við AI-kjattinum ella seta teg í samband við kundatænastuna aftur."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le chat a été fermé car nous n'avons pas eu de nouvelles de vous. Vous pouvez continuer avec le chat IA ou contacter à nouveau le service client."
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spjallinu var lokað þar sem við heyrðum ekki frá þér. Þú getur haldið áfram í AI-spjallinu eða haft aftur samband við þjónustuver."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokalbis uždarytas, nes negavome jūsų atsakymo. Galite tęsti pokalbį su DI arba vėl susisiekti su klientų aptarnavimo skyriumi."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tērzēšana tika slēgta, jo mēs no jums neko nedzirdējām. Varat turpināt sarunu ar MI vai vēlreiz sazināties ar klientu apkalpošanas dienestu."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chatten ble lukket fordi vi ikke hørte fra deg. Du kan fortsette med AI-chatten eller kontakte kundeservice igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De chat is gesloten omdat we niets van je hoorden. Je kunt verder met de AI-chat of opnieuw contact opnemen met de klantenservice."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czat został zamknięty, ponieważ nie otrzymaliśmy od Ciebie odpowiedzi. Możesz kontynuować rozmowę z AI lub ponownie skontaktować się z obsługą klienta."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chatten stängdes eftersom vi inte hörde av dig. Du kan fortsätta med AI-chatten eller kontakta kundtjänst igen."
+          }
+        }
+      }
+    },
     "livechat.endedNote" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6077,6 +6178,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Är du säker på att du vill lämna livechatten?"
+          }
+        }
+      }
+    },
+    "livechat.noThanks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nej tak"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nein danke"
+          }
+        },
+        "de-AT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nein danke"
+          }
+        },
+        "de-CH" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nein danke"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No thanks"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ei, aitäh"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ei kiitos"
+          }
+        },
+        "fo" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nei takk"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non merci"
+          }
+        },
+        "is" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nei takk"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne, ačiū"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nē, paldies"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nei takk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nee bedankt"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie, dziękuję"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nej tack"
           }
         }
       }

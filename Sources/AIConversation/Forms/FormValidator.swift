@@ -85,6 +85,8 @@ enum FormValidator {
         offersFileFields: Bool
     ) -> Result {
         var fieldErrors: [String: String] = [:]
+        // Required fields left empty; filling them counts toward the minimum.
+        var missingRequired = 0
         let visible = Self.visibleFields(of: form, values: values)
         let fileFieldsFillable = offersFileFields && form.acceptsFileFields
 
@@ -95,11 +97,13 @@ enum FormValidator {
             case .file:
                 if field.required, fileFieldsFillable, !files.contains(field.key) {
                     fieldErrors[field.key] = L10n.formRequired.string
+                    missingRequired += 1
                 }
             case .email:
                 let trimmed = (values[field.key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if field.required, trimmed.isEmpty {
                     fieldErrors[field.key] = L10n.formRequired.string
+                    missingRequired += 1
                 } else if !trimmed.isEmpty,
                           !Self.isValidEmail(trimmed) || trimmed.count > Self.maxEmailLength {
                     fieldErrors[field.key] = L10n.formInvalidEmail.string
@@ -108,6 +112,7 @@ enum FormValidator {
                 let trimmed = (values[field.key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if field.required, trimmed.isEmpty {
                     fieldErrors[field.key] = L10n.formRequired.string
+                    missingRequired += 1
                 }
             }
         }
@@ -127,8 +132,9 @@ enum FormValidator {
                     if !trimmed.isEmpty { count += 1 }
                 }
             }
-            // A field's own error already says what is missing.
-            if filled < min, fieldErrors.isEmpty {
+            // A required field's own error already says what is missing, so the message shows only
+            // when filling those fields would still fall short.
+            if filled + missingRequired < min {
                 formError = L10n.formMinFilled(min).string
             }
         }

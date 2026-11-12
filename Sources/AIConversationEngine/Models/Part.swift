@@ -9,8 +9,8 @@
 ///
 /// Supports `rich_text`, `table`, `products`, `image`, `file`, `request_image_upload`,
 /// `request_human_agent`, and the contact / support / custom form markers. All other variants
-/// decode to `.unknown` and are skipped at render time. Malformed marker payloads also fall
-/// back to `.unknown` so a bad part cannot abort sibling parts.
+/// decode to `.unknown` and are skipped at render time. A malformed part of any type also falls
+/// back to `.unknown`, so a bad part cannot abort its siblings, its message or the live stream.
 /// [API ref](https://docs.askdiverge.ai/api#model/messagepart)
 package enum Part: Decodable, Sendable, Equatable {
 
@@ -44,13 +44,17 @@ package enum Part: Decodable, Sendable, Equatable {
     }
 
     package init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        // An unreadable or new part degrades to `.unknown`, which rendering skips; a throw would end
-        // the live stream.
-        self = switch try? container.decode(PartType.self, forKey: .type) {
-        case .richText: .richText(try RichText(from: decoder))
-        case .table: .table(try Table(from: decoder))
-        case .products: .products(try Products(from: decoder))
+        // A part that doesn't decode, from an unreadable or new `type` to a missing field, is
+        // `.unknown`, which rendering skips; a throw would fail its whole message, and with it a
+        // page of history or the live stream.
+        let container = try? decoder.container(keyedBy: CodingKeys.self)
+        self = switch try? container?.decode(PartType.self, forKey: .type) {
+        case .richText:
+            (try? RichText(from: decoder)).map(Part.richText) ?? .unknown
+        case .table:
+            (try? Table(from: decoder)).map(Part.table) ?? .unknown
+        case .products:
+            (try? Products(from: decoder)).map(Part.products) ?? .unknown
         case .image:
             (try? MessageImage(from: decoder)).map(Part.image) ?? .unknown
         case .file:

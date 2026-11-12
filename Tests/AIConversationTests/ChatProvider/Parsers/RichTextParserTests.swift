@@ -56,6 +56,33 @@ struct RichTextParserTests {
         #expect(RichTextParser.attributedText(self.paragraph(.text("keep"), .unknown)) == AttributedString("keep"))
     }
 
+    // MARK: - Headings
+
+    @Test("a paragraph opening with a heading marker renders bold without the marker")
+    func headingMarker() {
+        var expected = AttributedString("Delivery")
+        expected.inlinePresentationIntent = .stronglyEmphasized
+        #expect(RichTextParser.attributedText(self.paragraph(.text("### Delivery"))) == expected)
+    }
+
+    @Test("a heading keeps its other spans, each made bold on top of its own styling")
+    func headingWithSpans() {
+        var bold = AttributedString("Returns")
+        bold.inlinePresentationIntent = .stronglyEmphasized
+        var struck = AttributedString(" old")
+        struck.inlinePresentationIntent = [.strikethrough, .stronglyEmphasized]
+        let result = RichTextParser.attributedText(self.paragraph(.text("## "), .bold("Returns"), .strike(" old")))
+        #expect(result == bold + struck)
+    }
+
+    @Test(
+        "hashes without a following space, or more than four as on the web widget, stay text",
+        arguments: ["#1 seller", "##### Five", "####### Seven"]
+    )
+    func notAHeading(text: String) {
+        #expect(RichTextParser.attributedText(self.paragraph(.text(text))) == AttributedString(text))
+    }
+
     // MARK: - Blocks
 
     @Test("paragraphs join with a newline")

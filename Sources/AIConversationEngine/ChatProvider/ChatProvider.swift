@@ -47,6 +47,9 @@ package actor ChatProvider: ChatProviding {
     /// Set before the first suspension in `send`, cleared when the stream settles.
     var streamingTurnID: UUID?
 
+    /// The bot turns whose replies a send streamed, for the snapshot's `liveTurnIDs`.
+    var liveTurnIDs: Set<UUID> = []
+
     /// Serializes send/reset/delete — they must not interleave.
     var isBusy = false
 
@@ -65,9 +68,19 @@ package actor ChatProvider: ChatProviding {
     /// order. A streaming reply owns the newest bot turn, and a livechat send's id isn't known
     /// until its POST returns, so they are folded in when the operation finishes.
     var deferredLivechat: [DeferredLivechat] = []
-    /// Set when the poller saw the session end during an operation; the conversation clears when
-    /// the operation finishes, so a streaming reply never writes into emptied panes.
+    /// Set when a call outside the operation — the poller, a form submit, a history page — saw the
+    /// session end while it ran; the conversation clears when the operation finishes, so a
+    /// streaming reply never writes into emptied panes.
     var expiresAfterOperation = false
+    /// A livechat message whose post may have been stored though no response said so. Sending the
+    /// same message again reuses its operation id, so the server answers with the stored copy.
+    var unsettledLivechatSend: UnsettledLivechatSend?
+    /// The livechat messages folded into the panes since they were last cleared. A first history
+    /// page that replaces the panes brings back the ones it doesn't hold.
+    var livechatLog: [LivechatMessage] = []
+    /// Counts the conversations this provider has cleared away. A history page requested for an
+    /// earlier one is dropped when it arrives.
+    private var conversationEpoch = 0
 
     /// Snapshot channel the view model observes. Latest-wins — the VM only ever
     /// cares about the current conversation, never a backlog.
@@ -121,6 +134,7 @@ package actor ChatProvider: ChatProviding {
                 incoming: self.publishedIncoming,
                 isUserInitiatedConversation: self.welcome == nil && !self.botLeads,
                 streamingTurnID: self.streamingTurnID,
+                liveTurnIDs: self.liveTurnIDs,
                 canLoadOlder: !self.paginator.isExhausted
             )
         )
@@ -137,11 +151,25 @@ extension ChatProvider {
 
     /// Loads the next older page of history and prepends it. No-op when a load is
     /// already in flight or no pages remain. Drives both the first load and the visitor's
-    /// request for earlier messages.
+    /// request for earlier messages. A page that arrives after a reset, delete or expiry replaced
+    /// the conversation is dropped, whatever its outcome.
+    ///
+    /// A first page asked for once the conversation moved on, after the first attempt failed,
+    /// holds what is on screen too, so it takes the panes' place; see ``replacePanes(with:)``.
+    /// It waits for no send, and none starts while it is on its way.
     package func loadOlder() async throws {
+        let epoch = self.conversationEpoch
         do {
             let cursor = try self.paginator.next()
+            let replacesPanes = cursor == nil && !(self.user.isEmpty && self.incoming.isEmpty)
+            guard !replacesPanes || self.claimForReplacingPanes() else { return }
+            defer { if replacesPanes { self.finishOperation() } }
             let page = try await self.service.fetchHistory(cursor: cursor)
+            guard epoch == self.conversationEpoch else { return }
+            if replacesPanes {
+                self.replacePanes(with: page)
+                return
+            }
             self.paginator.commit(nextCursor: page.nextCursor)
             if cursor == nil {
                 self.historyHead = page.messages.compactMap { Self.milliseconds(of: $0.createdAt) }.max()
@@ -149,12 +177,15 @@ extension ChatProvider {
             self.prepend(page.messages)
             self.publish()
 
+        } catch where epoch != self.conversationEpoch {
+            // The conversation that asked for the page is gone, and its failure with it.
         } catch Paginator.Failure.busy {
             // In progress, do nothing
         } catch Paginator.Failure.exhausted {
             // No more history available, do nothing
         } catch ChatServiceError.sessionExpired {
-            self.endConversation()
+            // A reply may still be streaming into the panes, so the clear waits for it to settle.
+            self.expireSession()
             throw ChatServiceError.sessionExpired
 
         } catch {
@@ -222,6 +253,38 @@ extension ChatProvider {
         }
     }
 
+    /// Claims the provider for a first page that will replace the panes, so no send changes them
+    /// while it is on its way. With a send already on its way the page waits, and the paginator is
+    /// free to ask for it again.
+    private func claimForReplacingPanes() -> Bool {
+        do {
+            try self.beginOperation()
+            return true
+        } catch {
+            self.paginator.release()
+            return false
+        }
+    }
+
+    /// Shows the newest page of history in place of the panes. Everything on screen arrived after
+    /// the chat opened, from a send or the livechat log, and the server holds it in the order it
+    /// happened, so the page shows it once and in order. Livechat messages newer than the page come
+    /// back after it, and so do those that arrived while it was on its way. Session notes go with
+    /// the panes.
+    private func replacePanes(with page: MessagePage) {
+        let log = self.livechatLog
+        let deferred = self.deferredLivechat
+        let unsettled = self.unsettledLivechatSend
+        self.clear()
+        self.deferredLivechat = deferred
+        self.unsettledLivechatSend = unsettled
+        self.paginator.commit(nextCursor: page.nextCursor)
+        self.historyHead = page.messages.compactMap { Self.milliseconds(of: $0.createdAt) }.max()
+        self.prepend(page.messages)
+        self.ingestLivechat(log)
+        self.publish()
+    }
+
     /// Empties a conversation that ended with nothing to load in its place: a delete or an
     /// expired session.
     func endConversation() {
@@ -232,14 +295,18 @@ extension ChatProvider {
 
     /// Drops all conversation state and resets pagination, so a reset's reload starts clean.
     func clear() {
+        self.conversationEpoch += 1
         self.user = []
         self.incoming = []
+        self.livechatLog = []
         self.paginator = Paginator()
         self.streamingTurnID = nil
+        self.liveTurnIDs = []
         self.livechatMessageIDs = []
         self.historyHead = nil
         self.botLeads = false
         self.deferredLivechat = []
+        self.unsettledLivechatSend = nil
     }
 
 }

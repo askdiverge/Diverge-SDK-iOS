@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import AIConversationCore
 
 struct PollHandles {
     var task: Task<Void, Never>?
@@ -65,7 +64,9 @@ extension LivechatSession {
             self.consecutiveFailures = 0
             self.syncCursor = sync.syncCursor
             if self.isStale(sync.state) {
-                guard previous.isInSession, sync.state.isInSession else { return }
+                // A replacement session may already have ended, so the fresh read follows whatever
+                // its status while this device tracks a session.
+                guard previous.isInSession else { return }
                 if confirming {
                     // Still lower on a fresh read: a session opened elsewhere replaced this one,
                     // and its log numbers from the start.

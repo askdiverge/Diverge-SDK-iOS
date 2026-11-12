@@ -26,7 +26,7 @@ struct ChatViewModelOpeningTests {
         #expect(viewModel.snapshot?.canLoadOlder == true)
     }
 
-    @Test("a 401 on the first history page opens on the greeting, with nothing to load")
+    @Test("a 401 on the first history page opens on the greeting, with nothing to load, and says the session ended")
     func expiredFirstPageOpensOnGreeting() async throws {
         let viewModel = Self.makeSUT(history: .init(status: 401))
 
@@ -34,6 +34,7 @@ struct ChatViewModelOpeningTests {
 
         #expect(viewModel.phase == .ready)
         #expect(viewModel.notice == nil)
+        #expect(viewModel.backgroundSessionEnded)
         try await eventually { viewModel.snapshot?.turns.map(\.model) == [Self.greeting] }
         #expect(viewModel.snapshot?.canLoadOlder == false)
     }
@@ -56,6 +57,7 @@ private extension ChatViewModelOpeningTests {
             onLivechatSessionChange: nil,
             conversationRatingMode: .enabled,
             ratingSession: RatingSession(),
+            liveCards: LiveCards(),
             dependencies: .live(service: service)
         )
     }

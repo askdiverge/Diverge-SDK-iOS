@@ -97,6 +97,16 @@ struct FormMarkerDecodingTests {
         }
     }
 
+    @Test("a show_form with a malformed field fails to decode")
+    func showFormMalformedFieldThrows() {
+        #expect(throws: DecodingError.self) {
+            try self.decode(
+                ShowForm.self,
+                #"{"type":"show_form","form_id":"frm_1","part_id":"p_1","fields":[{"key":"email","label":null}]}"#
+            )
+        }
+    }
+
     @Test("a show_form with empty fields decodes, for the client to hydrate")
     func showFormWithEmptyFields() throws {
         let form = try self.decode(

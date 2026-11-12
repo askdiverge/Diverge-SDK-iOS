@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import AIConversationCore
 
 extension ChatProvider {
 
@@ -48,7 +47,13 @@ extension ChatProvider {
 
         do {
             let stored = try await self.postLivechat(text, attachments: attachments, page: page)
-            self.livechatMessageIDs.insert(stored.messageId)
+            if self.livechatMessageIDs.insert(stored.messageId).inserted {
+                self.livechatLog.append(stored)
+            } else {
+                // A resend the server answered with a copy it had stored, which the poller showed.
+                self.popLastUserBubbles(count: echo.count)
+                self.publish()
+            }
         } catch ChatServiceError.sessionExpired {
             self.endConversation()
             throw SendFailure.sessionExpired
@@ -63,9 +68,9 @@ extension ChatProvider {
         }
     }
 
-    /// Clears the conversation after a call outside the provider — the livechat poller, a form
-    /// submit — saw the session end (401). During a send, reset or delete the clear waits until
-    /// the operation finishes.
+    /// Clears the conversation after a call outside the current operation — the livechat poller, a
+    /// form submit, a history page — saw the session end (401). During a send, reset or delete the
+    /// clear waits until the operation finishes.
     package func expireSession() {
         guard !self.isBusy else {
             self.expiresAfterOperation = true
@@ -86,10 +91,11 @@ extension ChatProvider {
                 guard !bubbles.isEmpty else { continue }
                 self.appendUser(bubbles)
             } else {
-                let responses = message.parts.compactMap { self.incoming($0, role: message.role) }
+                let responses = message.parts.compactMap { self.incoming($0, role: message.role, agent: message.agent) }
                 guard !responses.isEmpty else { continue }
                 self.appendIncoming(responses)
             }
+            self.livechatLog.append(message)
             changed = true
         }
         if changed { self.publish() }
@@ -113,42 +119,53 @@ extension ChatProvider {
     }
 
     /// Posts a livechat message under one operation id, and once more when the first attempt may
-    /// have been stored: the server answers a repeated id with the stored copy, so a send whose
-    /// response was lost is never stored twice.
+    /// have been stored: the server answers a repeated id with the stored copy. When neither
+    /// attempt settles, sending the same message again reuses the id, so a send whose response was
+    /// lost is never stored twice.
     func postLivechat(
         _ text: String,
         attachments: [OutgoingAttachment],
         page: String?
     ) async throws(ChatServiceError) -> LivechatMessage {
-        let operationId = UUID().uuidString
+        let operationId = self.unsettledLivechatSend?.operationId(text: text, attachments: attachments)
+            ?? UUID().uuidString
+        self.unsettledLivechatSend = nil
         do {
-            return try await self.service.sendLivechatMessage(
-                text,
+            do {
+                return try await self.service.sendLivechatMessage(
+                    text,
+                    attachments: attachments,
+                    page: page,
+                    operationId: operationId
+                )
+            } catch let error where error.mayHaveTakenEffect {
+                return try await self.service.sendLivechatMessage(
+                    text,
+                    attachments: attachments,
+                    page: page,
+                    operationId: operationId
+                )
+            }
+        } catch let error where error.mayHaveTakenEffect {
+            self.unsettledLivechatSend = UnsettledLivechatSend(
+                text: text,
                 attachments: attachments,
-                page: page,
                 operationId: operationId
             )
-        } catch let error where Self.mayHaveBeenStored(error) {
-            return try await self.service.sendLivechatMessage(
-                text,
-                attachments: attachments,
-                page: page,
-                operationId: operationId
-            )
+            throw error
         }
     }
+}
 
-    /// Whether a failed livechat send may still have been stored: the connection dropped or timed
-    /// out after the request went out, or the response couldn't be read.
-    static func mayHaveBeenStored(_ error: ChatServiceError) -> Bool {
-        switch error {
-        case .transport(.connection(let error)):
-            [.timedOut, .networkConnectionLost, .badServerResponse, .cannotParseResponse].contains(error.code)
-        case .transport(.decoding):
-            true
-        default:
-            false
-        }
+/// A livechat message whose post may have been stored though no response said so.
+struct UnsettledLivechatSend {
+    let text: String
+    let attachments: [OutgoingAttachment]
+    let operationId: String
+
+    /// The operation id to post the message under again, when it is the same message.
+    func operationId(text: String, attachments: [OutgoingAttachment]) -> String? {
+        self.text == text && self.attachments == attachments ? self.operationId : nil
     }
 }
 

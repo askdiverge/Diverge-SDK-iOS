@@ -66,6 +66,14 @@ extension ChatServiceError {
         default: false
         }
     }
+
+    /// Whether the request may still have reached the server and taken effect: the failure is
+    /// transient, or a response arrived that couldn't be read. A request the server dedupes, by an
+    /// operation id for example, is safe to send again.
+    package var mayHaveTakenEffect: Bool {
+        if case .transport(.decoding) = self { return true }
+        return self.isTransient
+    }
 }
 
 private extension ChatServiceError {

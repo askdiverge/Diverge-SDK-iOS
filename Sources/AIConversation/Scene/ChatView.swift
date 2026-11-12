@@ -15,7 +15,8 @@ import PhotosUI
 struct ChatView: View {
 
     /// Held as state so a host re-render, which builds a new `ChatView` and a new model, keeps the
-    /// model this view already bootstrapped. A new presentation starts a model of its own.
+    /// model this view already bootstrapped. A new presentation starts a model of its own, and so
+    /// does a view minted by another `AIChat`, which `makeView()` gives an identity of its own.
     @State private var viewModel: ViewModel
 
     @Environment(\.openURL) private var openURL
@@ -26,8 +27,12 @@ struct ChatView: View {
     @State private var showSessionEndedAlert = false
     /// The waiting-room card has more below its fold.
     @State private var waitingFormContinues = false
+    /// The composer's height, which the conversation leaves room for below a focused form field.
+    @State private var composerHeight: CGFloat = 0
     @State private var privacyDestination: PrivacyDataDestination?
     @State private var isLoading = false
+    /// The leave question a reset asks while the visitor is queued or talking to an agent.
+    @State private var resetConfirmation: ViewModel.LivechatEndConfirmation?
 #if canImport(PhotosUI)
     @State private var photoPickerItem: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
@@ -125,6 +130,7 @@ private extension ChatView {
                             self.openURL(url)
                         }
                     },
+                    canDeleteData: self.viewModel.canDeleteData,
                     onDeleteData: { try await self.viewModel.delete() }
                 )
             )
@@ -144,7 +150,18 @@ private extension ChatView {
             } message: {
                 Text(self.viewModel.livechatEndConfirmation.message)
             }
-            .onChange(of: self.viewModel.backgroundSessionEnded) { _, ended in
+            .alert(
+                self.resetConfirmation?.title ?? "",
+                isPresented: self.isConfirmingReset,
+                presenting: self.resetConfirmation
+            ) { confirmation in
+                Button(confirmation.confirm, role: .destructive) { self.performReset() }
+                Button(confirmation.cancel, role: .cancel) { } // NO-OP
+            } message: { confirmation in
+                Text(confirmation.message)
+            }
+            // `initial`: a 401 on the first history page sets the flag before this view exists.
+            .onChange(of: self.viewModel.backgroundSessionEnded, initial: true) { _, ended in
                 guard ended else { return }
                 self.viewModel.backgroundSessionEnded = false
                 self.showSessionEndedAlert = true
@@ -177,7 +194,7 @@ private extension ChatView {
                     }
                 }
             )
-            .onChange(of: self.viewModel.livechatSessionEnded) { _, ended in
+            .onChange(of: self.viewModel.livechatSessionEnded, initial: true) { _, ended in
                 guard ended else { return }
                 self.viewModel.livechatSessionEnded = false
                 self.showSessionEndedAlert = true
@@ -197,6 +214,16 @@ private extension ChatView {
                 if !isPresented, self.viewModel.rating.model != nil {
                     self.viewModel.rating.dismiss()
                 }
+            }
+        )
+    }
+
+    /// The reset's leave question is up while it holds its copy.
+    var isConfirmingReset: Binding<Bool> {
+        Binding(
+            get: { self.resetConfirmation != nil },
+            set: { isPresented in
+                if !isPresented { self.resetConfirmation = nil }
             }
         )
     }
@@ -244,7 +271,11 @@ private extension ChatView {
                 self.livechatToolbarItem
                 self.resetToolbarItem
             }
-            .safeAreaInset(edge: .bottom) { self.inputBar }
+            .environment(\.composerHeight, self.composerHeight)
+            .safeAreaInset(edge: .bottom) {
+                self.inputBar
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.composerHeight = $0 }
+            }
         }
         .safeAreaInset(edge: .top) { self.topNotice }
         .background(self.appearance.theme.background)
@@ -279,7 +310,11 @@ private extension ChatView {
             } label: {
                 ChatAppearance.Symbol.reset
             }
-            .disabled(self.viewModel.snapshot?.streamingTurnID != nil || self.viewModel.isLivechatBusy)
+            .disabled(
+                self.viewModel.snapshot?.streamingTurnID != nil
+                    || self.viewModel.isLivechatBusy
+                    || self.viewModel.isLoadingHistory
+            )
         }
     }
 
@@ -292,7 +327,17 @@ private extension ChatView {
         }
     }
 
+    /// A reset ends a chat with an agent, or the place in the queue, so it asks first, as the
+    /// livechat control does.
     func reset() {
+        guard !self.viewModel.livechatStatus.isInSession else {
+            self.resetConfirmation = self.viewModel.livechatEndConfirmation
+            return
+        }
+        self.performReset()
+    }
+
+    func performReset() {
         Task {
             self.isLoading = true
             await self.viewModel.reset()
@@ -308,8 +353,12 @@ private extension ChatView {
                     Task { await self.viewModel.waitingForm.save() }
                 }
             }
-            if self.viewModel.isAgentTyping {
-                AgentTypingIndicator(agentName: self.viewModel.livechatAgentName)
+            // The row keeps its place for the whole agent chat, so typing starting and stopping
+            // doesn't move the conversation under it.
+            if self.viewModel.livechatStatus == .active {
+                AgentTypingIndicator(agentName: self.viewModel.livechatAgentName, isTyping: self.viewModel.isAgentTyping)
+                    .frame(maxWidth: .infinity)
+                    .background(self.appearance.theme.background)
             }
             self.chatInput
         }
@@ -339,8 +388,8 @@ private extension ChatView {
             } action: { _, continues in
                 self.waitingFormContinues = continues
             }
-            .onChange(of: model.firstFieldWithError) { _, key in
-                guard let key else { return }
+            .onChange(of: model.fieldErrorReveals) {
+                guard let key = model.firstFieldWithError else { return }
                 withAnimation { proxy.scrollTo(key, anchor: .center) }
             }
         }
@@ -521,6 +570,11 @@ private extension ChatView {
                 .modifier(RelativeWidth(0.70, alignment: .leading))
                 .modifier(AvatarImage(image: self.viewModel.avatar, edge: .leading))
 
+        case .agentText(let text, let agent):
+            self.textResponse(text, isStreaming: isStreaming)
+                .modifier(RelativeWidth(0.70, alignment: .leading))
+                .modifier(AgentAvatarImage(agent: agent))
+
         case .products(let cards):
             ProductGridView(cards: cards)
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
@@ -591,10 +645,12 @@ private extension ChatView {
             .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
 
         case .requestHumanAgent(let marker):
-            HumanAgentPromptView(viewModel: self.viewModel, partId: marker.partId, turnID: turnID)
-                .modifier(RelativeWidth(0.70, alignment: .leading))
-                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
-                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+            if !self.viewModel.declinedHumanAgentPrompts.contains(marker.partId) {
+                HumanAgentPromptView(viewModel: self.viewModel, partId: marker.partId, turnID: turnID)
+                    .modifier(RelativeWidth(0.70, alignment: .leading))
+                    .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+                    .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+            }
 
         case .livechatNote(let note):
             LivechatNoteRow(note: note)

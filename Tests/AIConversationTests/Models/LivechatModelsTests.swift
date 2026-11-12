@@ -16,6 +16,26 @@ struct LivechatModelsTests {
         return jsonDecoder
     }()
 
+    @Test("a sync message that doesn't decode is left out, and the state and the other messages arrive")
+    func syncSkipsUndecodableMessage() throws {
+        let sync = try self.decoder.decode(LivechatSync.self, from: Data("""
+        {
+          "state": { "status": "active", "is_agent_typing": false, "feedback": { "status": "not_available" } },
+          "messages": [
+            { "message_id": "m1", "role": "agent", "parts": [], "created_at": "2026-01-01T00:00:00Z", "sequence_number": 1 },
+            { "message_id": "m2", "role": "agent", "agent": { "agent_id": "a1", "display_name": null },
+              "parts": [], "created_at": "2026-01-01T00:00:01Z", "sequence_number": 2 },
+            { "message_id": "m3", "role": "agent", "parts": [], "created_at": "2026-01-01T00:00:02Z", "sequence_number": 3 }
+          ],
+          "has_more": false,
+          "sync_cursor": null
+        }
+        """.utf8))
+
+        #expect(sync.state.status == .active)
+        #expect(sync.messages.map(\.messageId) == ["m1", "m3"])
+    }
+
     @Test("ChatConfig defaults livechat when the block is absent")
     func configAbsentLivechatDefaults() throws {
         let config = try self.decodeConfig(extra: "")
@@ -60,6 +80,19 @@ struct LivechatModelsTests {
         let settings = try decoder.decode(LivechatConfig.self, from: json)
         #expect(settings.attachmentsEnabled == false)
         #expect(settings.maxAttachmentSizeBytes == 5_242_880)
+    }
+
+    @Test("a session the inactivity sweep closed reads as closed for inactivity")
+    func inactivityClose() throws {
+        let swept = try self.decodeClosedState(closedBy: "agent", agentId: nil, reason: "inactivity")
+        let byAgent = try self.decodeClosedState(closedBy: "agent", agentId: "agent_7", reason: "inactivity")
+        let byVisitor = try self.decodeClosedState(closedBy: "customer", agentId: nil, reason: "Chat reset")
+
+        #expect(swept.closeReason == "inactivity")
+        #expect(swept.isClosedForInactivity)
+        #expect(byAgent.closedByAgentId == "agent_7")
+        #expect(!byAgent.isClosedForInactivity)
+        #expect(!byVisitor.isClosedForInactivity)
     }
 
     @Test("request_human_agent marker decodes")
@@ -137,6 +170,21 @@ struct LivechatModelsTests {
     }
 
     // MARK: - Fixtures
+
+    /// Decodes a closed `/livechat/state` body with the given closing side, agent and reason.
+    private func decodeClosedState(closedBy: String, agentId: String?, reason: String) throws -> LivechatState {
+        let agent = agentId.map { "\"\($0)\"" } ?? "null"
+        return try self.decoder.decode(LivechatState.self, from: Data("""
+        {
+          "status": "closed",
+          "is_agent_typing": false,
+          "closed_by": "\(closedBy)",
+          "closed_by_agent_id": \(agent),
+          "close_reason": "\(reason)",
+          "feedback": { "status": "not_available" }
+        }
+        """.utf8))
+    }
 
     /// Decodes a minimal `/config` body, with `extra` appended after `theme`.
     private func decodeConfig(extra: String) throws -> ChatConfig {

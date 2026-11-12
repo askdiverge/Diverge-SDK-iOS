@@ -171,6 +171,27 @@ extension ChatViewModelLivechatTests {
         try await eventually { provider.livechatOrder.suffix(2) == ["message:bye", "note:ended"] }
     }
 
+    @Test("a session the inactivity sweep closed ends with the inactivity note")
+    func inactivityCloseNote() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        try await self.start(viewModel, in: .active, on: service)
+        service.livechatState = LivechatState(
+            status: .closed,
+            activeAgent: nil,
+            isAgentTyping: false,
+            agentJoinedAt: nil,
+            closedBy: .agent,
+            closedByAgentId: nil,
+            closeReason: "inactivity",
+            feedback: LivechatState.Feedback(status: .notAvailable),
+            stateVersion: nil
+        )
+
+        await viewModel.livechat.refresh()
+
+        try await eventually { provider.livechatOrder.last == "note:endedForInactivity" }
+    }
+
     @Test("the talk-to-a-person card hands over once, and not again during the session")
     func promptCardHandsOverOnce() async throws {
         let (viewModel, service, provider) = self.makeSUT()
@@ -187,6 +208,36 @@ extension ChatViewModelLivechatTests {
         #expect(!viewModel.canAcceptHumanAgentPrompt(inBotTurn: turnID))
     }
 
+    @Test("no thanks removes the talk-to-a-person card without a handover")
+    func declinedPromptCardLeaves() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        _ = try await self.showPrompt(on: provider, in: viewModel)
+
+        viewModel.declineHumanAgentPrompt(partId: "part_human_1")
+
+        #expect(viewModel.declinedHumanAgentPrompts == ["part_human_1"])
+        #expect(service.livechatHandoverCallCount == 0)
+    }
+
+    @Test("a talk-to-a-person card restored from history can't hand over")
+    func restoredPromptCardIsInert() async throws {
+        let (viewModel, service, provider) = self.makeSUT()
+        let card = Identified<[ChatResponse]>(model: [.requestHumanAgent(.init(partId: "part_human_1"))])
+        provider.publish(ConversationSnapshot(
+            user: [],
+            incoming: [card],
+            isUserInitiatedConversation: false,
+            streamingTurnID: nil,
+            liveTurnIDs: [],
+            canLoadOlder: false
+        ))
+        try await eventually { viewModel.snapshot?.lastBotTurnID == card.id }
+
+        await viewModel.acceptHumanAgentPrompt(partId: "part_human_1", inBotTurn: card.id)
+
+        #expect(service.livechatHandoverCallCount == 0)
+    }
+
     @Test("a card in an older bot turn can't hand over")
     func olderPromptCardIsInert() async throws {
         let (viewModel, service, provider) = self.makeSUT()
@@ -196,6 +247,7 @@ extension ChatViewModelLivechatTests {
             incoming: [card, Identified(model: [.text(AttributedString("later"))])],
             isUserInitiatedConversation: false,
             streamingTurnID: nil,
+            liveTurnIDs: [],
             canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }
@@ -214,6 +266,7 @@ extension ChatViewModelLivechatTests {
             incoming: [card],
             isUserInitiatedConversation: true,
             streamingTurnID: card.id,
+            liveTurnIDs: [card.id],
             canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }

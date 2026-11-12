@@ -341,6 +341,25 @@ struct ChatViewModelWaitingFormTests {
         model.setValue("a@b.com", for: "email")
         #expect(model.firstFieldWithError == "order_number")
     }
+
+    @Test("each save that finds an error asks the card to scroll to it, also when it is the same field again")
+    func everyFailedSaveRevealsTheError() throws {
+        let model = WaitingFormModel(definition: try Self.definition(#"""
+        [
+          { "key": "name", "label": "Name", "type": "text" },
+          { "key": "email", "label": "Email", "type": "email", "required": true }
+        ]
+        """#))
+        model.setValue("Ada", for: "name")
+        #expect(model.validate() == false)
+        #expect(model.fieldErrorReveals == 1)
+
+        model.setValue("Ada Lovelace", for: "name")
+        #expect(model.validate() == false)
+
+        #expect(model.firstFieldWithError == "email")
+        #expect(model.fieldErrorReveals == 2)
+    }
 }
 
 private extension ChatViewModelWaitingFormTests {

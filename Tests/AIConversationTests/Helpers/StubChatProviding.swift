@@ -25,6 +25,7 @@ final class StubChatProviding: ChatProviding {
     private(set) var resetCount = 0
     private(set) var expireCount = 0
     var resetError: Error?
+    var deleteError: Error?
     var loadOlderError: Error?
     /// Runs while an agent send is in flight, before it returns.
     var whileSendingLivechat: (@MainActor () async -> Void)?
@@ -66,7 +67,9 @@ final class StubChatProviding: ChatProviding {
         if let resetError { throw resetError }
     }
 
-    func delete() async throws {}
+    func delete() async throws {
+        if let deleteError { throw deleteError }
+    }
 
     func appendLivechat(_ messages: [LivechatMessage]) async {
         self.appendedLivechat += messages
@@ -107,6 +110,7 @@ extension ChatView.ViewModel {
         onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
         conversationRatingMode: AIChat.Rating = .enabled,
         ratingSession: RatingSession = RatingSession(),
+        liveCards: LiveCards = LiveCards(),
         encodeAttachment: AttachmentEncoder? = nil,
         submitAction: ActionSubmitter? = nil,
         fetchForm: FormFetcher? = nil,
@@ -142,6 +146,7 @@ extension ChatView.ViewModel {
             onLivechatSessionChange: onLivechatSessionChange,
             conversationRatingMode: conversationRatingMode,
             ratingSession: ratingSession,
+            liveCards: liveCards,
             dependencies: dependencies
         )
         viewModel.attachProviderForTesting(provider)

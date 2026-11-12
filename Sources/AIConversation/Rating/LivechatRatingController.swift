@@ -29,6 +29,9 @@ final class LivechatRatingController {
     @ObservationIgnored private var isDone = false
     /// The latest session is closed with feedback still to give.
     @ObservationIgnored private(set) var hasPendingFeedback = false
+    /// The latest session is closed with a rating of its own that the visitor gave, or that this
+    /// screen asks for because it saw the close. It replaces the conversation rating on close.
+    @ObservationIgnored private(set) var closedSessionHasRating = false
     /// The chat is visible and the app active.
     @ObservationIgnored private var isOnScreen = true
     /// Bumped when a new session replaces the closed one, so a rating sent for the old one can't
@@ -57,6 +60,7 @@ final class LivechatRatingController {
         guard state.status == .closed else {
             self.sawClose = false
             self.isDone = false
+            self.closedSessionHasRating = false
             self.epoch += 1
             self.dropModel()
             return
@@ -64,6 +68,8 @@ final class LivechatRatingController {
         if previous.isInSession, !isRestored {
             self.sawClose = true
         }
+        self.closedSessionHasRating = state.feedback.status == .submitted
+            || (self.hasPendingFeedback && self.sawClose)
         if self.hasPendingFeedback {
             self.offerIfReady()
         } else if self.model?.isSubmitting == false {
