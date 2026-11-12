@@ -1,6 +1,6 @@
 //
 //  ConversationSnapshot.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-16.
 //
@@ -10,7 +10,7 @@ import Foundation
 /// The published conversation: the two panes the view model zips for layout.
 package struct ConversationSnapshot: Sendable, Equatable {
 
-    package let user: [Identified<[AttributedString]>]
+    package let user: [Identified<[UserContent]>]
     package let incoming: [Identified<[ChatResponse]>]
 
     /// Sets the leading side when the two panes are interleaved for display.
@@ -18,6 +18,13 @@ package struct ConversationSnapshot: Sendable, Equatable {
 
     /// The turn whose reply is currently streaming, else `nil`
     package let streamingTurnID: UUID?
+
+    /// The bot turns whose replies this provider streamed, as opposed to ones history restored. A
+    /// snapshot carries all of them, so a skipped snapshot loses none.
+    package let liveTurnIDs: Set<UUID>
+
+    /// Whether older turns may remain to load: pages are left, or the first page hasn't loaded.
+    package let canLoadOlder: Bool
 }
 
 extension ConversationSnapshot {
@@ -26,7 +33,7 @@ extension ConversationSnapshot {
     /// ``ConversationView``'s content builder.
     package enum Turn: Sendable, Equatable {
         case bot([ChatResponse])
-        case user([AttributedString])
+        case user([UserContent])
     }
 
     /// Interleaves the two panes into render order — the leading side per round is set by
@@ -53,5 +60,20 @@ extension ConversationSnapshot {
         }
 
         return turns
+    }
+
+    /// The newest bot turn's id — forms in that turn stay fillable; older `part_id`s are read-only.
+    /// A turn of SDK livechat notes only is skipped, since the server sees only real replies.
+    package var lastBotTurnID: UUID? {
+        for turn in self.turns.reversed() {
+            if case .bot(let responses) = turn.model, !Self.isNotesOnly(responses) {
+                return turn.id
+            }
+        }
+        return nil
+    }
+
+    private static func isNotesOnly(_ responses: [ChatResponse]) -> Bool {
+        !responses.isEmpty && responses.allSatisfy { if case .livechatNote = $0 { true } else { false } }
     }
 }

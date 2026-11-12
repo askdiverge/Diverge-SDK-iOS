@@ -17,17 +17,17 @@ The OS deployment floor and the Swift toolchain requirement are independent. Rel
 ## Installation
 
 In Xcode: **File → Add Package Dependencies…** → paste  
-`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **1.0.0** (Up to Next Major).
+`https://github.com/askdiverge/Diverge-SDK-iOS.git` → version **1.1.0** (Up to Next Major).
 
 Or in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "1.0.0")
+    .package(url: "https://github.com/askdiverge/Diverge-SDK-iOS.git", from: "1.1.0")
 ]
 ```
 
-Add the **`AIConversation`** product. Prefer SemVer pins / the `v1.0.0` GitHub Release — do not track `main`.
+Add the **`AIConversation`** product. Prefer SemVer pins / the `v1.1.0` GitHub Release — do not track `main`.
 
 ## Usage
 
@@ -52,8 +52,10 @@ chat.makeView()
 present(chat.makeViewController(), animated: true)
 ```
 
-You don't have to store the `AIChat` instance unless you explicitly want the session to outlive the
-presentation lifecycle.
+Keep the `AIChat` for as long as its chat is on screen: create it when you present the chat, not
+inside a view's `body`, where every re-render would start the chat again. You don't have to keep it
+after the presentation ends unless you want the session to outlive it. Every `AIChat()` made after
+`AIChat.configure(_:)` is the same app-wide chat.
 
 ## Configuration
 
@@ -68,12 +70,57 @@ product being viewed, the category being browsed, the order being queried.
 contextProvider: { await currentScreen.assistantContext }  // "PDP · Rieker Men's shoes 13510-00 black"
 ```
 
-**`onOpenLink`** — links inside a reply. Left `nil`, the SDK falls back to the system action: the URL
-opens in the browser and the user leaves your app. Set it to keep them in-app and route the URL
-through your own deep-link handling.
+**`onOpenLink`** — links inside a reply, and agent file attachments. Left `nil`, the SDK falls back to
+the system action: the URL opens in the browser and the user leaves your app. Set it to keep them
+in-app and route the URL through your own deep-link handling. Attachment links carry a short-lived
+download token; opening them in-app (Quick Look, `SFSafariViewController`) keeps the token out of the
+browser's history and the file out of Downloads.
 
 ```swift
 onOpenLink: { url in deepLinkRouter.handle(url) }
+```
+
+**`onLivechatSessionChange`** — the visitor's livechat session, while the chat is on screen: queued,
+talking to an agent (with the agent's name), or ended. Use it to show the agent in your own UI, or to
+offer the visitor a way back to a chat they closed mid-session. After the chat is dismissed, the last
+value describes the session as it was then.
+
+```swift
+onLivechatSessionChange: { session in
+    chatBadge.isVisible = session.status == .waiting || session.status == .active
+}
+```
+
+**`onClose`** — shows an SDK close control. After an optional conversation rating (`POST /rate`), the
+host receives the close so it can dismiss the chat. Omit it when the host owns dismissal alone
+(no close button).
+
+```swift
+onClose: { dismissChat() }
+```
+
+**`rating`** — whether close asks for a conversation rating first. Defaults to `.enabled`. Pass
+`.disabled` to call `onClose` immediately. Livechat CSAT is separate and still offered when the
+server marks feedback pending after a session ends on screen. After a livechat session that closed
+with its own rating, still to give or given, close calls `onClose` without asking again. Whether the
+visitor has rated is remembered in memory by the `AIChat` instance, or across instances minted from
+`AIChat.configure`.
+A host that builds a new `AIChat(…)` for each presentation asks again on each close, so keep the
+instance, or use the shared configuration, when you use `onClose` with a rating.
+
+```swift
+rating: .disabled
+```
+
+**`attachments`** — photo sources offered in the composer and on `request_image_upload` prompts.
+Defaults to `.photoLibrary` (SwiftUI `PhotosPicker`, no photo-library permission prompt and no
+`NSPhotoLibraryUsageDescription` needed in the host's Info.plist). Pass
+`.disabled` when the chatbot flow does not handle images — the attach control is hidden and upload
+prompts are dropped. Because attach is on by default, the SDK's privacy manifest declares Photos or
+videos; add it to your App Store privacy label, or pass `.disabled`.
+
+```swift
+attachments: .disabled
 ```
 
 **`conversationFlow`** — how arriving turns are laid out.

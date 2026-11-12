@@ -41,7 +41,7 @@ package final class NetworkManager: NetworkService, Sendable {
         try await self.mappingErrors {
             let request = URLRequest(url: url, method: .get, headers: nil)
             let (data, response) = try await self.session.data(for: request)
-            try response.mapError()
+            try response.mapError(body: data)
             return data
         }
     }
@@ -58,6 +58,34 @@ package final class NetworkManager: NetworkService, Sendable {
             headers: headers
         )
 
+        return try await self.send(request)
+    }
+
+    package func post(
+        url: URL,
+        payload: some Encodable & Sendable,
+        headers: [String: String]?
+    ) async throws(NetworkError) {
+        let request = try self.makeRequest(
+            url: url,
+            method: .post,
+            payload: payload,
+            headers: headers
+        )
+        try await self.sendVoid(request)
+    }
+
+    package func patch<Response: Decodable & Sendable>(
+        url: URL,
+        payload: some Encodable & Sendable,
+        headers: [String: String]?
+    ) async throws(NetworkError) -> Response {
+        let request = try self.makeRequest(
+            url: url,
+            method: .patch,
+            payload: payload,
+            headers: headers
+        )
         return try await self.send(request)
     }
 
@@ -116,15 +144,15 @@ private extension NetworkManager {
     ) async throws(NetworkError) -> Response {
         try await self.mappingErrors {
             let (data, response) = try await self.session.data(for: request)
-            try response.mapError()
+            try response.mapError(body: data)
             return try self.decoder.decode(Response.self, from: data)
         }
     }
 
     func sendVoid(_ request: URLRequest) async throws(NetworkError) {
         try await self.mappingErrors {
-            let (_, response) = try await self.session.data(for: request)
-            try response.mapError()
+            let (data, response) = try await self.session.data(for: request)
+            try response.mapError(body: data)
         }
     }
 
@@ -159,7 +187,12 @@ private extension NetworkManager {
             )
 
             let (bytes, response) = try await self.session.bytes(for: request)
-            try response.mapError()
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                // A 401 ends the session whatever its body says. Any other rejection's body is the
+                // API's error envelope, not an event stream.
+                if http.statusCode == 401 { throw NetworkError.http(.unauthorized) }
+                try response.mapError(body: try await bytes.reduce(into: Data()) { $0.append($1) })
+            }
 
             for try await frame in bytes.sseFrames {
                 yield(try self.decoder.decode(Event.self, from: frame.envelope))

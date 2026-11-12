@@ -11,7 +11,18 @@ import Foundation
 /// Keys are opaque identifiers — a missing catalog entry surfaces the key itself
 enum L10n {
 
+    static let historyLoadEarlier = string("history.loadEarlier")
+
     static let inputPlaceholder = string("input.placeholder")
+    static let inputAttachPhoto = string("input.attachPhoto")
+
+    static let attachmentRemove = string("attachment.remove")
+    static let attachmentTooLarge = string("attachment.tooLarge")
+    static let attachmentFailed = string("attachment.failed")
+
+    static let imageUploadPrompt = string("imageUpload.prompt")
+    static let imageUploadAddPhoto = string("imageUpload.addPhoto")
+    static let imageUploadHint = string("imageUpload.hint")
 
     static let sessionEndedTitle = string("session.ended.title")
     static let sessionEndedMessage = string("session.ended.message")
@@ -24,6 +35,36 @@ enum L10n {
     static let noticeBusy = string("notice.busy")
     static let noticeHistoryLoadFailed = string("notice.historyLoadFailed")
     static let noticeSendFailed = string("notice.sendFailed")
+    static let noticeLivechatEnded = string("notice.livechatEnded")
+
+    static let formContactTitle = string("form.contactTitle")
+    static let formTicketTitle = string("form.ticketTitle")
+    static let formSubmit = string("form.submit")
+    static let formSubmitting = string("form.submitting")
+    static let formRequired = string("form.required")
+    static let formInvalidEmail = string("form.invalidEmail")
+    static let formFieldRejected = string("form.fieldRejected")
+    static let formSubmitFailed = string("form.submitFailed")
+    static let formSubmittedDefault = string("form.submittedDefault")
+    static let formLoadFailed = string("form.loadFailed")
+    static let formAttachmentsDisabled = string("form.attachmentsDisabled")
+    static let formAddPhoto = string("form.addPhoto")
+    static let formRemovePhoto = string("form.removePhoto")
+    static let formReadOnly = string("form.readOnly")
+    static let formAccessibilityHint = string("form.accessibilityHint")
+    static let formSelectOption = string("form.selectOption")
+    static let formClearSelection = string("form.clearSelection")
+    static let formUnavailable = string("form.unavailable")
+    static let formAlreadySent = string("form.alreadySent")
+
+    /// Parameterised and pluralised in the catalog — "Fill in at least %lld field(s)".
+    static func formMinFilled(_ count: Int) -> LocalizedStringResource {
+        LocalizedStringResource(
+            "form.minFilled",
+            defaultValue: "Fill in at least \(count) fields",
+            bundle: .atURL(Bundle.module.bundleURL)
+        )
+    }
 
     static let privacyTitle = string("privacy.title")
     static let privacyPolicy = string("privacy.policy")
@@ -35,6 +76,76 @@ enum L10n {
     static let deleteValidation = string("delete.validation")
     static let deleteCancel = string("delete.cancel")
     static let deleteConfirm = string("delete.confirm")
+
+    static let livechatStart = string("livechat.start")
+    static let livechatEnd = string("livechat.end")
+    static let livechatLeaveTitle = string("livechat.leaveTitle")
+    static let livechatLeaveMessage = string("livechat.leaveMessage")
+    static let livechatLeaveConfirm = string("livechat.leaveConfirm")
+    static let livechatLeaveCancel = string("livechat.leaveCancel")
+    static let livechatEndTitle = string("livechat.endTitle")
+    static let livechatEndMessage = string("livechat.endMessage")
+    static let livechatEndCancel = string("livechat.endCancel")
+    static let livechatOffline = string("livechat.offline")
+    static let livechatWaitingPlaceholder = string("livechat.waitingPlaceholder")
+    static let livechatActivePlaceholder = string("livechat.activePlaceholder")
+    static let livechatClosedPlaceholder = string("livechat.closedPlaceholder")
+    static let livechatWaitingStatus = string("livechat.waitingStatus")
+    static let livechatActiveStatus = string("livechat.activeStatus")
+
+    static let livechatTalkToPerson = string("livechat.talkToPerson")
+    static let livechatNoThanks = string("livechat.noThanks")
+    static let livechatHumanAgentPrompt = string("livechat.humanAgentPrompt")
+    static let livechatHumanAgentHint = string("livechat.humanAgentHint")
+    static let livechatQueuedNote = string("livechat.queuedNote")
+    static let livechatEndedNote = string("livechat.endedNote")
+    static let livechatEndedInactivityNote = string("livechat.endedInactivityNote")
+    static let livechatAgentFallback = string("livechat.agentFallback")
+    static let livechatAgentTyping = string("livechat.agentTyping")
+    static let livechatAttachmentsDropped = string("livechat.attachmentsDropped")
+
+    static func livechatAgentJoinedNote(_ name: String) -> LocalizedStringResource {
+        LocalizedStringResource(
+            "livechat.agentJoinedNote",
+            defaultValue: "\(name) joined the chat",
+            bundle: .atURL(Bundle.module.bundleURL)
+        )
+    }
+
+    static func livechatAgentTypingNamed(_ name: String) -> LocalizedStringResource {
+        LocalizedStringResource(
+            "livechat.agentTypingNamed",
+            defaultValue: "\(name) is typing…",
+            bundle: .atURL(Bundle.module.bundleURL)
+        )
+    }
+
+    static let mediaOpenHint = string("media.openHint")
+    static let mediaUnavailable = string("media.unavailable")
+    static let mediaImageLabel = string("media.imageLabel")
+
+    static let sessionFormTitle = string("sessionForm.title")
+    static let sessionFormDescription = string("sessionForm.description")
+    static let sessionFormSave = string("sessionForm.save")
+    static let sessionFormSaving = string("sessionForm.saving")
+    static let sessionFormSaved = string("sessionForm.saved")
+    static let sessionFormFailed = string("sessionForm.failed")
+
+    static let chatClose = string("chat.close")
+
+    static let ratingTitle = string("rating.title")
+    static let ratingFeedbackPrompt = string("rating.feedbackPrompt")
+    static let ratingFeedbackPlaceholder = string("rating.feedbackPlaceholder")
+    static let ratingSend = string("rating.send")
+    static let ratingSkip = string("rating.skip")
+
+    static func ratingScore(_ score: Int) -> LocalizedStringResource {
+        LocalizedStringResource(
+            "rating.score",
+            defaultValue: "\(score) out of 5",
+            bundle: .atURL(Bundle.module.bundleURL)
+        )
+    }
 
     private static func string(_ key: String.LocalizationValue) -> LocalizedStringResource {
         LocalizedStringResource(key, bundle: .atURL(Bundle.module.bundleURL))

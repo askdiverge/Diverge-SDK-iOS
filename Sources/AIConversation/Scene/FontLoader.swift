@@ -32,6 +32,7 @@ enum FontLoader {
         guard let slot = Self.cacheSlot(sha256: sha256, format: format) else { return nil }
 
         if !FileManager.default.fileExists(atPath: slot.path) {
+            // A font that won't download or cache leaves the chat on the system font.
             guard let data = try? await fetch(url) else { return nil }
             Self.deleteAll(except: slot)
             guard (try? data.write(to: slot)) != nil else { return nil }
@@ -60,12 +61,14 @@ private extension FontLoader {
 
     /// The single cache slot, under Caches and named by the asset sha.
     static func cacheSlot(sha256: String, format: String) -> URL? {
+        // With no Caches directory there is no font, and the chat stays on the system font.
         guard let caches = try? FileManager.default.url(
             for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         ) else {
             return nil
         }
         let directory = caches.appendingPathComponent(Self.cacheDirectory, isDirectory: true)
+        // A directory that can't be made surfaces as the write to the slot failing.
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory.appendingPathComponent(sha256).appendingPathExtension(format)
     }
@@ -73,6 +76,7 @@ private extension FontLoader {
     /// Drops every cached font but `slot` — the single-slot guarantee.
     static func deleteAll(except slot: URL) {
         let directory = slot.deletingLastPathComponent()
+        // Tidying only: a stale font left behind costs disk space and nothing else.
         let contents = (try? FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: nil
         )) ?? []

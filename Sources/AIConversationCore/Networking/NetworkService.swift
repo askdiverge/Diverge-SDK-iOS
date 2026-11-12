@@ -1,6 +1,6 @@
 //
-//  Networking.swift
-//  AIConversation
+//  NetworkService.swift
+//  AIConversationCore
 //
 //  Created by Daniel Wennberg on 2026-05-22.
 //
@@ -23,6 +23,13 @@ package protocol NetworkService<Failure> {
         payload: some Encodable & Sendable,
         headers: [String: String]?
     ) async throws(Failure) -> Response
+
+    /// POST whose response body is not read.
+    func post(
+        url: URL,
+        payload: some Encodable & Sendable,
+        headers: [String: String]?
+    ) async throws(Failure)
 
     func delete(
         url: URL,

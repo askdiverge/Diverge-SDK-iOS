@@ -1,6 +1,6 @@
 //
 //  Paginator.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-11.
 //
@@ -20,6 +20,12 @@ struct Paginator {
     private var cursor: String?
     private(set) var isExhausted = false
     private var isLoading = false
+
+    /// Whether a loaded page pointed at an older one. A failed load changes nothing, so this stays
+    /// `false` until the first page arrives and returns to `false` with the last.
+    var hasOlderPages: Bool {
+        self.cursor != nil
+    }
 
     /// Cursor for the next page, locking the paginator until `commit`/`release`.
     /// `nil` is a valid cursor — it requests the first (newest) page.
@@ -41,6 +47,13 @@ struct Paginator {
 
     /// Records a failed load: unlocks without advancing, so the same cursor retries.
     mutating func release() {
+        self.isLoading = false
+    }
+
+    /// Ends pagination: the conversation it paged through is gone, and no history replaces it.
+    mutating func finish() {
+        self.cursor = nil
+        self.isExhausted = true
         self.isLoading = false
     }
 }

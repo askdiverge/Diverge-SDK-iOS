@@ -7,25 +7,52 @@
 
 import SwiftUI
 import AIConversationEngine
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
 
 /// The SDK's main screen — the chat UI returned by `AIChat.makeView()`.
 struct ChatView: View {
 
-    private let viewModel: ViewModel
+    /// Held as state so a host re-render, which builds a new `ChatView` and a new model, keeps the
+    /// model this view already bootstrapped. A new presentation starts a model of its own, and so
+    /// does a view minted by another `AIChat`, which `makeView()` gives an identity of its own.
+    @State private var viewModel: ViewModel
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @FocusState private var inputFocused: Bool
+    @FocusState private var focusedFormField: String?
 
     @State private var showSessionEndedAlert = false
+    /// The waiting-room card has more below its fold.
+    @State private var waitingFormContinues = false
+    /// The composer's height, which the conversation leaves room for below a focused form field.
+    @State private var composerHeight: CGFloat = 0
     @State private var privacyDestination: PrivacyDataDestination?
     @State private var isLoading = false
+    /// The leave question a reset asks while the visitor is queued or talking to an agent.
+    @State private var resetConfirmation: ViewModel.LivechatEndConfirmation?
+#if canImport(PhotosUI)
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var isPhotoPickerPresented = false
+    @State private var photoDestination: PhotoDestination = .composer
+#endif
+
+    /// Where a photo pick should land.
+    enum PhotoDestination: Equatable {
+        case composer
+        case formField(partID: String, key: String)
+        case ticketAttachment(partID: String)
+        case imageUpload(RequestImageUpload)
+    }
 
     private var appearance: ChatAppearance {
         self.viewModel.appearance ?? .default
     }
 
     init(viewModel: ViewModel) {
-        self.viewModel = viewModel
+        self._viewModel = State(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -34,6 +61,30 @@ struct ChatView: View {
             .task { await self.viewModel.start() }
             .environment(\.appearance, self.appearance)
             .environment(\.imageLoader, self.viewModel.imageLoader)
+#if canImport(PhotosUI)
+            .photosPicker(
+                isPresented: self.$isPhotoPickerPresented,
+                selection: self.$photoPickerItem,
+                matching: .images
+            )
+            .onChange(of: self.photoPickerItem) { _, item in
+                guard let item else { return }
+                self.photoPickerItem = nil
+                let destination = self.photoDestination
+                Task {
+                    await self.viewModel.preparingAttachment {
+                        await self.ingest(item, destination: destination)
+                    }
+                }
+            }
+#endif
+    }
+
+    private func pickPhoto(for destination: PhotoDestination) {
+#if canImport(PhotosUI)
+        self.photoDestination = destination
+        self.isPhotoPickerPresented = true
+#endif
     }
 }
 
@@ -44,15 +95,29 @@ private extension ChatView {
     @ViewBuilder
     var content: some View {
         switch self.viewModel.phase {
-        case .loading: self.loadingView
+        case .loading: self.closable(self.loadingView)
         case .ready: self.readyView
-        case .failed: self.failedView
+        case .failed: self.closable(self.failedView)
+        }
+    }
+
+    /// Gives a screen shown before the chat window the host's close control, because a full-screen
+    /// presentation has no other way out while `/config` is slow or after it fails.
+    @ViewBuilder
+    func closable(_ screen: some View) -> some View {
+        if self.viewModel.showsCloseButton {
+            NavigationStack {
+                screen.toolbar { self.closeToolbarItem }
+            }
+        } else {
+            screen
         }
     }
 
     var loadingView: some View {
         ProgressView()
             .tint(self.appearance.theme.accent)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     var readyView: some View {
@@ -65,6 +130,7 @@ private extension ChatView {
                             self.openURL(url)
                         }
                     },
+                    canDeleteData: self.viewModel.canDeleteData,
                     onDeleteData: { try await self.viewModel.delete() }
                 )
             )
@@ -73,6 +139,106 @@ private extension ChatView {
             } message: {
                 Text(L10n.sessionEndedMessage)
             }
+            .alert(
+                self.viewModel.livechatEndConfirmation.title,
+                isPresented: self.$viewModel.isConfirmingLivechatEnd
+            ) {
+                Button(self.viewModel.livechatEndConfirmation.confirm, role: .destructive) {
+                    Task { await self.viewModel.confirmEndLivechat() }
+                }
+                Button(self.viewModel.livechatEndConfirmation.cancel, role: .cancel) { } // NO-OP
+            } message: {
+                Text(self.viewModel.livechatEndConfirmation.message)
+            }
+            .alert(
+                self.resetConfirmation?.title ?? "",
+                isPresented: self.isConfirmingReset,
+                presenting: self.resetConfirmation
+            ) { confirmation in
+                Button(confirmation.confirm, role: .destructive) { self.performReset() }
+                Button(confirmation.cancel, role: .cancel) { } // NO-OP
+            } message: { confirmation in
+                Text(confirmation.message)
+            }
+            // `initial`: a 401 on the first history page sets the flag before this view exists.
+            .onChange(of: self.viewModel.backgroundSessionEnded, initial: true) { _, ended in
+                guard ended else { return }
+                self.viewModel.backgroundSessionEnded = false
+                self.showSessionEndedAlert = true
+            }
+            .sheet(isPresented: self.isLivechatRatingPresented) {
+                if let model = self.viewModel.rating.model {
+                    LivechatRatingView(
+                        model: model,
+                        onSubmit: { score, feedback in
+                            Task { await self.viewModel.rating.submit(score: score, feedback: feedback) }
+                        },
+                        onSkip: { self.viewModel.rating.dismiss() }
+                    )
+                    .environment(\.appearance, self.appearance)
+                }
+            }
+            .sheet(
+                isPresented: self.isConversationRatingPresented,
+                onDismiss: { self.viewModel.ratingDidDismiss() },
+                content: {
+                    if let model = self.viewModel.conversationRating.model {
+                        LivechatRatingView(
+                            model: model,
+                            onSubmit: { score, feedback in
+                                Task { await self.viewModel.submitRating(score: score, feedback: feedback) }
+                            },
+                            onSkip: { self.viewModel.skipRating() }
+                        )
+                        .environment(\.appearance, self.appearance)
+                    }
+                }
+            )
+            .onChange(of: self.viewModel.livechatSessionEnded, initial: true) { _, ended in
+                guard ended else { return }
+                self.viewModel.livechatSessionEnded = false
+                self.showSessionEndedAlert = true
+            }
+            .onChange(of: self.scenePhase) { _, phase in
+                Task { await self.viewModel.setSceneActive(phase == .active) }
+            }
+            .onAppear { Task { await self.viewModel.setVisible(true) } }
+            .onDisappear { Task { await self.viewModel.setVisible(false) } }
+    }
+
+    /// Livechat CSAT is up while its controller holds a draft; swiping it away skips.
+    var isLivechatRatingPresented: Binding<Bool> {
+        Binding(
+            get: { self.viewModel.rating.model != nil },
+            set: { isPresented in
+                if !isPresented, self.viewModel.rating.model != nil {
+                    self.viewModel.rating.dismiss()
+                }
+            }
+        )
+    }
+
+    /// The reset's leave question is up while it holds its copy.
+    var isConfirmingReset: Binding<Bool> {
+        Binding(
+            get: { self.resetConfirmation != nil },
+            set: { isPresented in
+                if !isPresented { self.resetConfirmation = nil }
+            }
+        )
+    }
+
+    /// The conversation rating is up while its controller holds a draft; swiping it away skips.
+    /// The host hears the close from the sheet's `onDismiss`, once the prompt has gone.
+    var isConversationRatingPresented: Binding<Bool> {
+        Binding(
+            get: { self.viewModel.conversationRating.model != nil },
+            set: { isPresented in
+                if !isPresented, self.viewModel.conversationRating.model != nil {
+                    self.viewModel.skipRating()
+                }
+            }
+        )
     }
 
     var failedView: some View {
@@ -93,12 +259,23 @@ private extension ChatView {
             Group {
                 if let snapshot = self.viewModel.snapshot {
                     self.chat(from: snapshot)
+                } else {
+                    Color.clear
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(self.viewModel.name)
             .toolbarTitleDisplayMode(.inline)
-            .toolbar { self.resetToolbarItem }
-            .safeAreaInset(edge: .bottom) { self.inputBar }
+            .toolbar {
+                self.closeToolbarItem
+                self.livechatToolbarItem
+                self.resetToolbarItem
+            }
+            .environment(\.composerHeight, self.composerHeight)
+            .safeAreaInset(edge: .bottom) {
+                self.inputBar
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { self.composerHeight = $0 }
+            }
         }
         .safeAreaInset(edge: .top) { self.topNotice }
         .background(self.appearance.theme.background)
@@ -110,6 +287,22 @@ private extension ChatView {
         }
     }
 
+    @ToolbarContentBuilder
+    var closeToolbarItem: some ToolbarContent {
+        if self.viewModel.showsCloseButton {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    self.inputFocused = false
+                    self.viewModel.close()
+                } label: {
+                    ChatAppearance.Symbol.close
+                }
+                .accessibilityLabel(L10n.chatClose.string)
+                .accessibilityIdentifier("chat.close")
+            }
+        }
+    }
+
     var resetToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
@@ -117,11 +310,34 @@ private extension ChatView {
             } label: {
                 ChatAppearance.Symbol.reset
             }
-            .disabled(self.viewModel.snapshot?.streamingTurnID != nil)
+            .disabled(
+                self.viewModel.snapshot?.streamingTurnID != nil
+                    || self.viewModel.isLivechatBusy
+                    || self.viewModel.isLoadingHistory
+            )
         }
     }
 
+    @ToolbarContentBuilder
+    var livechatToolbarItem: some ToolbarContent {
+        if self.viewModel.livechatControl != .hidden {
+            ToolbarItem(placement: .primaryAction) {
+                LivechatControlButton(viewModel: self.viewModel)
+            }
+        }
+    }
+
+    /// A reset ends a chat with an agent, or the place in the queue, so it asks first, as the
+    /// livechat control does.
     func reset() {
+        guard !self.viewModel.livechatStatus.isInSession else {
+            self.resetConfirmation = self.viewModel.livechatEndConfirmation
+            return
+        }
+        self.performReset()
+    }
+
+    func performReset() {
         Task {
             self.isLoading = true
             await self.viewModel.reset()
@@ -130,15 +346,68 @@ private extension ChatView {
     }
 
     var inputBar: some View {
-        self.chatInput
-            .background(alignment: .top) {
-                // A permanent wrapper ensures the alignment guide is never dropped
-                VStack {
-                    self.bottomNotice
+        VStack(spacing: 0) {
+            if let model = self.viewModel.waitingForm.model {
+                self.waitingFormCard(model)
+                LivechatWaitingFormSaveChrome(model: model) {
+                    Task { await self.viewModel.waitingForm.save() }
                 }
-                // Align the bottom of VStack to the top of the chatInput
-                .alignmentGuide(.top) { $0[.bottom] }
             }
+            // The row keeps its place for the whole agent chat, so typing starting and stopping
+            // doesn't move the conversation under it.
+            if self.viewModel.livechatStatus == .active {
+                AgentTypingIndicator(agentName: self.viewModel.livechatAgentName, isTyping: self.viewModel.isAgentTyping)
+                    .frame(maxWidth: .infinity)
+                    .background(self.appearance.theme.background)
+            }
+            self.chatInput
+        }
+        .background(alignment: .top) {
+            // A permanent wrapper ensures the alignment guide is never dropped
+            VStack {
+                self.bottomNotice
+            }
+            // Align the bottom of VStack to the top of the input bar, above the typing row
+            .alignmentGuide(.top) { $0[.bottom] }
+        }
+    }
+
+    /// The waiting-room card above the composer. One scroll view hugs the card up to a capped
+    /// height and scrolls past it, so the save row and the composer stay on screen and the
+    /// fields keep their identity, and their focus, as the card grows. A fade along the bottom
+    /// says there is more to scroll to, and a field with an error scrolls into view.
+    func waitingFormCard(_ model: WaitingFormModel) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LivechatWaitingFormView(model: model, focus: self.$focusedFormField)
+            }
+            .background(self.appearance.theme.background)
+            .scrollBounceBehavior(.basedOnSize)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height - geometry.visibleRect.maxY > 1
+            } action: { _, continues in
+                self.waitingFormContinues = continues
+            }
+            .onChange(of: model.fieldErrorReveals) {
+                guard let key = model.firstFieldWithError else { return }
+                withAnimation { proxy.scrollTo(key, anchor: .center) }
+            }
+        }
+        .frame(maxHeight: self.appearance.spacing.units(48))
+        .fixedSize(horizontal: false, vertical: true)
+        .overlay(alignment: .bottom) {
+            if self.waitingFormContinues {
+                LinearGradient(
+                    colors: [self.appearance.theme.botSurface.opacity(0), self.appearance.theme.botSurface],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: self.appearance.spacing.units(8))
+                .padding(.horizontal, self.appearance.spacing.units(4))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
     }
 
     @ViewBuilder
@@ -191,6 +460,7 @@ private extension ChatView {
         ConversationView(
             snapshot: snapshot,
             isInputFocused: self.inputFocused,
+            isEditingForm: self.focusedFormField != nil,
             onLoadOlder: self.loadOlder,
             content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
             header: { self.chatHeader }
@@ -202,6 +472,7 @@ private extension ChatView {
             ConversationTopFlowingList(
                 snapshot: snapshot,
                 isInputFocused: self.inputFocused,
+                isEditingForm: self.focusedFormField != nil,
                 onLoadOlder: self.loadOlder,
                 content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
                 header: { self.chatHeader }
@@ -212,6 +483,7 @@ private extension ChatView {
             ConversationBottomFlowingList(
                 snapshot: snapshot,
                 isInputFocused: self.inputFocused,
+                isEditingForm: self.focusedFormField != nil,
                 onLoadOlder: self.loadOlder,
                 content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
                 header: { self.chatHeader }
@@ -225,7 +497,7 @@ private extension ChatView {
     func turnView(for turn: Identified<ConversationSnapshot.Turn>, streamingTurnID: UUID?) -> some View {
         switch turn.model {
         case .bot(let responses):
-            self.botTurn(responses, isStreaming: turn.id == streamingTurnID)
+            self.botTurn(responses, turnID: turn.id, isStreaming: turn.id == streamingTurnID)
 
         case .user(let bubbles):
             self.userTurn(bubbles)
@@ -248,12 +520,14 @@ private extension ChatView {
         }
     }
 
-    /// Requests the next older page; a failure means the session is gone, so surface the ended alert.
-    func loadOlder() async {
+    /// Requests the next older page, returning whether it loaded; a thrown failure means the
+    /// session is gone, so surface the ended alert.
+    func loadOlder() async -> Bool {
         do {
-            try await self.viewModel.loadOlder()
+            return try await self.viewModel.loadOlder()
         } catch {
             self.showSessionEndedAlert = true
+            return false
         }
     }
 }
@@ -262,11 +536,12 @@ private extension ChatView {
 
 private extension ChatView {
 
-    func botTurn(_ responses: [ChatResponse], isStreaming: Bool) -> some View {
+    func botTurn(_ responses: [ChatResponse], turnID: UUID, isStreaming: Bool) -> some View {
         VStack(alignment: .leading, spacing: self.appearance.spacing.units(2)) {
             ForEach(Array(responses.enumerated()), id: \.offset) { index, response in
                 self.botResponse(
                     response,
+                    turnID: turnID,
                     // Only the last bubble is the one being generated, animate border/typewrite just that.
                     isStreaming: isStreaming && index == responses.count - 1,
                     isFirstResponse: index == 0,
@@ -279,6 +554,7 @@ private extension ChatView {
     @ViewBuilder
     func botResponse(
         _ response: ChatResponse,
+        turnID: UUID,
         isStreaming: Bool,
         isFirstResponse: Bool,
         isLastResponse: Bool
@@ -294,15 +570,93 @@ private extension ChatView {
                 .modifier(RelativeWidth(0.70, alignment: .leading))
                 .modifier(AvatarImage(image: self.viewModel.avatar, edge: .leading))
 
+        case .agentText(let text, let agent):
+            self.textResponse(text, isStreaming: isStreaming)
+                .modifier(RelativeWidth(0.70, alignment: .leading))
+                .modifier(AgentAvatarImage(agent: agent))
+
         case .products(let cards):
             ProductGridView(cards: cards)
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
                 .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
 
+        case .form(let form):
+            if let model = self.viewModel.formModels[form.partId] {
+                ConversationFormView(
+                    model: model,
+                    isEditable: self.viewModel.isFormEditable(inBotTurn: turnID),
+                    offersAttachments: self.viewModel.offersAttachments,
+                    // The whole turn, not just this bubble: the backend saves the form when the
+                    // reply's stream ends, so a submit before then is rejected.
+                    isBusy: self.viewModel.snapshot?.streamingTurnID == turnID || self.viewModel.isEncodingAttachment,
+                    focus: self.$focusedFormField,
+                    onChange: { key, value in
+                        self.viewModel.setFormValue(value, for: key, inForm: form.partId)
+                    },
+                    onSubmit: {
+                        self.inputFocused = false
+                        self.focusedFormField = nil
+                        Task {
+                            do {
+                                try await self.viewModel.submitForm(partId: form.partId)
+                            } catch {
+                                self.showSessionEndedAlert = true
+                            }
+                        }
+                    },
+                    onReload: { self.viewModel.reloadFormDefinition(partId: form.partId) },
+                    onPickFile: { key in
+                        self.pickPhoto(for: .formField(partID: form.partId, key: key))
+                    },
+                    onRemoveFile: { key in
+                        self.viewModel.setFormFile(nil, for: key, inForm: form.partId)
+                    },
+                    onPickTicketAttachment: {
+                        self.pickPhoto(for: .ticketAttachment(partID: form.partId))
+                    },
+                    onRemoveTicketAttachment: {
+                        self.viewModel.setTicketAttachment(nil, inForm: form.partId)
+                    }
+                )
+                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+            }
+
         case .table(let content):
             TableView(content: content)
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
                 .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+
+        case .image(let image):
+            MessageImageView(image: image, resolveURL: { await self.viewModel.url(toOpen: $0) })
+                .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+                .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+
+        case .file(let file):
+            MessageFileView(file: file, resolveURL: { await self.viewModel.url(toOpen: $0) })
+                .modifier(RelativeWidth(0.70, alignment: .leading))
+
+        case .requestImageUpload(let marker):
+            ImageUploadPromptView {
+                self.pickPhoto(for: .imageUpload(marker))
+            }
+            .disabled(!self.viewModel.canAttachConsideringLivechat)
+            .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+            .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+
+        case .requestHumanAgent(let marker):
+            if !self.viewModel.declinedHumanAgentPrompts.contains(marker.partId) {
+                HumanAgentPromptView(viewModel: self.viewModel, partId: marker.partId, turnID: turnID)
+                    .modifier(RelativeWidth(0.70, alignment: .leading))
+                    .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
+                    .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
+            }
+
+        case .livechatNote(let note):
+            LivechatNoteRow(note: note)
+
+        case .systemNote(let text):
+            NoteRow(text: text, identifier: "conversation.systemNote")
         }
     }
 
@@ -318,11 +672,20 @@ private extension ChatView {
             .modifier(ThinkingBorderEffect(isActive: isStreaming, shape: Rectangle()))
     }
 
-    func userTurn(_ bubbles: [AttributedString]) -> some View {
+    func userTurn(_ bubbles: [UserContent]) -> some View {
         VStack(alignment: .trailing, spacing: self.appearance.spacing.units(2)) {
-            ForEach(Array(bubbles.enumerated()), id: \.offset) { _, text in
-                UserBubble(text: text)
-                    .modifier(RelativeWidth(0.70, alignment: .trailing))
+            ForEach(Array(bubbles.enumerated()), id: \.offset) { _, content in
+                switch content {
+                case .text(let text):
+                    UserBubble(text: text)
+                        .modifier(RelativeWidth(0.70, alignment: .trailing))
+                case .attachment(let attachment):
+                    AttachmentEchoView(attachment: attachment)
+                        .modifier(RelativeWidth(0.70, alignment: .trailing))
+                case .image(let image):
+                    MessageImageView(image: image, resolveURL: { await self.viewModel.url(toOpen: $0) })
+                        .modifier(RelativeWidth(0.70, alignment: .trailing))
+                }
             }
         }
     }
@@ -336,11 +699,19 @@ private extension ChatView {
         ChatInput(
             currentMessage: .init(
                 get: { self.viewModel.currentMessage },
-                set: { self.viewModel.currentMessage = $0 }
+                set: { self.viewModel.editDraft($0) }
             ),
-            placeholder: L10n.inputPlaceholder.string,
+            pendingAttachments: .init(
+                get: { self.viewModel.pendingAttachments },
+                set: { self.viewModel.pendingAttachments = $0 }
+            ),
+            placeholder: self.viewModel.inputPlaceholder,
             leadingIcon: ChatAppearance.Symbol.privacy,
+            showsAttachButton: self.viewModel.offersAttachments,
+            canAttach: self.viewModel.canAttachConsideringLivechat,
+            isEncodingAttachment: self.viewModel.isEncodingAttachment,
             onLeadingTap: { self.privacyDestination = .privacy },
+            onAttach: { self.pickPhoto(for: .composer) },
             onSend: self.send,
             inputFocus: self.$inputFocused
         )
@@ -365,4 +736,40 @@ private extension ChatView {
             }
         }
     }
+
+#if canImport(PhotosUI)
+    /// Loads the picked photo bytes and routes them to the composer, a prompt, or a form field.
+    func ingest(_ item: PhotosPickerItem, destination: PhotoDestination) async {
+        // The visitor hears the same failure as for a photo that won't encode.
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            self.viewModel.presentAttachmentFailure()
+            return
+        }
+        switch destination {
+        case .composer:
+            await self.viewModel.ingestPickedPhoto(data)
+
+        case .imageUpload(let marker):
+            await self.viewModel.ingestPromptPhoto(data, marker: marker)
+
+        case .formField(let partID, let key):
+            guard let file = await self.viewModel.ingestFormPhoto(
+                data,
+                maxBytes: OutgoingAttachment.maxActionDecodedBytes,
+                filename: "\(key).jpg"
+            ) else { return }
+            self.viewModel.setFormFile(file, for: key, inForm: partID)
+
+        case .ticketAttachment(let partID):
+            let maxBytes = self.viewModel.formModels[partID]?.form.maxAttachmentSizeBytes
+                ?? OutgoingAttachment.maxActionDecodedBytes
+            guard let file = await self.viewModel.ingestFormPhoto(
+                data,
+                maxBytes: maxBytes,
+                filename: "attachment.jpg"
+            ) else { return }
+            self.viewModel.setTicketAttachment(file, inForm: partID)
+        }
+    }
+#endif
 }

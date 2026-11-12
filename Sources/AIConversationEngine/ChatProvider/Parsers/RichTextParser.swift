@@ -1,6 +1,6 @@
 //
 //  RichTextParser.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-11.
 //
@@ -13,9 +13,10 @@ import Foundation
 /// semantic (`inlinePresentationIntent`), so the VM/theme decides the concrete font
 /// Bullet lists render as markdown-style lines, each prefixed
 /// with a `•`:in flowing-text mode the bullet is content, not a themed ornament, and
-enum RichTextParser {
+package enum RichTextParser {
 
-    static let bulletMarker = AttributedString("   •  ")
+    /// Opens each bullet line. The view lays these lines out with a hanging indent.
+    package static let bulletMarker = "   •  "
 
     /// Returns nil when the content is empty
     static func attributedText(_ richText: RichText) -> AttributedString? {
@@ -27,17 +28,35 @@ enum RichTextParser {
     private static func block(_ block: RichText.Block) -> AttributedString {
         switch block {
         case .paragraph(let paragraph):
-            self.joined(paragraph.spans.compactMap(self.span))
+            self.heading(paragraph.spans) ?? self.joined(paragraph.spans.compactMap(self.span))
         case .bulletList(let list):
             self.joined(
                 list.items.map {
-                    Self.bulletMarker + self.joined($0.spans.compactMap(self.span))
+                    AttributedString(Self.bulletMarker) + self.joined($0.spans.compactMap(self.span))
                 },
                 separator: .init("\n")
             )
         case .unknown:
             AttributedString()
         }
+    }
+
+    /// A paragraph the assistant opens with a Markdown heading marker (`#` to `####`, then a
+    /// space, the levels the web widget shows as headings) renders as one bold line without the
+    /// marker. The marker arrives as the start of the paragraph's first text span. Returns nil for
+    /// any other paragraph.
+    private static func heading(_ spans: [RichText.Span]) -> AttributedString? {
+        guard case .text(let first)? = spans.first else { return nil }
+        let hashes = first.prefix { $0 == "#" }.count
+        let afterHashes = first.dropFirst(hashes)
+        guard (1...4).contains(hashes), afterHashes.first == " " else { return nil }
+
+        let title = String(afterHashes.drop { $0 == " " })
+        var text = self.joined(([.text(title)] + spans.dropFirst()).compactMap(self.span))
+        for run in text.runs {
+            text[run.range].inlinePresentationIntent = (run.inlinePresentationIntent ?? []).union(.stronglyEmphasized)
+        }
+        return text
     }
 
     private static func span(_ span: RichText.Span) -> AttributedString? {

@@ -11,10 +11,10 @@ import Testing
 @testable import AIConversationEngine
 
 /// Guards the forward-compatibility contract of the hand-written decode logic:
-/// any discriminator value the server invents in the future must decode to
-/// `.unknown` — never throw. A thrown `DecodingError` propagates out of `postSSE`
-/// and terminates the entire SSE stream, so one unrecognised value would
-/// otherwise kill a live conversation.
+/// any discriminator value the server invents in the future, and any part or delta
+/// whose payload it reshapes, must decode to `.unknown` — never throw. A thrown
+/// `DecodingError` propagates out of `postSSE` and terminates the entire SSE stream,
+/// so one unrecognised value would otherwise kill a live conversation.
 @Suite("Unknown-value fallback — stream survival contract")
 struct UnknownFallbackTests {
 
@@ -116,5 +116,94 @@ struct UnknownFallbackTests {
             from: Data(#"{"type":"status","data":{"status":"some_future_state"}}"#.utf8)
         )
         #expect(event == .status(.init(state: .unknown, message: nil)))
+    }
+
+    @Test("a malformed form marker decodes to .unknown and does not fail siblings")
+    func malformedFormMarkerIsUnknown() throws {
+        let message = try self.decoder.decode(
+            Message.self,
+            from: Data("""
+                {"message_id":"m_1","role":"assistant","parts":[
+                    {"type":"show_contact_form"},
+                    {"type":"rich_text","part_id":"p_2","blocks":[]}
+                ],"created_at":"2026-01-01T00:00:00Z"}
+                """.utf8)
+        )
+        #expect(message.parts[0] == .unknown)
+        #expect(message.parts[1] != .unknown)
+    }
+
+    @Test(
+        "a malformed rich text, table or products part decodes to .unknown",
+        arguments: [
+            #"{"type":"rich_text","part_id":"p_1"}"#,
+            #"{"type":"rich_text","part_id":"p_1","blocks":[{"type":"paragraph"}]}"#,
+            #"{"type":"table","part_id":"t_1","columns":[{"header":"Size"}]}"#,
+            #"{"type":"products","part_id":"pr_1","products":[{"id":"sku_1","title":"Shirt"}]}"#
+        ]
+    )
+    func malformedPartIsUnknown(json: String) throws {
+        let part = try self.decoder.decode(Part.self, from: Data(json.utf8))
+        #expect(part == .unknown)
+    }
+
+    @Test("a malformed part, or one that isn't an object, does not fail its message")
+    func malformedPartAmongSiblings() throws {
+        let message = try self.decoder.decode(
+            Message.self,
+            from: Data("""
+                {"message_id":"m_1","role":"assistant","parts":[
+                    {"type":"table","part_id":"t_1","columns":[{"header":"Size"}]},
+                    "not a part",
+                    {"type":"rich_text","part_id":"p_2","blocks":[]}
+                ],"created_at":"2026-01-01T00:00:00Z"}
+                """.utf8)
+        )
+        #expect(message.parts == [.unknown, .unknown, .richText(.init(partId: "p_2", blocks: []))])
+    }
+
+    @Test(
+        "a delta whose payload doesn't decode is .unknown",
+        arguments: [
+            #"{"action":"start_part","part_type":"table","columns":[{"header":"Size"}]}"#,
+            #"{"action":"start_block","block_type":"paragraph"}"#,
+            #"{"action":"append_text","block_index":0}"#,
+            #"{"action":"append_span","block_index":0,"span":{"type":"link","text":"Size guide"}}"#,
+            #"{"action":"append_item","block_index":0,"item":{}}"#,
+            #"{"action":"append_product","product":{"id":"sku_1","title":"Shirt"}}"#,
+            #"{"action":"append_row","row":"not a row"}"#,
+            #"{"action":"end_block"}"#
+        ]
+    )
+    func malformedDeltaIsUnknown(json: String) throws {
+        let delta = try self.decoder.decode(PartDelta.self, from: Data(json.utf8))
+        #expect(delta == .unknown)
+    }
+
+    @Test("a stream event carrying a malformed part or delta still decodes")
+    func malformedPartEvents() throws {
+        let part = try self.decoder.decode(
+            StreamEvent.self,
+            from: Data(#"{"type":"part","data":{"part":{"type":"table","part_id":"t_1","columns":[]}}}"#.utf8)
+        )
+        let delta = try self.decoder.decode(
+            StreamEvent.self,
+            from: Data(#"{"type":"part_delta","data":{"part_id":"t_1","delta":{"action":"append_row","row":"not a row"}}}"#.utf8)
+        )
+
+        #expect(part == .part(.unknown))
+        #expect(delta == .delta(partId: "t_1", .unknown))
+    }
+
+    @Test(
+        "a part_delta without its part_id or delta decodes to .unknown",
+        arguments: [
+            #"{"type":"part_delta","data":{"delta":{"action":"end_part"}}}"#,
+            #"{"type":"part_delta","data":{"part_id":"t_1"}}"#
+        ]
+    )
+    func partDeltaWithoutTargetIsUnknown(json: String) throws {
+        let event = try self.decoder.decode(StreamEvent.self, from: Data(json.utf8))
+        #expect(event == .unknown)
     }
 }

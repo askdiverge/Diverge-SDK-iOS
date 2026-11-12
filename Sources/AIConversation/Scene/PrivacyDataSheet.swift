@@ -24,6 +24,9 @@ struct PrivacyDataSheetModifier: ViewModifier {
     /// Opens the privacy policy, surfaced by the privacy sheet's row.
     let onOpenPrivacy: () -> Void
 
+    /// Whether the delete sheet's confirm action can run now.
+    let canDeleteData: Bool
+
     /// The host's delete hook, surfaced by the delete sheet's confirm action.
     let onDeleteData: () async throws -> Void
 
@@ -66,7 +69,7 @@ struct PrivacyDataSheetModifier: ViewModifier {
             )
 
         case .delete:
-            DeleteDataView(onConfirm: {
+            DeleteDataView(canConfirm: self.canDeleteData, onConfirm: {
                 _ = Task {
                     self.isLoading = true
                     defer { self.isLoading = false }

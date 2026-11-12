@@ -47,6 +47,7 @@ struct TypewriterEffect: ViewModifier {
         if self.isActive, !self.reduceMotion {
             content
                 .textRenderer(TypewriterRenderer(visibleCount: self.revealed))
+                .environment(\.typewriterReveal, self.revealed)
                 .onChange(of: self.text, initial: true) { _, new in
                     let target = Double(new.characters.count)
                     withAnimation(.linear(duration: max(target - self.revealed, 0) * 0.01)) {
@@ -57,4 +58,17 @@ struct TypewriterEffect: ViewModifier {
             content
         }
     }
+}
+
+extension EnvironmentValues {
+    /// How far the reply typing in has revealed, in characters of its text; `nil` while none types.
+    /// A view that splits the text into several `Text`s reveals each from its own place with it.
+    var typewriterReveal: Double? {
+        get { self[TypewriterRevealKey.self] }
+        set { self[TypewriterRevealKey.self] = newValue }
+    }
+}
+
+private struct TypewriterRevealKey: EnvironmentKey {
+    static let defaultValue: Double? = nil
 }

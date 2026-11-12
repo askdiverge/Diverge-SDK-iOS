@@ -1,6 +1,6 @@
 //
 //  StreamEvent.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-05-26.
 //
@@ -25,7 +25,8 @@ package enum StreamEvent: Decodable, Sendable, Equatable {
     case done(Message)
     /// Terminal — the stream failed. Disconnect after receiving.
     case error(Failure)
-    /// Unrecognised SSE event name — skipped by the consumer.
+    /// Unrecognised SSE event name, or a `part_delta` with no part to apply to — skipped by the
+    /// consumer.
     case unknown
 
     private enum CodingKeys: String, CodingKey {
@@ -60,9 +61,12 @@ package enum StreamEvent: Decodable, Sendable, Equatable {
 
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // A new event degrades to `.unknown`, which the provider ignores; a throw would end the
+        // live stream.
         self = switch try? container.decode(Name.self, forKey: .type) {
         case .status: .status(try container.decode(Status.self, forKey: .data))
-        case .partDelta: try container.decode(DeltaEvent.self, forKey: .data).event
+        // A delta without its `part_id` or `delta` updates no part the provider can find.
+        case .partDelta: (try? container.decode(DeltaEvent.self, forKey: .data))?.event ?? .unknown
         case .part: .part(try container.decode(PartEvent.self, forKey: .data).part)
         case .done: .done(try container.decode(DoneEvent.self, forKey: .data).message)
         case .error: .error(try container.decode(Failure.self, forKey: .data))

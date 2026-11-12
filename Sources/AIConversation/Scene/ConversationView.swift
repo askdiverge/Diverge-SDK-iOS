@@ -18,32 +18,40 @@ struct ConversationView<Content: View, Header: View>: View {
     /// Whether the input holds focus. Gaining focus scrolls to the newest turn — selecting the field to
     /// reply shouldn't leave the reader up in history, and it pins the latest message above the keyboard.
     let isInputFocused: Bool
+    /// A form field has the keyboard, and the jump-to-newest button stays off it.
+    let isEditingForm: Bool
 
-    // TODO: - Hook up reverse pagination
-    /// Ready to consume: pagination is fully wired behind this hook. It is deliberately left
-    /// untriggered — `LazyVStack` cannot hold the reader's scroll position across a top prepend, as
-    /// the turns above the viewport are unmeasured, so every offset / id / anchor restore fails.
-    /// Plugging it in needs an alternative container (eager `VStack` + manual offset
-    /// management, inverted list reder through .scaleEffect(y: -1), or `UICollectionView` + `UIHostingConfiguration`)
-    /// or a future SwiftUI API not currently available.
-    let onLoadOlder: () async -> Void
+    /// Loads the next older page, returning whether it loaded.
+    let onLoadOlder: () async -> Bool
 
     @ViewBuilder let content: (Identified<ConversationSnapshot.Turn>) -> Content
     @ViewBuilder let header: () -> Header
 
     @State private var isScrolledAway = false
     @State private var scrollTask = ScrollTaskBox()
+    @State private var olderTurns = OlderTurnsAnchor()
 
     var body: some View {
         ScrollViewReader { proxy in
             self.conversation(proxy)
-                .overlay(alignment: .bottom) { self.scrollToBottomButton(proxy) }
+                .overlay(alignment: .bottomTrailing) {
+                    ScrollToBottomButton(
+                        isVisible: self.isScrolledAway && !self.isEditingForm && self.snapshot.turns.count > 1,
+                        isStreaming: self.snapshot.streamingTurnID != nil
+                    ) {
+                        self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy)
+                    }
+                }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
                 .defaultScrollAnchor(.top, for: .alignment)
                 .defaultScrollAnchor(.bottom, for: .initialOffset)
-                .onChange(of: self.snapshot, initial: true) { _, snapshot in
-                    self.scrollToNewest(self.isScrolledAway ? nil : snapshot.turns.last?.id, proxy: proxy)
+                .onChange(of: self.snapshot, initial: true) { old, new in
+                    if case .landed(let turnID?) = self.olderTurns.landing(from: old.turns, to: new.turns) {
+                        self.scrollTask.land(on: turnID, proxy: proxy)
+                        return
+                    }
+                    self.scrollToNewest(self.isScrolledAway ? nil : new.turns.last?.id, proxy: proxy)
                 }
                 .onChange(of: self.isInputFocused) { _, focused in
                     if focused {
@@ -65,12 +73,17 @@ private extension ConversationView {
         return ScrollView {
             LazyVStack(spacing: self.appearance.spacing.units(11)) {
                 Section {
+                    if self.snapshot.canLoadOlder {
+                        LoadEarlierButton { await self.loadEarlier() }
+                    }
+
                     ForEach(turns) { turn in
                         self.content(turn)
                             .frame(maxWidth: .infinity, alignment: turn.model.alignment)
                             .transition(.opacity)
                             .id(turn.id)
                     }
+                    FormFieldClearance(isActive: self.isEditingForm)
                 } header: {
                     self.header()
                 }
@@ -84,24 +97,18 @@ private extension ConversationView {
         }
     }
 
-    /// Jump-to-bottom control, surfaced only once the reader has scrolled away. Wears the thinking
-    /// border while a reply streams.
-    func scrollToBottomButton(_ proxy: ScrollViewProxy) -> some View {
-        IconButton(icon: ChatAppearance.Symbol.scrollToBottom) {
-            self.scrollToNewest(self.snapshot.turns.last?.id, proxy: proxy)
-        }
-        .modifier(ThinkingBorderEffect(isActive: self.snapshot.streamingTurnID != nil, shape: Circle()))
-        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
-        .padding(.bottom, self.appearance.spacing.units(2))
-        .opacity(self.isScrolledAway ? 1 : 0)
-        .allowsHitTesting(self.isScrolledAway)
-        .animation(.easeInOut(duration: 0.2), value: self.isScrolledAway)
-    }
 }
 
 // MARK: - Scroll state
 
 private extension ConversationView {
+    func loadEarlier() async {
+        self.olderTurns.arm(at: self.snapshot.turns.first?.id)
+        if await !self.onLoadOlder() {
+            self.olderTurns.disarm()
+        }
+    }
+
     /// Lands on the newest turn. Callers pass `nil` to suppress the scroll (e.g. the reader has
     /// scrolled away and we shouldn't yank them back). Yields a frame so a just-appended row is laid out
     /// before we target it, and eases the jump so it interpolates instead of tearing the offset out from
@@ -134,6 +141,8 @@ private extension ConversationSnapshot.Turn {
 // MARK: - Equatable
 extension ConversationView: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.snapshot == rhs.snapshot && lhs.isInputFocused == rhs.isInputFocused
+        lhs.snapshot == rhs.snapshot
+            && lhs.isInputFocused == rhs.isInputFocused
+            && lhs.isEditingForm == rhs.isEditingForm
     }
 }

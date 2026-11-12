@@ -1,6 +1,6 @@
 //
 //  ChatService.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-04.
 //
@@ -26,11 +26,11 @@ package final class ChatService: Sendable {
     /// The features the build requests, as a comma-separated list; see ``ClientProfile``.
     package static let clientProfileHeader = "X-Diverge-Client-Profile"
 
-    private let network: NetworkManager
-    private let tokenStore: TokenStore
-    private let baseURL: URL
-    private let sdkVersion: String
-    private let clientProfiles: [ClientProfile]
+    let network: NetworkManager
+    let tokenStore: TokenStore
+    let baseURL: URL
+    let sdkVersion: String
+    let clientProfiles: [ClientProfile]
 
     /// - Parameters:
     ///   - baseURL: Chatbot API host — one of the Diverge deployments the public surface exposes
@@ -57,7 +57,7 @@ package final class ChatService: Sendable {
             onDeleteData: onDeleteData
         )
         self.network = NetworkManager(
-            decoder: Self.decoder,
+            decoder: Self.decoder(baseURL: baseURL),
             encoder: Self.encoder,
             session: session
         )
@@ -79,8 +79,18 @@ extension ChatService {
     }
 
     package func fetchData(_ url: URL) async throws(ChatServiceError) -> Data {
+        // Inline data URLs (visitor uploads echoed by the API) decode without a network hop.
+        if url.scheme?.lowercased() == "data" {
+            guard let data = AttachmentURL.payload(ofDataURL: url) else {
+                throw .transport(.decoding(.dataCorrupted(.init(
+                    codingPath: [],
+                    debugDescription: "The data: URL payload does not decode."
+                ))))
+            }
+            return data
+        }
         // Unauthenticated — no bearer token is attached.
-        try await self.mappingErrors {
+        return try await self.mappingErrors {
             try await self.network.data(from: url)
         }
     }
@@ -102,10 +112,11 @@ extension ChatService: ChatServicing {
 
     package func sendMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page: String?
     ) -> AsyncThrowingStream<StreamEvent, any Error> {
         let payload = SendMessageRequest(
-            message: .init(parts: [.text(text)]),
+            message: .init(parts: SendMessageRequest.Part.make(text: text, attachments: attachments)),
             context: page.map { .init(page: $0) }
         )
 
@@ -137,7 +148,12 @@ extension ChatService: ChatServicing {
 
                 continuation.finish()
             } catch {
-                continuation.finish(throwing: ChatServiceError(error))
+                let failure = ChatServiceError(error)
+                if case .transport(.http(.unhandled(status: 409, body: _))) = failure {
+                    continuation.finish(throwing: ChatServiceError.conflict)
+                } else {
+                    continuation.finish(throwing: failure)
+                }
             }
         }
 
@@ -159,78 +175,70 @@ extension ChatService: ChatServicing {
             try await self.tokenStore.delete()
         }
     }
-}
 
-private extension ChatService {
-
-    /// Messages per history page
-    private static let historyPageLimit = 100
-
-    /// Every authenticated call identifies the calling SDK (platform + version) and lists the
-    /// features it requests. The API major the client speaks is the `/api/v1/` path prefix.
-    func headers(token: String) -> [String: String] {
-        [
-            "Authorization": "Bearer \(token)",
-            Self.sdkPlatformHeader: Self.sdkPlatform,
-            Self.sdkVersionHeader: self.sdkVersion,
-            Self.clientProfileHeader: ClientProfile.headerValue(for: self.clientProfiles)
-        ]
-    }
-
-    /// RAM-only by design: no disk cache, cookies, or credential storage
-    /// conversation data and bearer tokens never persist.
-    ///
-    /// Session-level headers apply only when a request doesn't set the same
-    /// header itself — the SSE request overrides `Accept` with `text/event-stream`.
-    static func makeSession() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpShouldSetCookies = false
-        configuration.httpCookieAcceptPolicy = .never
-        configuration.urlCache = nil
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.httpAdditionalHeaders = [
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        ]
-        return URLSession(configuration: configuration)
-    }
-
-    static var decoder: JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }
-
-    static var encoder: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        return encoder
-    }
-}
-
-private extension ChatService {
-
-    /// Dialoge API endpoints. Paths live here — the host may override `baseURL`.
-    enum Endpoint: String {
-        case config = "api/v1/chat/config"
-        case messages = "api/v1/chat/messages"
-    }
-
-    func url(for endpoint: Endpoint) -> URL {
-        self.baseURL.appending(path: endpoint.rawValue)
-    }
-}
-
-private extension ChatService {
-
-    /// Runs `work` and translates any lower-layer error into `ChatServiceError`.
-    func mappingErrors<T: Sendable>(
-        _ work: () async throws -> T
-    ) async throws(ChatServiceError) -> T {
+    package func submitAction(
+        _ request: SubmitActionRequest
+    ) async throws(ChatServiceError) -> SubmitActionResponse {
         do {
-            return try await work()
-        } catch {
-            throw ChatServiceError(error)
+            return try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.post(
+                        url: self.url(for: .actions),
+                        payload: request,
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
+    }
+
+    package func fetchForm(id: String) async throws(ChatServiceError) -> ChatFormDefinition {
+        // Fetched while a conversation is on screen, so a 401 ends that session, as on `/actions`.
+        do {
+            return try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.get(
+                        url: self.url(for: .forms).appending(component: id),
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 404, body: _))) {
+            throw .notFound
+        }
+    }
+
+    package func fetchSession() async throws(ChatServiceError) -> ChatSessionState {
+        try await self.mappingErrors {
+            try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                try await self.network.get(
+                    url: self.url(for: .session),
+                    headers: self.headers(token: token)
+                )
+            }
+        }
+    }
+
+    package func patchFormValues(
+        formId: String,
+        values: [String: String]
+    ) async throws(ChatServiceError) -> ChatSessionState {
+        do {
+            return try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .surfaceExpiry) { token in
+                    try await self.network.patch(
+                        url: self.url(for: .forms).appending(component: formId).appending(component: "values"),
+                        payload: ChatFormValuesPatchRequest(values: values),
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        } catch .transport(.http(.unhandled(status: 404, body: _))) {
+            throw .notFound
         }
     }
 }

@@ -2,19 +2,26 @@
 
 ## Current SDK surface
 
-v0.1.0 does **not** access camera, photos, location, microphone, contacts, or advertising identifiers.
+The SDK does **not** access the camera, location, microphone, contacts, or advertising identifiers.
+Photos reach it only when the user picks one in SwiftUI's `PhotosPicker`, which runs out of process
+and hands over just the chosen image; the SDK never reads the photo library itself. Hosts turn this
+off with `attachments: .disabled`.
 
 The shipped Privacy Manifest [`Sources/AIConversation/PrivacyInfo.xcprivacy`](../../Sources/AIConversation/PrivacyInfo.xcprivacy) declares:
 
 - `NSPrivacyTracking` = `false`
 - Empty tracking domains and accessed API types
-- One collected data type: `OtherUserContent`, linked to the user and not used for tracking, for app
-  functionality — typed messages and the optional context string are sent to the assistant backend
-  to generate replies
+- Collected data types, each linked to the user, not used for tracking, for app functionality:
+  - `OtherUserContent` — typed messages and the optional context string are sent to the assistant
+    backend to generate replies
+  - `Name`, `EmailAddress`, `PhoneNumber` — what the user enters in contact, support-ticket and
+    custom forms
+  - `CustomerSupport` — the support request a support ticket carries
+  - `PhotosorVideos` — photos the user attaches are sent with the message or form they belong to
 
 **No required-reason API declarations** are needed until the SDK actually calls those APIs (file timestamps, UserDefaults, disk space, boot time, etc.). Do not declare APIs “just in case.”
 
-**No Info.plist usage-description keys** are required for host apps solely because they embed this SDK at v0.1. Keep the template below for future features.
+**No Info.plist usage-description keys** are required for host apps solely because they embed this SDK: `PhotosPicker` needs no `NSPhotoLibraryUsageDescription`. Keep the template below for future features.
 
 ## When adding permissions later
 

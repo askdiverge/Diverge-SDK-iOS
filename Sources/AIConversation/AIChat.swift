@@ -56,19 +56,51 @@ public enum DivergeAPI {
 public final class AIChat {
 
     private static var sharedConfiguration: Configuration?
+    /// Instances minted from the shared configuration are one app-wide chat, so whether it has
+    /// been rated, the cards that arrived live and the identity of its view outlive each of them.
+    private static var sharedRatingSession = RatingSession()
+    private static var sharedLiveCards = LiveCards()
+    private static var sharedViewIdentity = UUID()
 
     private let configuration: Configuration
     private let service: ChatService
+    let ratingSession: RatingSession
+    let liveCards: LiveCards
+    /// The identity of the views this chat mints, so a view a host builds from another chat in the
+    /// same place starts that chat's session.
+    private let viewIdentity: UUID
 
     /// Registers shared configuration for the no-argument ``init()``. Stores the config
     /// only — it neither returns nor retains an instance. Call once, typically at launch.
     public static func configure(_ configuration: Configuration) {
         Self.sharedConfiguration = configuration
+        Self.sharedRatingSession = RatingSession()
+        Self.sharedLiveCards = LiveCards()
+        Self.sharedViewIdentity = UUID()
     }
 
-    /// Direct initialisation — equivalent to ``configure(_:)`` followed by ``init()``.
-    public init(_ configuration: Configuration) {
+    /// Direct initialisation — equivalent to ``configure(_:)`` followed by ``init()``, except that
+    /// the chat belongs to this instance alone: whether it has been rated, and the chat a view
+    /// minted from it shows.
+    public convenience init(_ configuration: Configuration) {
+        self.init(
+            configuration: configuration,
+            ratingSession: RatingSession(),
+            liveCards: LiveCards(),
+            viewIdentity: UUID()
+        )
+    }
+
+    private init(
+        configuration: Configuration,
+        ratingSession: RatingSession,
+        liveCards: LiveCards,
+        viewIdentity: UUID
+    ) {
         self.configuration = configuration
+        self.ratingSession = ratingSession
+        self.liveCards = liveCards
+        self.viewIdentity = viewIdentity
         // The  hooks wire straight to the service / token store.
         self.service = ChatService(
             tokenProvider: configuration.tokenProvider,
@@ -86,7 +118,12 @@ public final class AIChat {
         guard let configuration = Self.sharedConfiguration else {
             preconditionFailure("AIChat() requires AIChat.configure(_:) to be called first.")
         }
-        self.init(configuration)
+        self.init(
+            configuration: configuration,
+            ratingSession: Self.sharedRatingSession,
+            liveCards: Self.sharedLiveCards,
+            viewIdentity: Self.sharedViewIdentity
+        )
     }
 }
 
@@ -99,9 +136,17 @@ public extension AIChat {
             viewModel: .init(
                 service: self.service,
                 contextProvider: self.configuration.contextProvider,
-                conversationFlow: self.configuration.conversationFlow
+                conversationFlow: self.configuration.conversationFlow,
+                attachments: self.configuration.attachments,
+                onClose: self.configuration.onClose,
+                onLivechatSessionChange: self.configuration.onLivechatSessionChange,
+                conversationRatingMode: self.configuration.rating,
+                ratingSession: self.ratingSession,
+                liveCards: self.liveCards,
+                dependencies: .live(service: self.service)
             )
         )
+        .id(self.viewIdentity)
         .environment(\.openURL, self.openURL)
     }
 
@@ -134,6 +179,28 @@ public extension AIChat {
         case bottomUp
     }
 
+    /// Attachment sources offered in the composer and on `request_image_upload` prompts.
+    /// ``disabled`` hides attach and drops those prompts. ``photoLibrary`` uses SwiftUI
+    /// `PhotosPicker` (out-of-process — no photo permission prompt).
+    enum Attachments: Sendable {
+        /// No attach control — text only.
+        case disabled
+        /// A photo-library picker (`PhotosPicker`).
+        case photoLibrary
+    }
+
+    /// Whether closing the chat first asks the visitor to rate the conversation (`POST /rate`).
+    /// The close control shows when ``Configuration`` has `onClose`. A livechat session with a
+    /// rating of its own is rated through its own prompt when it closes while the chat is open, and
+    /// closing after that prompt, or after the visitor rated the session, goes straight to the host.
+    enum Rating: Sendable {
+        /// Ask for a 1–5 rating on close once the visitor has written in the conversation and
+        /// hasn't rated it yet.
+        case enabled
+        /// Close without asking.
+        case disabled
+    }
+
     /// The host-provided hooks the SDK is configured with. This is the single injection
     /// surface,  both ``AIChat/configure(_:)`` and ``AIChat/init(_:)`` take it.
     ///
@@ -141,7 +208,8 @@ public extension AIChat {
     /// the SDK is not correctly configured without them (Control Plane: Identity, Minting, Invalidation).
     /// SDK is pure (Data plane) to avoid split Token Ownership, Distributed State with Async Reconciliation and Structural Inversion.
     ///
-    /// The two enhancement hooks (`contextProvider`, `onOpenLink`) are optional and degrade gracefully when omitted.
+    /// The enhancement hooks (`contextProvider`, `onOpenLink`, `onClose`, `onLivechatSessionChange`)
+    /// are optional and degrade gracefully when omitted.
     struct Configuration {
 
         let tokenProvider: @Sendable () async throws -> String
@@ -149,9 +217,19 @@ public extension AIChat {
         let deleteData: @Sendable () async throws -> Void
         let contextProvider: (@Sendable () async -> String?)?
         let onOpenLink: ((URL) -> Void)?
+        /// Called on the main actor when the visitor closes the chat, after the rating prompt when
+        /// one is shown. When set, the chat shows a close control.
+        let onClose: (@MainActor () -> Void)?
+        /// Called on the main actor when the livechat status or the connected agent changes while
+        /// the chat is on screen.
+        let onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)?
         let conversationFlow: ConversationFlow
         /// Which Diverge backend to talk to. Defaults to ``DivergeAPI/Environment/production``.
         let environment: DivergeAPI.Environment
+        /// Attachment sources offered in the composer. Defaults to ``Attachments/photoLibrary``.
+        let attachments: Attachments
+        /// Whether to prompt for a conversation rating on close. Defaults to ``Rating/enabled``.
+        let rating: Rating
 
 #if os(macOS)
         /// - Parameters:
@@ -162,24 +240,42 @@ public extension AIChat {
         ///     `nil` → no context sent. Intended for non-identifying context (SKU, category, screen
         ///     name); it is forwarded verbatim to the backend, so the host must not pass PII through
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
-        ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
-        ///     → default OS open.
+        ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
+        ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
+        ///     them out of the browser's history. Absent → default OS open.
+        ///   - onClose: Called on the main actor when the visitor closes the chat, after the rating
+        ///     prompt when one is shown. When set, the chat shows a close control.
+        ///   - onLivechatSessionChange: Called on the main actor when the livechat status or the
+        ///     connected agent changes while the chat is on screen, so the host can show the agent
+        ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
+        ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
+        ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
+        ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
+        ///     Defaults to ``Rating/enabled``.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
-            environment: DivergeAPI.Environment = .production
+            onClose: (@MainActor () -> Void)? = nil,
+            onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
+            environment: DivergeAPI.Environment = .production,
+            attachments: Attachments = .photoLibrary,
+            rating: Rating = .enabled
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
             self.deleteData = deleteData
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
+            self.onClose = onClose
+            self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = .bottomUp
             self.environment = environment
+            self.attachments = attachments
+            self.rating = rating
         }
 #else
         /// - Parameters:
@@ -190,26 +286,44 @@ public extension AIChat {
         ///     `nil` → no context sent. Intended for non-identifying context (SKU, category, screen
         ///     name); it is forwarded verbatim to the backend, so the host must not pass PII through
         ///     it and owns the privacy declaration for anything identifying it chooses to send.
-        ///   - onOpenLink: Receives tapped in-message links for the host to route. Absent
-        ///     → default OS open.
+        ///   - onOpenLink: Receives tapped in-message links and attachment downloads for the host
+        ///     to route. Attachment links are signed and short-lived; opening them in-app keeps
+        ///     them out of the browser's history. Absent → default OS open.
+        ///   - onClose: Called on the main actor when the visitor closes the chat, after the rating
+        ///     prompt when one is shown. When set, the chat shows a close control.
+        ///   - onLivechatSessionChange: Called on the main actor when the livechat status or the
+        ///     connected agent changes while the chat is on screen, so the host can show the agent
+        ///     in its own UI and know a session was open when the visitor closed the chat.
         ///   - conversationFlow: The layout the conversation flows in. Defaults to ``ConversationFlow/topDown``.
         ///   - environment: Which Diverge backend to talk to. Defaults to production.
+        ///   - attachments: Attachment sources in the composer. Defaults to ``Attachments/photoLibrary``;
+        ///     pass ``Attachments/disabled`` when the chatbot's flow does not handle images.
+        ///   - rating: Whether to prompt for a **conversation** rating (`POST /rate`) on close.
+        ///     Defaults to ``Rating/enabled``.
         public init(
             tokenProvider: @escaping @Sendable () async throws -> String,
             resetConversation: @escaping @Sendable () async throws -> String,
             deleteData: @escaping @Sendable () async throws -> Void,
             contextProvider: (@Sendable () async -> String?)? = nil,
             onOpenLink: ((URL) -> Void)? = nil,
+            onClose: (@MainActor () -> Void)? = nil,
+            onLivechatSessionChange: (@MainActor (LivechatSessionInfo) -> Void)? = nil,
             conversationFlow: ConversationFlow = .topDown,
-            environment: DivergeAPI.Environment = .production
+            environment: DivergeAPI.Environment = .production,
+            attachments: Attachments = .photoLibrary,
+            rating: Rating = .enabled
         ) {
             self.tokenProvider = tokenProvider
             self.resetConversation = resetConversation
             self.deleteData = deleteData
             self.contextProvider = contextProvider
             self.onOpenLink = onOpenLink
+            self.onClose = onClose
+            self.onLivechatSessionChange = onLivechatSessionChange
             self.conversationFlow = conversationFlow
             self.environment = environment
+            self.attachments = attachments
+            self.rating = rating
         }
 #endif
     }

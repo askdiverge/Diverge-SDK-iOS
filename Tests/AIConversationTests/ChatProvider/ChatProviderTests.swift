@@ -17,13 +17,13 @@ struct ChatProviderTests {
     @Test("deltas assemble the in-flight reply preview")
     func deltasAssemblePreview() async throws {
         let mock = MockChatService(.init(sendEvents: self.textDeltas("hel")))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
 
         let snapshot = await snapshots.next()
-        #expect(snapshot?.user.map(\.model) == [[AttributedString("hi")]])
+        #expect(snapshot?.user.map(\.model) == [[.text(AttributedString("hi"))]])
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("hel"))]])
     }
 
@@ -33,7 +33,7 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("hel")
             + [self.textPart("hello")]
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -50,7 +50,7 @@ struct ChatProviderTests {
         + [self.textPart("B", partId: "p1")]
 
         let mock = MockChatService(.init(sendEvents: events))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -59,12 +59,47 @@ struct ChatProviderTests {
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("A")), .text(AttributedString("B"))]])
     }
 
+    @Test("a final part the SDK can't show takes its delta preview with it")
+    func unknownPartRemovesPreview() async throws {
+        let events = self.textDeltas("a", partId: "p0")
+        + [self.textPart("A", partId: "p0")]
+        + self.textDeltas("b", partId: "p1")
+        + [.part(.unknown)]
+
+        let mock = MockChatService(.init(sendEvents: events))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("A"))]])
+    }
+
+    @Test("a sent reply's turn is live, and a turn history brings isn't")
+    func sentReplyIsLive() async throws {
+        let mock = MockChatService(.init(
+            sendEvents: [self.textPart("hello")],
+            historyPages: [MessagePage(messages: [self.assistantMessage("hist")], nextCursor: nil)]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+        try await provider.send("hi")
+
+        let snapshot = await snapshots.next()
+        let reply = try #require(snapshot?.incoming.last)
+        #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("hist"))], [.text(AttributedString("hello"))]])
+        #expect(snapshot?.liveTurnIDs == [reply.id])
+    }
+
     // MARK: - send errors
 
     @Test("session expiry clears the conversation and surfaces .sessionExpired")
     func sessionExpiredClears() async {
         let mock = MockChatService(.init(sendError: .sessionExpired))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         await #expect(throws: ChatProvider.SendFailure.sessionExpired) {
@@ -82,26 +117,74 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("hel"),
             sendError: .stream(.init(code: .generationFailed, message: "boom", retryable: true))
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
-        await #expect(throws: ChatProvider.SendFailure.retry(popped: "hi", body: "boom")) {
+        await #expect(throws: ChatProvider.SendFailure.retry(popped: .init(text: "hi", attachments: []), body: "boom")) {
             try await provider.send("hi")
         }
 
         let snapshot = await snapshots.next()
         #expect(snapshot?.user == [])
         #expect(snapshot?.incoming == [])
+        #expect(snapshot?.liveTurnIDs == [])
     }
 
     // MARK: - pagination
+
+    @Test("a form marker that streams as a part event becomes a form response")
+    func streamedFormMarkerMapsToForm() async throws {
+        let marker = ShowContactForm(partId: "p_form", fields: [])
+        let mock = MockChatService(.init(sendEvents: [.part(.showContactForm(marker))]))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.incoming.last?.model == [.form(.contact(marker))])
+    }
+
+    @Test("expireSession clears the conversation")
+    func expireSessionClears() async throws {
+        let mock = MockChatService(.init(sendEvents: [self.textPart("hello")]))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        try await provider.send("hi")
+
+        await provider.expireSession()
+
+        var snapshots = provider.stream.makeAsyncIterator()
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.user.isEmpty == true)
+        #expect(snapshot?.incoming.isEmpty == true)
+    }
+
+    @Test("a form marker in history becomes a form response")
+    func formMarkerMapsToForm() async throws {
+        let marker = ShowContactForm(partId: "p_form", fields: [])
+        let message = Message(
+            messageId: "m",
+            role: .assistant,
+            agent: nil,
+            parts: [.showContactForm(marker)],
+            createdAt: "2026-01-01T00:00:00.000Z"
+        )
+        let mock = MockChatService(.init(historyPages: [MessagePage(messages: [message], nextCursor: nil)]))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.incoming.map(\.model) == [[.form(.contact(marker))]])
+    }
 
     @Test("loadOlder fetches a page and prepends it")
     func loadOlderPrepends() async throws {
         let mock = MockChatService(.init(historyPages: [
             MessagePage(messages: [self.assistantMessage("a")], nextCursor: nil)
         ]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.loadOlder()
@@ -111,17 +194,71 @@ struct ChatProviderTests {
         #expect(snapshot?.user == [])
     }
 
+    @Test("loadOlder yields a snapshot when the first page fails")
+    func loadOlderFailureStillPublishes() async throws {
+        let mock = MockChatService(
+            .init(historyError: .transport(.http(.unhandled(status: 500, body: Data()))))
+        )
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.user == [])
+        #expect(snapshot?.incoming == [])
+    }
+
     @Test("loadOlder stops fetching once the cursor is exhausted")
     func loadOlderStopsWhenExhausted() async throws {
         let mock = MockChatService(.init(historyPages: [
             MessagePage(messages: [], nextCursor: nil)
         ]))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         try await provider.loadOlder()
         try await provider.loadOlder()
 
         #expect(mock.historyCallCount == 1)
+    }
+
+    @Test("older turns can be asked for until the last page, and again after a failed first page")
+    func canLoadOlderFollowsThePages() async throws {
+        let mock = MockChatService(.init(
+            historyPages: [
+                MessagePage(messages: [], nextCursor: nil),
+                MessagePage(messages: [self.assistantMessage("new")], nextCursor: "older"),
+                MessagePage(messages: [self.assistantMessage("old")], nextCursor: nil)
+            ],
+            historyFailingCalls: [0: .transport(.http(.unhandled(status: 500, body: Data())))]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+        #expect(await snapshots.next()?.canLoadOlder == true)
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.canLoadOlder == true)
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.canLoadOlder == false)
+    }
+
+    @Test("a conversation that ended has nothing older to offer")
+    func endedConversationOffersNothingOlder() async throws {
+        let mock = MockChatService()
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.delete()
+
+        #expect(await snapshots.next()?.canLoadOlder == false)
+        #expect(mock.historyCallCount == 0)
     }
 
     // MARK: - reset / delete
@@ -132,7 +269,7 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("reply"),
             historyPages: [MessagePage(messages: [self.assistantMessage("hist")], nextCursor: nil)]
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -142,6 +279,7 @@ struct ChatProviderTests {
         #expect(mock.resetCallCount == 1)
         #expect(snapshot?.user == [])
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("hist"))]])
+        #expect(snapshot?.liveTurnIDs == [])
     }
 
     @Test("a failed reset throws before clearing or reloading")
@@ -150,7 +288,7 @@ struct ChatProviderTests {
             sendEvents: self.textDeltas("reply"),
             resetError: .provider(TestError())
         ))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         try await provider.send("hi")
 
@@ -164,7 +302,7 @@ struct ChatProviderTests {
     @Test("delete wipes the conversation")
     func deleteClears() async throws {
         let mock = MockChatService(.init(sendEvents: self.textDeltas("reply")))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -179,7 +317,7 @@ struct ChatProviderTests {
     @Test("a failed delete throws and leaves the conversation intact")
     func deleteFailureLeavesConversationIntact() async {
         let mock = MockChatService(.init(deleteError: .provider(TestError())))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil })
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
 
         await #expect(throws: (any Error).self) {
             try await provider.delete()
@@ -192,7 +330,7 @@ struct ChatProviderTests {
     @Test("the welcome message is seeded as the first incoming bubble")
     func welcomeSeeded() async throws {
         let mock = MockChatService()
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi")
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi", acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.loadOlder()
@@ -204,7 +342,7 @@ struct ChatProviderTests {
     @Test("the welcome survives reset — re-seeded after clearing")
     func welcomeSurvivesReset() async throws {
         let mock = MockChatService(.init(sendEvents: self.textDeltas("reply")))
-        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi")
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, welcomeMessage: "Hi", acceptsImageUploadPrompts: true)
         var snapshots = provider.stream.makeAsyncIterator()
 
         try await provider.send("hi")
@@ -214,11 +352,168 @@ struct ChatProviderTests {
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("Hi"))]])
         #expect(snapshot?.user == [])
     }
+
+    @Test("a delete leaves the welcome on screen")
+    func welcomeSurvivesDelete() async throws {
+        let mock = MockChatService(.init(sendEvents: [self.textPart("reply")]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+        try await provider.delete()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a 401 on a send leaves the welcome on screen")
+    func welcomeSurvivesExpiredSend() async {
+        let provider: any ChatProviding = self.welcomeProvider(MockChatService(.init(sendError: .sessionExpired)))
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatProvider.SendFailure.sessionExpired) {
+            try await provider.send("hi")
+        }
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a 401 on a history load leaves the welcome on screen")
+    func welcomeSurvivesExpiredHistory() async {
+        let provider: any ChatProviding = self.welcomeProvider(MockChatService(.init(historyError: .sessionExpired)))
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("an expired session leaves the welcome on screen")
+    func welcomeSurvivesExpiry() async throws {
+        let mock = MockChatService(.init(sendEvents: [self.textPart("reply")]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+        await provider.expireSession()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a reset whose history reload fails leaves the welcome on screen")
+    func welcomeSurvivesFailedReload() async throws {
+        let mock = MockChatService(.init(
+            sendEvents: [self.textPart("reply")],
+            historyError: .transport(.http(.unhandled(status: 500, body: Data())))
+        ))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+        try await provider.reset()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("a first page that fails still opens with the welcome")
+    func welcomeShowsAfterFailedFirstPage() async {
+        let mock = MockChatService(.init(historyError: .transport(.http(.unhandled(status: 500, body: Data())))))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [self.welcomeTurn])
+    }
+
+    @Test("history that loads on a retry joins the welcome once, above it all")
+    func retryKeepsOneWelcome() async throws {
+        let mock = MockChatService(.init(
+            historyPages: [
+                MessagePage(messages: [], nextCursor: nil),
+                MessagePage(messages: [self.assistantMessage("a")], nextCursor: nil)
+            ],
+            historyFailingCalls: [0: .transport(.http(.unhandled(status: 500, body: Data())))]
+        ))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        await #expect(throws: ChatServiceError.self) {
+            try await provider.loadOlder()
+        }
+        try await provider.loadOlder()
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            .bot([.text(AttributedString("Hi")), .text(AttributedString("a"))])
+        ])
+    }
+
+    @Test("the welcome waits for the last page of history")
+    func welcomeWaitsForLastPage() async throws {
+        let mock = MockChatService(.init(historyPages: [
+            MessagePage(messages: [self.assistantMessage("new")], nextCursor: "older"),
+            MessagePage(messages: [self.userMessage("old")], nextCursor: nil)
+        ]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.turns.map(\.model) == [.bot([.text(AttributedString("new"))])])
+
+        try await provider.loadOlder()
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            self.welcomeTurn,
+            .user([.text(AttributedString("old"))]),
+            .bot([.text(AttributedString("new"))])
+        ])
+    }
+
+    @Test("the conversation continues beneath the welcome after a delete")
+    func sendAfterDeleteKeepsWelcomeFirst() async throws {
+        let mock = MockChatService(.init(sendEvents: [self.textPart("reply")]))
+        let provider: any ChatProviding = self.welcomeProvider(mock)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.delete()
+        try await provider.send("hi")
+
+        #expect(await snapshots.next()?.turns.map(\.model) == [
+            self.welcomeTurn,
+            .user([.text(AttributedString("hi"))]),
+            .bot([.text(AttributedString("reply"))])
+        ])
+    }
+
+    @Test("the turn that carries the welcome keeps its id as a note joins it")
+    func welcomeTurnKeepsItsID() async throws {
+        let provider: any ChatProviding = self.welcomeProvider(MockChatService())
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+        let before = await snapshots.next()?.turns.first?.id
+        await provider.note(LivechatNote(kind: .queued))
+        let after = await snapshots.next()?.turns.first?.id
+
+        #expect(before != nil)
+        #expect(before == after)
+    }
 }
 
 // MARK: - Fixtures
 
 private extension ChatProviderTests {
+
+    /// The turn a conversation greeted with "Hi" opens with.
+    var welcomeTurn: ConversationSnapshot.Turn {
+        .bot([.text(AttributedString("Hi"))])
+    }
+
+    func welcomeProvider(_ service: MockChatService) -> ChatProvider {
+        ChatProvider(service: service, pageContext: { nil }, welcomeMessage: "Hi", acceptsImageUploadPrompts: true)
+    }
 
     /// The rich_text delta sequence that streams a single paragraph of `text`.
     func textDeltas(_ text: String, partId: String = "p") -> [StreamEvent] {
@@ -239,6 +534,18 @@ private extension ChatProviderTests {
         Message(
             messageId: "m",
             role: .assistant,
+            agent: nil,
+            parts: [.richText(RichText(partId: "", blocks: [.paragraph(.init(spans: [.text(text)]))]))],
+            createdAt: "2026-01-01T00:00:00.000Z"
+        )
+    }
+
+    /// A visitor history message carrying a single paragraph of `text`.
+    func userMessage(_ text: String) -> Message {
+        Message(
+            messageId: "u",
+            role: .user,
+            agent: nil,
             parts: [.richText(RichText(partId: "", blocks: [.paragraph(.init(spans: [.text(text)]))]))],
             createdAt: "2026-01-01T00:00:00.000Z"
         )

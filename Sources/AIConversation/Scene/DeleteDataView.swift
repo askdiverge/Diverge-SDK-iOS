@@ -13,6 +13,9 @@ struct DeleteDataView: View {
     @Environment(\.appearance) private var appearance
     @Environment(\.dismiss) private var dismiss
 
+    /// Whether the delete can run now. It waits while a reply, a reset or a history page is in
+    /// flight, which would refuse it before the host heard of it.
+    let canConfirm: Bool
     let onConfirm: () -> Void
 
     @State private var isChecked = false
@@ -119,8 +122,10 @@ struct DeleteDataView: View {
             .padding(self.spacing.units(4))
             .frame(maxWidth: .infinity)
             .background(self.theme.destructive)
+            .opacity(self.canConfirm ? 1 : 0.5)
         }
         .buttonStyle(.plain)
+        .disabled(!self.canConfirm)
     }
 
     private func confirmDelete() {

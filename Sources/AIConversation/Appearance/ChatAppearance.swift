@@ -39,7 +39,7 @@ struct ChatAppearance {
         /// Ordered color stops for the assistant thinking-state border animation; empty when unset.
         let thinkingBorderGradient: [Color]
 
-        // TODO: not yet wire-driven — SDK constants until the config carries them.
+        // SDK constants: the config carries no value for these.
         let errorBackground: Color
         let errorForeground: Color
         let accentForeground: Color
@@ -63,7 +63,7 @@ extension ChatAppearance {
 
 extension ChatAppearance.Theme {
 
-    // TODO: SDK default palette until config supplies / extends the theme.
+    /// The palette a config theme that doesn't parse falls back to.
     static let `default` = ChatAppearance.Theme(
         accent: Color(hex: "#18191B") ?? .black,
         primaryText: Color(hex: "#121212") ?? .primary,
@@ -112,6 +112,24 @@ extension ChatAppearance {
         /// toolbar — starts a fresh conversation.
         static let reset = Image(systemName: "arrow.trianglehead.2.counterclockwise.rotate.90")
 
+        /// toolbar — asks for a person, or ends the livechat session.
+        static let livechat = Image(systemName: "headset")
+
+        /// talk-to-a-person card — the handoff CTA.
+        static let person = Image(systemName: "person")
+
+        /// agent message — stands in for the agent's photo when there is none.
+        static let agentAvatar = Image(systemName: "person.fill")
+
+        /// file row — an agent or assistant attachment.
+        static let file = Image(systemName: "doc")
+
+        /// composer / form — opens the photo library picker.
+        static let attach = Image(systemName: "photo.badge.plus")
+
+        /// image bubble — shown when a remote photo cannot be loaded.
+        static let imageUnavailable = Image(systemName: "photo")
+
         /// leading control & opens Privacy & Data.
         static let privacy = Image(systemName: "checkmark.shield")
 
@@ -140,13 +158,33 @@ extension ChatAppearance {
         static let disclosure = Image(systemName: "chevron.right")
     }
 
-    /// The chat's base font at `size`. Uses the config's custom family when it resolved — its faces
-    /// resolve per `weight` and per inline emphasis — otherwise the system font.
+    /// The chat's base font at `size`, scaling with Dynamic Type. Uses the config's custom family
+    /// when it resolved — its faces resolve per `weight` and per inline emphasis — otherwise the
+    /// system font in the text style of that size.
     func font(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         if let fontFamily = self.fontFamily {
             Font.custom(fontFamily, size: size).weight(weight)
         } else {
-            Font.system(size: size, weight: weight)
+            Font.system(Self.textStyle(ofSize: size), weight: weight)
+        }
+    }
+
+    /// The text style whose default size on iOS is `size`, so the design holds at the default
+    /// setting; a size between two styles takes the smaller. `Font.system(size:)` would keep the size
+    /// at every setting. macOS sizes the same styles smaller (`.body` is 13 pt), so the macOS Harness
+    /// shows the chat smaller than designed, with 11 to 13 pt all at 10 pt.
+    private static func textStyle(ofSize size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case ..<12: .caption2
+        case ..<13: .caption
+        case ..<15: .footnote
+        case ..<16: .subheadline
+        case ..<17: .callout
+        case ..<20: .body
+        case ..<22: .title3
+        case ..<28: .title2
+        case ..<34: .title
+        default: .largeTitle
         }
     }
 }

@@ -1,6 +1,6 @@
 //
 //  ChatServicing.swift
-//  AIConversation
+//  AIConversationEngine
 //
 //  Created by Daniel Wennberg on 2026-06-04.
 //
@@ -17,15 +17,41 @@ package protocol ChatServicing: Sendable {
     /// Pass the previous page's `nextCursor` to fetch the next page; `nil` for the first.
     func fetchHistory(cursor: String?) async throws(ChatServiceError) -> MessagePage
 
-    /// sends a text message and streams the
+    /// Sends a visitor message (text and/or attachments) and streams the
     /// response as SSE events until `done`/`error` terminates it.
-    /// `page` is per-message context .
-    /// every failure (transport, 401, or a stream `error` event) is delivered on the stream's throwing channel as
-    /// `ChatServiceError`.
+    /// `page` is per-message context.
+    /// Every failure (transport, 401, or a stream `error` event) is delivered on the stream's throwing channel as
+    /// `ChatServiceError`. A 409 surfaces as ``ChatServiceError/conflict``; an active livechat session
+    /// causes it, so the caller reads the session before sending the text to the agent.
     func sendMessage(
         _ text: String,
+        attachments: [OutgoingAttachment],
         page: String?
     ) -> AsyncThrowingStream<StreamEvent, any Error>
+
+    /// Submits a marker-triggered action (contact form, support ticket, custom form).
+    /// Session-bound — a 401 surfaces as ``ChatServiceError/sessionExpired``.
+    func submitAction(_ request: SubmitActionRequest) async throws(ChatServiceError) -> SubmitActionResponse
+
+    /// Full form definition for a `show_form` marker whose fields arrive empty. Session-bound —
+    /// a 401 surfaces as ``ChatServiceError/sessionExpired``, and a form the backend no longer
+    /// has as ``ChatServiceError/notFound``.
+    func fetchForm(id: String) async throws(ChatServiceError) -> ChatFormDefinition
+
+    /// Session values for the waiting-room form. Session-bound — a 401 surfaces as
+    /// ``ChatServiceError/sessionExpired``.
+    func fetchSession() async throws(ChatServiceError) -> ChatSessionState
+
+    /// Partial update of session values through a form: only the keys sent change. The server skips
+    /// an empty value and keeps what it stored, so a value can be replaced but not removed, and it
+    /// rejects a body with no non-empty value with a 422 on `values`. A 409 means the visitor is no
+    /// longer waiting for an agent and surfaces as ``ChatServiceError/conflict``; a 404 means there
+    /// is no such form and surfaces as ``ChatServiceError/notFound``. Session-bound — a 401
+    /// surfaces as ``ChatServiceError/sessionExpired``.
+    func patchFormValues(
+        formId: String,
+        values: [String: String]
+    ) async throws(ChatServiceError) -> ChatSessionState
 
     /// Rotates the session — invalidates the current token and obtains a fresh
     /// one via the host's reset hook. The caller clears local conversation state.
@@ -34,4 +60,49 @@ package protocol ChatServicing: Sendable {
     /// Full visitor-data wipe via the host's delete hook. The session ends, no
     /// replacement token is fetched. The caller clears local conversation state
     func deleteData() async throws(ChatServiceError)
+
+    // MARK: Livechat
+    // Session-bound: a 401 surfaces as ``ChatServiceError/sessionExpired``.
+
+    /// The visitor's livechat state and the messages after `sequenceNumber` (from the start when
+    /// `nil`), read from one snapshot. With a `waitMs` and the previous response's `syncCursor`,
+    /// the server holds the request until something changes or the wait ends.
+    func syncLivechat(after sequenceNumber: Int64?, waitMs: Int?, syncCursor: String?) async throws(ChatServiceError) -> LivechatSync
+
+    /// Queues the visitor for a human agent and returns the session's status: `waiting`, or
+    /// `active` when the API hands back a session that is already open. A 409 means livechat is
+    /// unavailable and surfaces as ``ChatServiceError/conflict``.
+    func requestLivechatHandover(
+        source: LivechatHandoverRequest.Source,
+        partId: String?,
+        clientContext: LivechatClientContext?
+    ) async throws(ChatServiceError) -> LivechatState.Status
+
+    /// Sends the visitor's text and/or attachments to the agent and returns the stored message.
+    /// `operationId` is minted once per message and sent again when retrying it: the server stores
+    /// the message once per id and answers a repeat with the stored copy. A 409 means the session
+    /// is no longer active and surfaces as ``ChatServiceError/conflict``.
+    func sendLivechatMessage(
+        _ text: String,
+        attachments: [OutgoingAttachment],
+        page: String?,
+        operationId: String
+    ) async throws(ChatServiceError) -> LivechatMessage
+
+    /// Tells the agent whether the visitor is typing.
+    func sendLivechatTyping(isTyping: Bool) async throws(ChatServiceError)
+
+    /// Closes the visitor's livechat session. A 409 means the visitor has no open session and
+    /// surfaces as ``ChatServiceError/conflict``.
+    func closeLivechat(reason: String?) async throws(ChatServiceError)
+
+    /// Sends the visitor's rating of the latest closed livechat session. A 409 means that session
+    /// has no rating left to give, because it holds one already or isn't closed, and surfaces as
+    /// ``ChatServiceError/conflict``. Session-bound — a 401 surfaces as
+    /// ``ChatServiceError/sessionExpired``.
+    func submitLivechatFeedback(_ request: LivechatFeedbackRequest) async throws(ChatServiceError)
+
+    /// Rates the active conversation 1–5 with optional feedback. Session-bound — a 401 surfaces as
+    /// ``ChatServiceError/sessionExpired``. The response is an empty 200.
+    func rateConversation(_ request: RateConversationRequest) async throws(ChatServiceError)
 }
