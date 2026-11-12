@@ -326,16 +326,23 @@ private extension ChatView {
     /// The waiting-room card above the composer. One scroll view hugs the card up to a capped
     /// height and scrolls past it, so the save row and the composer stay on screen and the
     /// fields keep their identity, and their focus, as the card grows. A fade along the bottom
-    /// says there is more to scroll to.
+    /// says there is more to scroll to, and a field with an error scrolls into view.
     func waitingFormCard(_ model: WaitingFormModel) -> some View {
-        ScrollView {
-            LivechatWaitingFormView(model: model, focus: self.$focusedFormField)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentSize.height - geometry.visibleRect.maxY > 1
-        } action: { _, continues in
-            self.waitingFormContinues = continues
+        ScrollViewReader { proxy in
+            ScrollView {
+                LivechatWaitingFormView(model: model, focus: self.$focusedFormField)
+            }
+            .background(self.appearance.theme.background)
+            .scrollBounceBehavior(.basedOnSize)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height - geometry.visibleRect.maxY > 1
+            } action: { _, continues in
+                self.waitingFormContinues = continues
+            }
+            .onChange(of: model.firstFieldWithError) { _, key in
+                guard let key else { return }
+                withAnimation { proxy.scrollTo(key, anchor: .center) }
+            }
         }
         .frame(maxHeight: self.appearance.spacing.units(48))
         .fixedSize(horizontal: false, vertical: true)
@@ -404,6 +411,7 @@ private extension ChatView {
         ConversationView(
             snapshot: snapshot,
             isInputFocused: self.inputFocused,
+            isEditingForm: self.focusedFormField != nil,
             onLoadOlder: self.loadOlder,
             content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
             header: { self.chatHeader }
@@ -415,6 +423,7 @@ private extension ChatView {
             ConversationTopFlowingList(
                 snapshot: snapshot,
                 isInputFocused: self.inputFocused,
+                isEditingForm: self.focusedFormField != nil,
                 onLoadOlder: self.loadOlder,
                 content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
                 header: { self.chatHeader }
@@ -425,6 +434,7 @@ private extension ChatView {
             ConversationBottomFlowingList(
                 snapshot: snapshot,
                 isInputFocused: self.inputFocused,
+                isEditingForm: self.focusedFormField != nil,
                 onLoadOlder: self.loadOlder,
                 content: { self.turnView(for: $0, streamingTurnID: snapshot.streamingTurnID) },
                 header: { self.chatHeader }

@@ -127,7 +127,8 @@ enum FormValidator {
                     if !trimmed.isEmpty { count += 1 }
                 }
             }
-            if filled < min {
+            // A field's own error already says what is missing.
+            if filled < min, fieldErrors.isEmpty {
                 formError = L10n.formMinFilled(min).string
             }
         }

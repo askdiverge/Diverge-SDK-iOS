@@ -109,10 +109,12 @@ struct FormSubmissionModel: Equatable {
         self.isUnavailable = true
     }
 
-    /// Sets a text / dropdown answer and clears that field's error.
+    /// Sets a text / dropdown answer and clears that field's error and the form's, which the
+    /// next submit checks again.
     mutating func setValue(_ value: String, for key: String) {
         self.values[key] = value
         self.fieldErrors[key] = nil
+        self.formError = nil
         if case .failed = self.phase { self.phase = .editing }
     }
 
@@ -124,6 +126,7 @@ struct FormSubmissionModel: Equatable {
             self.files.removeValue(forKey: key)
         }
         self.fieldErrors[key] = nil
+        self.formError = nil
         if case .failed = self.phase { self.phase = .editing }
     }
 

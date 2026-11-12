@@ -50,6 +50,14 @@ final class WaitingFormModel {
         !self.isSaving && self.valuesForPatch().contains { key, value in value != (self.savedValues[key] ?? "") }
     }
 
+    /// The first visible field with an error. The fields can run past the card's fold, so the
+    /// card scrolls here.
+    var firstFieldWithError: String? {
+        FormValidator.visibleFields(of: self.form, values: self.values)
+            .first { self.fieldErrors[$0.key] != nil }?
+            .key
+    }
+
     /// One banner: transport failure wins over client validation. Distinct a11y ids.
     var bannerError: (message: String, accessibilityID: String)? {
         if case .failed(let message) = self.phase {
@@ -101,6 +109,7 @@ final class WaitingFormModel {
     func setValue(_ value: String, for key: String) {
         self.values[key] = value
         self.fieldErrors[key] = nil
+        self.formError = nil
         if case .failed = self.phase { self.phase = .editing }
         if case .saved = self.phase { self.phase = .editing }
     }
