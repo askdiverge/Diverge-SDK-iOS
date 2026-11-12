@@ -91,7 +91,7 @@ extension ChatProvider {
                 guard !bubbles.isEmpty else { continue }
                 self.appendUser(bubbles)
             } else {
-                let responses = message.parts.compactMap { self.incoming($0, role: message.role) }
+                let responses = message.parts.compactMap { self.incoming($0, role: message.role, agent: message.agent) }
                 guard !responses.isEmpty else { continue }
                 self.appendIncoming(responses)
             }

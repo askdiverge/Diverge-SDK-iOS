@@ -49,18 +49,26 @@ enum LivechatFixtures {
         """.utf8))
     }
 
-    /// A one-paragraph text message at `sequence`.
+    /// An agent identity named `name`, decoded the way the wire sends it.
+    static func agent(_ name: String, avatarURL: String? = "https://cdn.example.com/agents/1.png") throws -> LivechatAgent {
+        var json: [String: Any] = ["agent_id": "ag_1", "display_name": name]
+        json["avatar_url"] = avatarURL
+        return try self.decoder.decode(LivechatAgent.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    /// A one-paragraph text message at `sequence`, from `agent` when it names one.
     static func message(
         _ id: String,
         role: Message.Role,
         text: String = "text",
         sequence: Int64 = 1,
-        createdAt: String = "2026-01-01T00:00:00Z"
+        createdAt: String = "2026-01-01T00:00:00Z",
+        agent: LivechatAgent? = nil
     ) -> LivechatMessage {
         LivechatMessage(
             messageId: id,
             role: role,
-            agent: nil,
+            agent: agent,
             parts: [.richText(RichText(partId: "p_\(id)", blocks: [.paragraph(.init(spans: [.text(text)]))]))],
             createdAt: createdAt,
             sequenceNumber: sequence

@@ -18,16 +18,18 @@ extension ChatProvider {
         }
     }
 
-    /// Maps a wire part for an incoming turn. System-role text becomes a centred note; every other
-    /// non-user role keeps the usual assistant / agent cards.
-    func incoming(_ part: Part, role: Message.Role = .assistant) -> ChatResponse? {
+    /// Maps a wire part for an incoming turn. System-role text becomes a centred note, and an
+    /// agent's text carries `agent`, the identity its message names; every other non-user role
+    /// keeps the usual assistant / agent cards.
+    func incoming(_ part: Part, role: Message.Role = .assistant, agent: LivechatAgent? = nil) -> ChatResponse? {
         if role == .system {
             guard case .richText(let richText) = part else { return nil }
             return RichTextParser.attributedText(richText).map(ChatResponse.systemNote)
         }
         switch part {
         case .richText(let richText):
-            return RichTextParser.attributedText(richText).map(ChatResponse.text)
+            guard let text = RichTextParser.attributedText(richText) else { return nil }
+            return role == .agent ? .agentText(text, agent: agent) : .text(text)
         case .products(let products):
             return .products(products.products)
         case .table(let table):

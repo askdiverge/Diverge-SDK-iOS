@@ -64,9 +64,9 @@ struct ChatProviderHistoryTests {
         try await provider.loadOlder()
 
         #expect(await snapshots.next()?.turns.map(\.model) == [
-            .bot([.text(AttributedString("agent here"))]),
+            .bot([.agentText(AttributedString("agent here"), agent: nil)]),
             .user([.text(AttributedString("my order"))]),
-            .bot([.text(AttributedString("thanks"))])
+            .bot([.agentText(AttributedString("thanks"), agent: nil)])
         ])
     }
 

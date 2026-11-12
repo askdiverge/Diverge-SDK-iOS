@@ -118,6 +118,9 @@ extension ChatAppearance {
         /// talk-to-a-person card — the handoff CTA.
         static let person = Image(systemName: "person")
 
+        /// agent message — stands in for the agent's photo when there is none.
+        static let agentAvatar = Image(systemName: "person.fill")
+
         /// file row — an agent or assistant attachment.
         static let file = Image(systemName: "doc")
 

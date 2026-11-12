@@ -570,6 +570,11 @@ private extension ChatView {
                 .modifier(RelativeWidth(0.70, alignment: .leading))
                 .modifier(AvatarImage(image: self.viewModel.avatar, edge: .leading))
 
+        case .agentText(let text, let agent):
+            self.textResponse(text, isStreaming: isStreaming)
+                .modifier(RelativeWidth(0.70, alignment: .leading))
+                .modifier(AgentAvatarImage(agent: agent))
+
         case .products(let cards):
             ProductGridView(cards: cards)
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))

@@ -13,6 +13,8 @@ import Foundation
 /// `form` reuses the normalised ``ConversationForm`` — markers arrive whole, as a `part` event
 /// live or as a part in history, never as deltas.
 /// `table` massages the wire model into folded columns + rectangular rows (`TableContent`).
+/// `agentText` is a livechat agent's text, shown beside that agent's avatar instead of the
+/// assistant's. `agent` is the identity the message carries; `nil` when it carries none.
 /// `image` is a persisted photo on an assistant or agent turn.
 /// `file` is an agent- or assistant-sent attachment; the row opens its signed download URL.
 /// `requestImageUpload` is the photo-upload prompt card; gated by the host's attachments setting.
@@ -26,6 +28,7 @@ package enum ChatResponse: Sendable, Equatable {
     case products([Products.Card])
     case form(ConversationForm)
     case table(TableContent)
+    case agentText(AttributedString, agent: LivechatAgent?)
     case image(MessageImage)
     case file(MessageFile)
     case requestImageUpload(RequestImageUpload)

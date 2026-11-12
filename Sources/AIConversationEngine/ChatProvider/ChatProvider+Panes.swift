@@ -76,9 +76,13 @@ extension ChatProvider {
             case (.user, _):
                 runs.append(.user(message.parts.compactMap(Self.user)))
             case (_, .bot(let responses)):
-                runs[runs.count - 1] = .bot(responses + message.parts.compactMap { self.incoming($0, role: message.role) })
+                runs[runs.count - 1] = .bot(responses + message.parts.compactMap {
+                    self.incoming($0, role: message.role, agent: message.agent)
+                })
             default:
-                runs.append(.bot(message.parts.compactMap { self.incoming($0, role: message.role) }))
+                runs.append(.bot(message.parts.compactMap {
+                    self.incoming($0, role: message.role, agent: message.agent)
+                }))
             }
         }
 
