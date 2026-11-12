@@ -258,6 +258,7 @@ struct ChatProviderLivechatTests {
             incoming: [reply, notes],
             isUserInitiatedConversation: true,
             streamingTurnID: nil,
+            liveTurnIDs: [],
             canLoadOlder: false
         )
 

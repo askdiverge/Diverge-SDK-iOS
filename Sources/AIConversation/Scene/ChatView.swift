@@ -160,7 +160,8 @@ private extension ChatView {
             } message: { confirmation in
                 Text(confirmation.message)
             }
-            .onChange(of: self.viewModel.backgroundSessionEnded) { _, ended in
+            // `initial`: a 401 on the first history page sets the flag before this view exists.
+            .onChange(of: self.viewModel.backgroundSessionEnded, initial: true) { _, ended in
                 guard ended else { return }
                 self.viewModel.backgroundSessionEnded = false
                 self.showSessionEndedAlert = true
@@ -193,7 +194,7 @@ private extension ChatView {
                     }
                 }
             )
-            .onChange(of: self.viewModel.livechatSessionEnded) { _, ended in
+            .onChange(of: self.viewModel.livechatSessionEnded, initial: true) { _, ended in
                 guard ended else { return }
                 self.viewModel.livechatSessionEnded = false
                 self.showSessionEndedAlert = true

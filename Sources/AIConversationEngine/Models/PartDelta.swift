@@ -25,7 +25,8 @@ package enum PartDelta: Decodable, Sendable, Equatable {
 
     /// Close the current part. The authoritative `part` event follows.
     case endPart
-    /// Unrecognised action, or `start_part` with an unrecognised `part_type`.
+    /// Unrecognised action, `start_part` with an unrecognised `part_type`, or a delta whose
+    /// payload doesn't decode.
     case unknown
 
     private enum CodingKeys: String, CodingKey {

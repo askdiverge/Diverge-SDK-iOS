@@ -228,6 +228,7 @@ extension ChatViewModelLivechatTests {
             incoming: [card],
             isUserInitiatedConversation: false,
             streamingTurnID: nil,
+            liveTurnIDs: [],
             canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot?.lastBotTurnID == card.id }
@@ -246,6 +247,7 @@ extension ChatViewModelLivechatTests {
             incoming: [card, Identified(model: [.text(AttributedString("later"))])],
             isUserInitiatedConversation: false,
             streamingTurnID: nil,
+            liveTurnIDs: [],
             canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }
@@ -264,6 +266,7 @@ extension ChatViewModelLivechatTests {
             incoming: [card],
             isUserInitiatedConversation: true,
             streamingTurnID: card.id,
+            liveTurnIDs: [card.id],
             canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }

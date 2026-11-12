@@ -29,8 +29,8 @@ final class LivechatRatingController {
     @ObservationIgnored private var isDone = false
     /// The latest session is closed with feedback still to give.
     @ObservationIgnored private(set) var hasPendingFeedback = false
-    /// The latest session is closed with a rating of its own, still to give or given. It replaces
-    /// the conversation rating on close.
+    /// The latest session is closed with a rating of its own that the visitor gave, or that this
+    /// screen asks for because it saw the close. It replaces the conversation rating on close.
     @ObservationIgnored private(set) var closedSessionHasRating = false
     /// The chat is visible and the app active.
     @ObservationIgnored private var isOnScreen = true
@@ -57,11 +57,10 @@ final class LivechatRatingController {
     /// After a close the poller stops, so a rating given elsewhere shows when a send is refused.
     func update(previous: LivechatState.Status, state: LivechatState, isRestored: Bool) {
         self.hasPendingFeedback = state.status == .closed && state.feedback.status == .pending
-        self.closedSessionHasRating = state.status == .closed
-            && (state.feedback.status == .pending || state.feedback.status == .submitted)
         guard state.status == .closed else {
             self.sawClose = false
             self.isDone = false
+            self.closedSessionHasRating = false
             self.epoch += 1
             self.dropModel()
             return
@@ -69,6 +68,8 @@ final class LivechatRatingController {
         if previous.isInSession, !isRestored {
             self.sawClose = true
         }
+        self.closedSessionHasRating = state.feedback.status == .submitted
+            || (self.hasPendingFeedback && self.sawClose)
         if self.hasPendingFeedback {
             self.offerIfReady()
         } else if self.model?.isSubmitting == false {

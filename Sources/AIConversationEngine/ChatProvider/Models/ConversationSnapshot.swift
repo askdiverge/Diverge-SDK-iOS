@@ -19,6 +19,10 @@ package struct ConversationSnapshot: Sendable, Equatable {
     /// The turn whose reply is currently streaming, else `nil`
     package let streamingTurnID: UUID?
 
+    /// The bot turns whose replies this provider streamed, as opposed to ones history restored. A
+    /// snapshot carries all of them, so a skipped snapshot loses none.
+    package let liveTurnIDs: Set<UUID>
+
     /// Whether older turns may remain to load: pages are left, or the first page hasn't loaded.
     package let canLoadOlder: Bool
 }

@@ -41,15 +41,15 @@ package enum RichTextParser {
         }
     }
 
-    /// A paragraph the assistant opens with a Markdown heading marker (`#` to `######`, then a
-    /// space) renders as one bold line without the marker, as the web widget shows a heading. The
-    /// marker arrives as the start of the paragraph's first text span. Returns nil for any other
-    /// paragraph.
+    /// A paragraph the assistant opens with a Markdown heading marker (`#` to `####`, then a
+    /// space, the levels the web widget shows as headings) renders as one bold line without the
+    /// marker. The marker arrives as the start of the paragraph's first text span. Returns nil for
+    /// any other paragraph.
     private static func heading(_ spans: [RichText.Span]) -> AttributedString? {
         guard case .text(let first)? = spans.first else { return nil }
         let hashes = first.prefix { $0 == "#" }.count
         let afterHashes = first.dropFirst(hashes)
-        guard (1...6).contains(hashes), afterHashes.first == " " else { return nil }
+        guard (1...4).contains(hashes), afterHashes.first == " " else { return nil }
 
         let title = String(afterHashes.drop { $0 == " " })
         var text = self.joined(([.text(title)] + spans.dropFirst()).compactMap(self.span))

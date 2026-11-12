@@ -333,12 +333,13 @@ struct ChatViewModelAttachmentTests {
             incoming: [],
             isUserInitiatedConversation: false,
             streamingTurnID: UUID(),
+            liveTurnIDs: [],
             canLoadOlder: false
         ))
         try await eventually { viewModel.isStreaming }
         #expect(!viewModel.canAttach)
 
-        provider.publish(ConversationSnapshot(user: [], incoming: [], isUserInitiatedConversation: false, streamingTurnID: nil, canLoadOlder: false))
+        provider.publish(ConversationSnapshot(user: [], incoming: [], isUserInitiatedConversation: false, streamingTurnID: nil, liveTurnIDs: [], canLoadOlder: false))
         try await eventually { !viewModel.isStreaming }
         #expect(viewModel.canAttach)
     }

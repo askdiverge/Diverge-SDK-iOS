@@ -201,6 +201,7 @@ extension ChatViewModelLivechatTests {
             incoming: [],
             isUserInitiatedConversation: true,
             streamingTurnID: UUID(),
+            liveTurnIDs: [],
             canLoadOlder: false
         ))
         try await eventually { viewModel.snapshot != nil }

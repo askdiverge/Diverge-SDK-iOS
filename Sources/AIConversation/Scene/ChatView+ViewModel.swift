@@ -112,9 +112,10 @@ extension ChatView {
         /// Drafts of the conversation's forms by `part_id`, created when a snapshot first brings
         /// the form so a draft survives list recycling.
         private(set) var formModels: [String: FormSubmissionModel] = [:]
-        /// Bot turns whose reply streamed while this chat was open. A form restored from history
-        /// stays read-only, the way the web widget does not reopen a form on reload.
-        private var liveTurnIDs: Set<UUID> = []
+        /// The cards that arrived in a reply while a chat of this `AIChat` was open, kept across
+        /// presentations. A form restored from history that none of them saw arrive stays
+        /// read-only, the way the web widget does not reopen a form on reload.
+        @ObservationIgnored private let liveCards: LiveCards
         /// `request_human_agent` cards the visitor answered "No thanks". They leave the
         /// conversation, and the chat stays with the assistant.
         private(set) var declinedHumanAgentPrompts: Set<String> = []
@@ -147,8 +148,8 @@ extension ChatView {
         typealias AttachmentEncoder = @Sendable (Data, ImageAttachment.Options) async throws(ImageAttachment.Failure) -> ImageAttachment.Encoded
 
         /// Whether tapping close should present the **conversation** `/rate` overlay. A livechat
-        /// session that closed with a rating of its own (CSAT), given or still to give, is rated
-        /// there, so a close after it asks nothing more.
+        /// session whose rating of its own (CSAT) was given, or is asked for because this screen saw
+        /// it close, is rated there, so a close after it asks nothing more.
         var shouldOfferRating: Bool {
             self.conversationRatingMode == .enabled
                 && self.onClose != nil
@@ -179,9 +180,11 @@ extension ChatView {
             onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)?,
             conversationRatingMode: AIChat.Rating,
             ratingSession: RatingSession,
+            liveCards: LiveCards,
             dependencies: Dependencies
         ) {
             self.service = service
+            self.liveCards = liveCards
             self.pageContext = { await contextProvider?() }
             self.conversationFlow = conversationFlow
             self.attachments = attachments
@@ -383,10 +386,13 @@ extension ChatView {
         }
 
         /// Whether a form card in the given bot turn may still be filled: the turn is the newest
-        /// bot turn (the server rejects older `part_id`s) and its reply streamed while the chat
-        /// was open.
+        /// bot turn (the server rejects older `part_id`s), and its reply streamed into this chat or
+        /// its card arrived live while an earlier presentation of the chat was open.
         func isFormEditable(inBotTurn turnID: UUID) -> Bool {
-            self.snapshot?.lastBotTurnID == turnID && self.liveTurnIDs.contains(turnID)
+            guard let snapshot = self.snapshot, snapshot.lastBotTurnID == turnID else { return false }
+            if snapshot.liveTurnIDs.contains(turnID) { return true }
+            guard let turn = snapshot.incoming.first(where: { $0.id == turnID }) else { return false }
+            return self.liveCards.containsCard(in: turn.model)
         }
 
         /// Sets a text or dropdown answer on the draft of form `partId`.
@@ -553,8 +559,8 @@ extension ChatView {
             let stream = provider.stream
             Task { [weak self] in
                 for await snapshot in stream {
-                    if let streaming = snapshot.streamingTurnID, self?.liveTurnIDs.contains(streaming) == false {
-                        self?.liveTurnIDs.insert(streaming)
+                    for turn in snapshot.incoming where snapshot.liveTurnIDs.contains(turn.id) {
+                        self?.liveCards.record(turn.model)
                     }
                     self?.prepareForms(in: snapshot)
                     self?.snapshot = snapshot
@@ -620,7 +626,7 @@ extension ChatView {
         /// and photos, so a message the visitor hasn't sent can still go to the next session.
         private func dropConversationState() {
             self.formModels = [:]
-            self.liveTurnIDs = []
+            self.liveCards.clear()
             self.declinedHumanAgentPrompts = []
             self.waitingForm.clear()
             self.conversationRating.clearSession()

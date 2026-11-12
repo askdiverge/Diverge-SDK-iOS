@@ -47,6 +47,9 @@ package actor ChatProvider: ChatProviding {
     /// Set before the first suspension in `send`, cleared when the stream settles.
     var streamingTurnID: UUID?
 
+    /// The bot turns whose replies a send streamed, for the snapshot's `liveTurnIDs`.
+    var liveTurnIDs: Set<UUID> = []
+
     /// Serializes send/reset/delete — they must not interleave.
     var isBusy = false
 
@@ -131,6 +134,7 @@ package actor ChatProvider: ChatProviding {
                 incoming: self.publishedIncoming,
                 isUserInitiatedConversation: self.welcome == nil && !self.botLeads,
                 streamingTurnID: self.streamingTurnID,
+                liveTurnIDs: self.liveTurnIDs,
                 canLoadOlder: !self.paginator.isExhausted
             )
         )
@@ -297,6 +301,7 @@ extension ChatProvider {
         self.livechatLog = []
         self.paginator = Paginator()
         self.streamingTurnID = nil
+        self.liveTurnIDs = []
         self.livechatMessageIDs = []
         self.historyHead = nil
         self.botLeads = false

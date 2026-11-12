@@ -75,7 +75,10 @@ struct RichTextParserTests {
         #expect(result == bold + struck)
     }
 
-    @Test("hashes without a following space, or more than six, stay text", arguments: ["#1 seller", "####### Seven"])
+    @Test(
+        "hashes without a following space, or more than four as on the web widget, stay text",
+        arguments: ["#1 seller", "##### Five", "####### Seven"]
+    )
     func notAHeading(text: String) {
         #expect(RichTextParser.attributedText(self.paragraph(.text(text))) == AttributedString(text))
     }

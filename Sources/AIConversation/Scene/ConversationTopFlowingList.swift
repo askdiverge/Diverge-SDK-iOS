@@ -49,7 +49,7 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
     var body: some View {
         ScrollViewReader { proxy in
             self.conversation(proxy)
-                .overlay(alignment: .bottom) {
+                .overlay(alignment: .bottomTrailing) {
                     ScrollToBottomButton(
                         isVisible: self.isScrolledAway && !self.isInputFocused && !self.isEditingForm && self.snapshot.turns.count > 1,
                         isStreaming: self.snapshot.streamingTurnID != nil
@@ -68,6 +68,12 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                     // A user turn that a page of history brings isn't a send.
                     if old.user.last?.id != new.user.last?.id, landing == .none {
                         self.userTurnChanged(new.user.last?.id, proxy: proxy)
+                    }
+                    // A page that replaced the conversation took the exchange's user turn with it,
+                    // so the next send starts an exchange of its own.
+                    if landing != .none, self.exchange != nil, !self.isArmed {
+                        self.exchange = nil
+                        self.reclaimed = 0
                     }
                     // Open at the newest turn once, afterwards a send lifts to the top instead.
                     guard self.isInitialLoad else { return }

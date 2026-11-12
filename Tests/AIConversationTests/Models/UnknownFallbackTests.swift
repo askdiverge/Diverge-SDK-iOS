@@ -194,4 +194,16 @@ struct UnknownFallbackTests {
         #expect(part == .part(.unknown))
         #expect(delta == .delta(partId: "t_1", .unknown))
     }
+
+    @Test(
+        "a part_delta without its part_id or delta decodes to .unknown",
+        arguments: [
+            #"{"type":"part_delta","data":{"delta":{"action":"end_part"}}}"#,
+            #"{"type":"part_delta","data":{"part_id":"t_1"}}"#
+        ]
+    )
+    func partDeltaWithoutTargetIsUnknown(json: String) throws {
+        let event = try self.decoder.decode(StreamEvent.self, from: Data(json.utf8))
+        #expect(event == .unknown)
+    }
 }

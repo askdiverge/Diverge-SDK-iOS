@@ -20,8 +20,9 @@ extension ChatProvider {
 
         // Mint the in-flight turn and mark it live before the first suspension, so concurrent
         // sends bounce and the view can flag exactly this turn from the snapshot.
-        let inFlight = Identified<[ChatResponse]>(model: [.placeholder(AttributedString("• • •"))])
+        let inFlight = Identified<[ChatResponse]>(model: [Self.thinkingPlaceholder])
         self.streamingTurnID = inFlight.id
+        self.liveTurnIDs.insert(inFlight.id)
 
         // Extra context
         let page = await self.pageContext()
@@ -57,7 +58,8 @@ extension ChatProvider {
             // either way publish so the stop signal a snapshot change.
             self.streamingTurnID = nil
             if case .placeholder? = self.incoming.last?.model.first {
-                self.incoming.removeLast()
+                let dropped = self.incoming.removeLast()
+                self.liveTurnIDs.remove(dropped.id)
             }
             self.publish()
 
@@ -95,8 +97,9 @@ extension ChatProvider {
             guard
                 let response = self.incoming(part)
             else {
-                // Unsupported part renders nothing, reset without consuming index.
+                // Unsupported part renders nothing: its preview goes, and the index isn't consumed.
                 buffer.reset()
+                self.unplace(at: buffer.commitCount)
                 return
             }
 
@@ -126,11 +129,31 @@ extension ChatProvider {
         self.incoming[turn] = Identified(id: self.incoming[turn].id, model: responses)
     }
 
+    /// Removes the preview a part's deltas placed at `index` in the assistant turn, for a part that
+    /// renders nothing. A turn left empty shows the thinking placeholder again, which the end of the
+    /// stream drops if nothing follows.
+    func unplace(at index: Int) {
+        let turn = self.incoming.count - 1
+        var responses = self.incoming[turn].model
+        guard index < responses.count else { return }
+        if case .placeholder = responses[index] { return }
+        responses.remove(at: index)
+        self.incoming[turn] = Identified(
+            id: self.incoming[turn].id,
+            model: responses.isEmpty ? [Self.thinkingPlaceholder] : responses
+        )
+        self.publish()
+    }
+
     /// Discards the unfinished assistant reply and pops the user echo bubbles, returning their
     /// text for the caller to restore to the input.
     func discardInFlight(echoCount: Int) -> String {
         self.streamingTurnID = nil
-        self.incoming.removeLast()
+        let discarded = self.incoming.removeLast()
+        self.liveTurnIDs.remove(discarded.id)
         return self.popLastUserBubbles(count: echoCount)
     }
+
+    /// What an assistant turn shows while its reply hasn't produced anything yet.
+    static let thinkingPlaceholder = ChatResponse.placeholder(AttributedString("• • •"))
 }

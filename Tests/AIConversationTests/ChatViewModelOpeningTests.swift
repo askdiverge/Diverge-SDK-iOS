@@ -57,6 +57,7 @@ private extension ChatViewModelOpeningTests {
             onLivechatSessionChange: nil,
             conversationRatingMode: .enabled,
             ratingSession: RatingSession(),
+            liveCards: LiveCards(),
             dependencies: .live(service: service)
         )
     }

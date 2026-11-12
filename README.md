@@ -52,8 +52,10 @@ chat.makeView()
 present(chat.makeViewController(), animated: true)
 ```
 
-You don't have to store the `AIChat` instance unless you explicitly want the session to outlive the
-presentation lifecycle.
+Keep the `AIChat` for as long as its chat is on screen: create it when you present the chat, not
+inside a view's `body`, where every re-render would start the chat again. You don't have to keep it
+after the presentation ends unless you want the session to outlive it. Every `AIChat()` made after
+`AIChat.configure(_:)` is the same app-wide chat.
 
 ## Configuration
 

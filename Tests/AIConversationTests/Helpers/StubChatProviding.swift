@@ -110,6 +110,7 @@ extension ChatView.ViewModel {
         onLivechatSessionChange: (@MainActor (AIChat.LivechatSessionInfo) -> Void)? = nil,
         conversationRatingMode: AIChat.Rating = .enabled,
         ratingSession: RatingSession = RatingSession(),
+        liveCards: LiveCards = LiveCards(),
         encodeAttachment: AttachmentEncoder? = nil,
         submitAction: ActionSubmitter? = nil,
         fetchForm: FormFetcher? = nil,
@@ -145,6 +146,7 @@ extension ChatView.ViewModel {
             onLivechatSessionChange: onLivechatSessionChange,
             conversationRatingMode: conversationRatingMode,
             ratingSession: ratingSession,
+            liveCards: liveCards,
             dependencies: dependencies
         )
         viewModel.attachProviderForTesting(provider)

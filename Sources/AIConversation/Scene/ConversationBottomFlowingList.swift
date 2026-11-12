@@ -36,7 +36,7 @@ struct ConversationBottomFlowingList<Content: View, Header: View>: View {
     var body: some View {
         ScrollViewReader { proxy in
             self.conversation(proxy)
-                .overlay(alignment: .bottom) {
+                .overlay(alignment: .bottomTrailing) {
                     ScrollToBottomButton(
                         isVisible: self.isScrolledAway && !self.isInputFocused && !self.isEditingForm && self.snapshot.turns.count > 1,
                         isStreaming: self.snapshot.streamingTurnID != nil

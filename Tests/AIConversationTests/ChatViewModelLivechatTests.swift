@@ -307,6 +307,7 @@ extension ChatViewModelLivechatTests {
                 incoming: [card],
                 isUserInitiatedConversation: false,
                 streamingTurnID: streaming,
+                liveTurnIDs: [card.id],
                 canLoadOlder: false
             ))
             try await eventually { viewModel.snapshot?.streamingTurnID == streaming }

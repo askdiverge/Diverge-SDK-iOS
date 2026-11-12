@@ -40,21 +40,19 @@ package struct ShowForm: Decodable, Sendable, Equatable {
         self.minFilledFields = minFilledFields
     }
 
-    /// `part_id` and `form_id` identify the form. A marker the backend sends as a reference only,
-    /// with no `name`, `fields` or `min_filled_fields`, decodes with no fields and is hydrated
-    /// from `GET …/forms/{form_id}`, the way the web widget resolves a form key from its own
-    /// configuration. A malformed field, or a missing identifier, throws, and the part decoder
+    /// The keys the contract requires must be present. An empty `fields` is hydrated from
+    /// `GET …/forms/{form_id}`. A missing key or malformed payload throws, and the part decoder
     /// decides how the message degrades.
     package init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.partId = try container.decode(String.self, forKey: .partId)
         self.formId = try container.decode(String.self, forKey: .formId)
-        let name = try container.decodeIfPresent(String.self, forKey: .name)?
+        let name = try container.decode(String.self, forKey: .name)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        self.name = name?.isEmpty == false ? name : nil
+        self.name = name.isEmpty ? nil : name
         self.confirmationText = try container.decodeIfPresent(String.self, forKey: .confirmationText)
-        self.fields = try container.decodeIfPresent([FormField].self, forKey: .fields) ?? []
-        self.minFilledFields = try container.decodeIfPresent(Int.self, forKey: .minFilledFields) ?? 0
+        self.fields = try container.decode([FormField].self, forKey: .fields)
+        self.minFilledFields = try container.decode(Int.self, forKey: .minFilledFields)
     }
 
     private enum CodingKeys: String, CodingKey {

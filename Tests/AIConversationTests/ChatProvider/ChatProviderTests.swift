@@ -59,6 +59,41 @@ struct ChatProviderTests {
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("A")), .text(AttributedString("B"))]])
     }
 
+    @Test("a final part the SDK can't show takes its delta preview with it")
+    func unknownPartRemovesPreview() async throws {
+        let events = self.textDeltas("a", partId: "p0")
+        + [self.textPart("A", partId: "p0")]
+        + self.textDeltas("b", partId: "p1")
+        + [.part(.unknown)]
+
+        let mock = MockChatService(.init(sendEvents: events))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.send("hi")
+
+        let snapshot = await snapshots.next()
+        #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("A"))]])
+    }
+
+    @Test("a sent reply's turn is live, and a turn history brings isn't")
+    func sentReplyIsLive() async throws {
+        let mock = MockChatService(.init(
+            sendEvents: [self.textPart("hello")],
+            historyPages: [MessagePage(messages: [self.assistantMessage("hist")], nextCursor: nil)]
+        ))
+        let provider: any ChatProviding = ChatProvider(service: mock, pageContext: { nil }, acceptsImageUploadPrompts: true)
+        var snapshots = provider.stream.makeAsyncIterator()
+
+        try await provider.loadOlder()
+        try await provider.send("hi")
+
+        let snapshot = await snapshots.next()
+        let reply = try #require(snapshot?.incoming.last)
+        #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("hist"))], [.text(AttributedString("hello"))]])
+        #expect(snapshot?.liveTurnIDs == [reply.id])
+    }
+
     // MARK: - send errors
 
     @Test("session expiry clears the conversation and surfaces .sessionExpired")
@@ -92,6 +127,7 @@ struct ChatProviderTests {
         let snapshot = await snapshots.next()
         #expect(snapshot?.user == [])
         #expect(snapshot?.incoming == [])
+        #expect(snapshot?.liveTurnIDs == [])
     }
 
     // MARK: - pagination
@@ -243,6 +279,7 @@ struct ChatProviderTests {
         #expect(mock.resetCallCount == 1)
         #expect(snapshot?.user == [])
         #expect(snapshot?.incoming.map(\.model) == [[.text(AttributedString("hist"))]])
+        #expect(snapshot?.liveTurnIDs == [])
     }
 
     @Test("a failed reset throws before clearing or reloading")
