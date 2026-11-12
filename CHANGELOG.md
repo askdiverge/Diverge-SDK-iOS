@@ -95,6 +95,9 @@
 - A rich text, table or products part the SDK can't read is left out, and the rest of the reply
   still shows: it used to end the reply mid-stream, or stop a page of older messages or a live
   chat update from loading.
+- Links and bold text written in Markdown in the configured subtitle, such as a link to the
+  privacy policy, render as links and bold, as on the web widget, instead of showing their
+  brackets and asterisks. The links open through `onOpenLink`, or the browser when it isn't set.
 
 ## [1.0.0] - 2026-10-01
 
