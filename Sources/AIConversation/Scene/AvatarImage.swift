@@ -16,7 +16,7 @@ struct AvatarImage: ViewModifier {
     let edge: HorizontalEdge
 
     func body(content: Content) -> some View {
-        HStack(alignment: .top, spacing: self.appearance.spacing.units(2)) {
+        HStack(alignment: .top, spacing: self.appearance.spacing.units(3)) {
             switch self.edge {
             case .leading:
                 self.avatar
@@ -36,7 +36,6 @@ struct AvatarImage: ViewModifier {
                 image
                     .resizable()
                     .scaledToFit()
-                    .frame(width: badge * 0.5, height: badge * 0.5)
             } else {
                 self.appearance.theme.botSurface
             }
