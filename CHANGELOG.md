@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- While a reply streams, the conversation keeps the visitor's newest message at the top instead of
+  jumping up to the previous exchange when earlier replies hold product cards.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added

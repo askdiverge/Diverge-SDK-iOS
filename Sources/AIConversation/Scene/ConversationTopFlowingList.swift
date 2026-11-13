@@ -140,8 +140,8 @@ private extension ConversationTopFlowingList {
 private extension ConversationTopFlowingList {
 
     func conversation(_ proxy: ScrollViewProxy) -> some View {
-        List {
-            Group {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: self.rowSpacing) {
                 self.header()
 
                 if self.snapshot.canLoadOlder {
@@ -160,23 +160,8 @@ private extension ConversationTopFlowingList {
                 self.buffer
                 FormFieldClearance(isActive: self.isEditingForm)
             }
-            .listRowInsets(
-                .init(
-                    top: 0,
-                    leading: self.appearance.spacing.units(4),
-                    bottom: 0,
-                    trailing: self.appearance.spacing.units(4)
-                )
-            )
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+            .padding(.horizontal, self.appearance.spacing.units(4))
         }
-        .listStyle(.plain)
-        .environment(\.defaultMinListRowHeight, 0)
-        .scrollContentBackground(.hidden)
-#if os(iOS)
-        .listRowSpacing(self.rowSpacing)
-#endif
         .onScrollGeometryChange(for: Bool.self) { self.isAway($0) } action: { _, away in
             if self.isScrolledAway != away { self.isScrolledAway = away }
         }
