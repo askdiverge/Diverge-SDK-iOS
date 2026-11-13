@@ -129,9 +129,19 @@ public final class AIChat {
 
 public extension AIChat {
 
-    /// The chat UI as a SwiftUI view. The session is tied to this instance
-    /// presentation (sheet, cover, push) is the caller's responsibility.
-    func makeView() -> some View {
+    /// The owner of the navigation bar that shows the chat's title and toolbar items.
+    enum NavigationBarOwner: Sendable {
+        /// The chat shows its own navigation bar.
+        case chat
+        /// The host's navigation bar shows the chat's title and toolbar items.
+        case host
+    }
+
+    /// The chat UI as a SwiftUI view. The session is tied to this instance.
+    /// Presentation (sheet, cover, push) is the caller's responsibility.
+    /// - Parameter navigationBarOwner: The owner of the navigation bar that shows the chat's title and
+    ///   toolbar items. Pass ``NavigationBarOwner/host`` when the chat is pushed onto a navigation stack.
+    func makeView(navigationBarOwner: NavigationBarOwner = .chat) -> some View {
         ChatView(
             viewModel: .init(
                 service: self.service,
@@ -144,7 +154,8 @@ public extension AIChat {
                 ratingSession: self.ratingSession,
                 liveCards: self.liveCards,
                 dependencies: .live(service: self.service)
-            )
+            ),
+            navigationBarOwner: navigationBarOwner
         )
         .id(self.viewIdentity)
         .environment(\.openURL, self.openURL)
@@ -152,10 +163,15 @@ public extension AIChat {
 
 #if canImport(UIKit)
     /// The chat UI wrapped in a hosting controller, for UIKit callers.
-    /// presentation (sheet, cover, push) is the caller's responsibility.
-    func makeViewController() -> UIHostingController<some View> {
-        let controller = UIHostingController(rootView: self.makeView())
-        controller.sheetPresentationController?.prefersGrabberVisible = true
+    /// Presentation (sheet, cover, push) is the caller's responsibility.
+    /// - Parameter navigationBarOwner: The owner of the navigation bar that shows the chat's title and
+    ///   toolbar items. Pass ``NavigationBarOwner/host`` when the controller is pushed onto a
+    ///   `UINavigationController`.
+    func makeViewController(navigationBarOwner: NavigationBarOwner = .chat) -> UIHostingController<some View> {
+        let controller = UIHostingController(rootView: self.makeView(navigationBarOwner: navigationBarOwner))
+        if navigationBarOwner == .chat {
+            controller.sheetPresentationController?.prefersGrabberVisible = true
+        }
         return controller
     }
 #endif
