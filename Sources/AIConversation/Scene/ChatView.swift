@@ -18,6 +18,7 @@ struct ChatView: View {
     /// model this view already bootstrapped. A new presentation starts a model of its own, and so
     /// does a view minted by another `AIChat`, which `makeView()` gives an identity of its own.
     @State private var viewModel: ViewModel
+    private let navigationBarOwner: AIChat.NavigationBarOwner
 
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
@@ -51,8 +52,9 @@ struct ChatView: View {
         self.viewModel.appearance ?? .default
     }
 
-    init(viewModel: ViewModel) {
+    init(viewModel: ViewModel, navigationBarOwner: AIChat.NavigationBarOwner) {
         self._viewModel = State(wrappedValue: viewModel)
+        self.navigationBarOwner = navigationBarOwner
     }
 
     var body: some View {
@@ -106,7 +108,7 @@ private extension ChatView {
     @ViewBuilder
     func closable(_ screen: some View) -> some View {
         if self.viewModel.showsCloseButton {
-            NavigationStack {
+            self.navigationContainer {
                 screen.toolbar { self.closeToolbarItem }
             }
         } else {
@@ -255,7 +257,7 @@ private extension ChatView {
 private extension ChatView {
 
     var chatWindow: some View {
-        NavigationStack {
+        self.navigationContainer {
             Group {
                 if let snapshot = self.viewModel.snapshot {
                     self.chat(from: snapshot)
@@ -284,6 +286,18 @@ private extension ChatView {
             if focused, self.viewModel.notice?.edge == .bottom {
                 self.viewModel.dismissNotice()
             }
+        }
+    }
+
+    /// Wraps `content` in the chat's own navigation stack when the chat owns its navigation bar; the
+    /// host's stack shows the title and toolbar items otherwise.
+    @ViewBuilder
+    func navigationContainer(@ViewBuilder content: () -> some View) -> some View {
+        switch self.navigationBarOwner {
+        case .chat:
+            NavigationStack { content() }
+        case .host:
+            content()
         }
     }
 

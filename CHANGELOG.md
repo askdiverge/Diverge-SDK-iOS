@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- `makeView(navigationBarOwner:)` and `makeViewController(navigationBarOwner:)` take an
+  `AIChat.NavigationBarOwner`, so you can present the chat as a sheet or push it onto your own
+  navigation stack. Pass `.host` when you push it: your navigation bar then keeps its back button
+  and shows the chat's title and toolbar items. The default, `.chat`, keeps today's behaviour.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added
