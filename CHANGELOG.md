@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening the privacy policy from the privacy sheet now closes the sheet first, so a host that
+  routes the link through `onOpenLink` and shows a new screen no longer has the sheet left on top
+  of it.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added
