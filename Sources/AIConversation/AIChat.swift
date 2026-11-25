@@ -60,12 +60,15 @@ public final class AIChat {
     /// been rated, the cards that arrived live and the identity of its view outlive each of them.
     private static var sharedRatingSession = RatingSession()
     private static var sharedLiveCards = LiveCards()
+    private static var sharedSessionMetadata = SessionMetadataQueue()
     private static var sharedViewIdentity = UUID()
 
     private let configuration: Configuration
     private let service: ChatService
     let ratingSession: RatingSession
     let liveCards: LiveCards
+    /// Metadata the host set, waiting for a session to send it to.
+    let sessionMetadata: SessionMetadataQueue
     /// The identity of the views this chat mints, so a view a host builds from another chat in the
     /// same place starts that chat's session.
     private let viewIdentity: UUID
@@ -76,6 +79,7 @@ public final class AIChat {
         Self.sharedConfiguration = configuration
         Self.sharedRatingSession = RatingSession()
         Self.sharedLiveCards = LiveCards()
+        Self.sharedSessionMetadata = SessionMetadataQueue()
         Self.sharedViewIdentity = UUID()
     }
 
@@ -87,6 +91,7 @@ public final class AIChat {
             configuration: configuration,
             ratingSession: RatingSession(),
             liveCards: LiveCards(),
+            sessionMetadata: SessionMetadataQueue(),
             viewIdentity: UUID()
         )
     }
@@ -95,11 +100,13 @@ public final class AIChat {
         configuration: Configuration,
         ratingSession: RatingSession,
         liveCards: LiveCards,
+        sessionMetadata: SessionMetadataQueue,
         viewIdentity: UUID
     ) {
         self.configuration = configuration
         self.ratingSession = ratingSession
         self.liveCards = liveCards
+        self.sessionMetadata = sessionMetadata
         self.viewIdentity = viewIdentity
         // The  hooks wire straight to the service / token store.
         self.service = ChatService(
@@ -122,6 +129,7 @@ public final class AIChat {
             configuration: configuration,
             ratingSession: Self.sharedRatingSession,
             liveCards: Self.sharedLiveCards,
+            sessionMetadata: Self.sharedSessionMetadata,
             viewIdentity: Self.sharedViewIdentity
         )
     }
@@ -143,6 +151,7 @@ public extension AIChat {
                 conversationRatingMode: self.configuration.rating,
                 ratingSession: self.ratingSession,
                 liveCards: self.liveCards,
+                sessionMetadata: self.sessionMetadata,
                 dependencies: .live(service: self.service)
             )
         )

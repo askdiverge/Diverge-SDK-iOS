@@ -177,6 +177,10 @@ final class MockChatService: ChatServicing {
         throw .provider(Unstubbed())
     }
 
+    func patchSessionMetadata(_: SessionMetadataPatchRequest) async throws(ChatServiceError) {
+        throw .provider(Unstubbed())
+    }
+
     func syncLivechat(
         after sequenceNumber: Int64?,
         waitMs: Int?,

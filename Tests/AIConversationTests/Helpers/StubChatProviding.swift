@@ -31,6 +31,8 @@ final class StubChatProviding: ChatProviding {
     var whileSendingLivechat: (@MainActor () async -> Void)?
     /// Runs at the start of an assistant send, before the scripted failure (if any).
     var onSend: (@MainActor () -> Void)?
+    /// Runs while a delete is in flight, before the scripted failure (if any).
+    var whileDeleting: (@MainActor () async -> Void)?
 
     init(sendFailure: ChatProvider.SendFailure? = nil, livechatSendFailure: ChatProvider.SendFailure? = nil) {
         self.sendFailure = sendFailure
@@ -68,6 +70,7 @@ final class StubChatProviding: ChatProviding {
     }
 
     func delete() async throws {
+        await self.whileDeleting?()
         if let deleteError { throw deleteError }
     }
 
@@ -111,6 +114,8 @@ extension ChatView.ViewModel {
         conversationRatingMode: AIChat.Rating = .enabled,
         ratingSession: RatingSession = RatingSession(),
         liveCards: LiveCards = LiveCards(),
+        sessionMetadata: SessionMetadataQueue = SessionMetadataQueue(),
+        patchSessionMetadata: SessionMetadataQueue.Patcher? = nil,
         encodeAttachment: AttachmentEncoder? = nil,
         submitAction: ActionSubmitter? = nil,
         fetchForm: FormFetcher? = nil,
@@ -137,6 +142,7 @@ extension ChatView.ViewModel {
         dependencies.submitLivechatFeedback = submitLivechatFeedback ?? dependencies.submitLivechatFeedback
         dependencies.rateConversation = rateConversation ?? dependencies.rateConversation
         dependencies.livechat = livechat ?? dependencies.livechat
+        dependencies.patchSessionMetadata = patchSessionMetadata ?? dependencies.patchSessionMetadata
         let viewModel = ChatView.ViewModel(
             service: service,
             contextProvider: contextProvider,
@@ -147,6 +153,7 @@ extension ChatView.ViewModel {
             conversationRatingMode: conversationRatingMode,
             ratingSession: ratingSession,
             liveCards: liveCards,
+            sessionMetadata: sessionMetadata,
             dependencies: dependencies
         )
         viewModel.attachProviderForTesting(provider)

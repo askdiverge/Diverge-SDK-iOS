@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- `AIChat.setMetadata(_:)` and `AIChat.setSignedMetadata(_:)`, the app counterparts of the web
+  widget's `setMetadata` and `setSignedMetadata`. Unsigned metadata (store, language, the screen
+  the visitor is on) deep-merges into the session as `session.metadata`; a JWT your backend signs
+  is verified against the chatbot's public key and its claims merge into
+  `session.verified_metadata`. Both can be called at any time and are sent in order while a chat
+  is on screen with a session (`PATCH /session`). Calls made while none is wait for the next chat
+  shown: the unsigned ones merged into one request, and the newest signed token. Metadata the
+  backend refuses is dropped. Values are `AIChat.MetadataValue`, written as literals.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added

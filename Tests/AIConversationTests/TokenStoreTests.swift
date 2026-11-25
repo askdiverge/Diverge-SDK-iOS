@@ -107,6 +107,24 @@ struct TokenStoreTests {
         #expect(await hooks.providerCalls == 2)
     }
 
+    @Test("keepToken rethrows the 401 and keeps the token, without asking the host for a new one")
+    func keepTokenLeavesSessionAlone() async throws {
+        let (sut, hooks) = makeSUT()
+
+        do {
+            _ = try await sut.retrieve(onAuthFailure: .keepToken) { (_: String) -> String in
+                throw NetworkError.http(.unauthorized)
+            }
+            Issue.record("Expected unauthorized to escape")
+        } catch NetworkError.http(.unauthorized) {
+            // expected — surfaced untouched
+        }
+
+        let next = try await sut.retrieve(onAuthFailure: .surfaceExpiry) { $0 }
+        #expect(next == "token-1")
+        #expect(await hooks.providerCalls == 1)
+    }
+
     // MARK: - Lifecycle
 
     @Test("reset invalidates the held token and adopts the reset hook's token")

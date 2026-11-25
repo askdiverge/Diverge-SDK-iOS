@@ -241,4 +241,25 @@ extension ChatService: ChatServicing {
             throw .notFound
         }
     }
+
+    package func patchSessionMetadata(
+        _ request: SessionMetadataPatchRequest
+    ) async throws(ChatServiceError) {
+        do {
+            // Any 2xx means the patch was applied, whatever the response holds. A backend without
+            // the route answers 401 to a valid token, so a 401 here keeps the token and leaves
+            // the session to its own calls.
+            try await self.mappingErrors {
+                try await self.tokenStore.retrieve(onAuthFailure: .keepToken) { token in
+                    try await self.network.patch(
+                        url: self.url(for: .session),
+                        payload: request,
+                        headers: self.headers(token: token)
+                    )
+                }
+            }
+        } catch .transport(.http(.unhandled(status: 409, body: _))) {
+            throw .conflict
+        }
+    }
 }
