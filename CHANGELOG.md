@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The assistant's avatar image fills its round badge, and the gap between the avatar and the
+  assistant's messages grows from 2 to 3 spacing units.
+
 ### Fixed
 
 - While a reply streams, the conversation keeps the visitor's newest message at the top instead of
