@@ -33,6 +33,7 @@ struct PrivacyDataSheetModifier: ViewModifier {
     /// Shared across both sheets — only one is ever presented, so a single measured height serves.
     @State private var contentHeight: CGFloat?
     @State private var isLoading = false
+    @State private var afterDismiss: (() -> Void)?
 
     private var detents: Set<PresentationDetent> {
         if let contentHeight = self.contentHeight, contentHeight > 0 {
@@ -43,7 +44,7 @@ struct PrivacyDataSheetModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content.sheet(item: self.$destination) { destination in
+        content.sheet(item: self.$destination, onDismiss: self.runAfterDismiss) { destination in
             self.sheet(for: destination)
                 .modifier(LoadingOverlay(isLoading: self.isLoading))
                 .onGeometryChange(for: CGFloat.self) { proxy in
@@ -61,7 +62,11 @@ struct PrivacyDataSheetModifier: ViewModifier {
         switch destination {
         case .privacy:
             PrivacyDataView(
-                onPrivacy: self.onOpenPrivacy,
+                onPrivacy: {
+                    // The policy opens once the sheet has closed, so the host's navigation lands on top.
+                    self.afterDismiss = self.onOpenPrivacy
+                    self.destination = nil
+                },
                 onDelete: {
                     // Swap the presented sheet, dismiss privacy, present delete.
                     self.destination = .delete
@@ -80,5 +85,10 @@ struct PrivacyDataSheetModifier: ViewModifier {
                 }
             })
         }
+    }
+
+    private func runAfterDismiss() {
+        self.afterDismiss?()
+        self.afterDismiss = nil
     }
 }

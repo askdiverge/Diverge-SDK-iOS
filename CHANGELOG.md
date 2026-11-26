@@ -4,6 +4,10 @@
 
 ### Added
 
+- `makeView(navigationBarOwner:)` and `makeViewController(navigationBarOwner:)` take an
+  `AIChat.NavigationBarOwner`, so you can present the chat as a sheet or push it onto your own
+  navigation stack. Pass `.host` when you push it: your navigation bar then keeps its back button
+  and shows the chat's title and toolbar items. The default, `.chat`, keeps today's behaviour.
 - `AIChat.setMetadata(_:)` and `AIChat.setSignedMetadata(_:)`, the app counterparts of the web
   widget's `setMetadata` and `setSignedMetadata`. Unsigned metadata (store, language, the screen
   the visitor is on) deep-merges into the session as `session.metadata`; a JWT your backend signs
@@ -12,6 +16,19 @@
   is on screen with a session (`PATCH /session`). Calls made while none is wait for the next chat
   shown: the unsigned ones merged into one request, and the newest signed token. Metadata the
   backend refuses is dropped. Values are `AIChat.MetadataValue`, written as literals.
+
+### Changed
+
+- The assistant's avatar image fills its round badge, and the gap between the avatar and the
+  assistant's messages grows from 2 to 3 spacing units.
+
+### Fixed
+
+- While a reply streams, the conversation keeps the visitor's newest message at the top instead of
+  jumping up to the previous exchange when earlier replies hold product cards.
+- Opening the privacy policy from the privacy sheet now closes the sheet first, so a host that
+  routes the link through `onOpenLink` and shows a new screen no longer has the sheet left on top
+  of it.
 
 ## [1.1.0] - 2026-11-12
 
