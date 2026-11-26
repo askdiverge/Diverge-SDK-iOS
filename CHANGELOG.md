@@ -15,7 +15,10 @@
   `session.verified_metadata`. Both can be called at any time and are sent in order while a chat
   is on screen with a session (`PATCH /session`). Calls made while none is wait for the next chat
   shown: the unsigned ones merged into one request, and the newest signed token. Metadata the
-  backend refuses is dropped. Values are `AIChat.MetadataValue`, written as literals.
+  backend refuses is dropped. Values are `AIChat.MetadataValue`, written as literals. A call the
+  backend would refuse whole does nothing: one nested more than 20 levels deep, one using a
+  reserved top-level key or the key `__proto__`, `prototype` or `constructor`, or one holding NaN
+  or an infinity.
 
 ### Changed
 
