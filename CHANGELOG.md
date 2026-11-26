@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- `makeView(navigationBarOwner:)` and `makeViewController(navigationBarOwner:)` take an
+  `AIChat.NavigationBarOwner`, so you can present the chat as a sheet or push it onto your own
+  navigation stack. Pass `.host` when you push it: your navigation bar then keeps its back button
+  and shows the chat's title and toolbar items. The default, `.chat`, keeps today's behaviour.
+
+### Changed
+
+- The assistant's avatar image fills its round badge, and the gap between the avatar and the
+  assistant's messages grows from 2 to 3 spacing units.
+
 ### Fixed
 
 - Opening the privacy policy from the privacy sheet now closes the sheet first, so a host that
