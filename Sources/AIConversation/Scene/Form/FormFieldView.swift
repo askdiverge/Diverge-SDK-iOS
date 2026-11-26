@@ -85,9 +85,10 @@ struct FormFieldView: View {
             EmptyView()
         case .textarea:
             TextField(
-                self.field.placeholder ?? "",
                 text: self.$value,
-                axis: .vertical
+                prompt: self.appearance.placeholder(self.field.placeholder ?? ""),
+                axis: .vertical,
+                label: { Text(self.field.placeholder ?? "") }
             )
             .textFieldStyle(.plain)
             .focused(self.focus, equals: self.focusID)
@@ -104,7 +105,11 @@ struct FormFieldView: View {
             .textInputAutocapitalization(.sentences)
 #endif
         case .text, .email, .tel:
-            TextField(self.field.placeholder ?? "", text: self.$value)
+            TextField(
+                text: self.$value,
+                prompt: self.appearance.placeholder(self.field.placeholder ?? ""),
+                label: { Text(self.field.placeholder ?? "") }
+            )
                 .textFieldStyle(.plain)
                 .focused(self.focus, equals: self.focusID)
                 .font(self.appearance.font(size: 15))

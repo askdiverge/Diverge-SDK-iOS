@@ -169,6 +169,12 @@ extension ChatAppearance {
         }
     }
 
+    /// A text field's prompt: `text` in the config's placeholder color, so it reads on the field's
+    /// themed background whatever the device's appearance.
+    func placeholder(_ text: String) -> Text {
+        Text(text).foregroundStyle(self.theme.inputPlaceholder)
+    }
+
     /// The text style whose default size on iOS is `size`, so the design holds at the default
     /// setting; a size between two styles takes the smaller. `Font.system(size:)` would keep the size
     /// at every setting. macOS sizes the same styles smaller (`.body` is 13 pt), so the macOS Harness

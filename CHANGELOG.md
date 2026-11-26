@@ -24,6 +24,8 @@
 
 ### Fixed
 
+- The placeholder text in the composer, the rating comment and form fields uses the chatbot's
+  configured placeholder color, so it stays readable when the visitor's device is in dark mode.
 - While a reply streams, the conversation keeps the visitor's newest message at the top instead of
   jumping up to the previous exchange when earlier replies hold product cards.
 - Opening the privacy policy from the privacy sheet now closes the sheet first, so a host that
