@@ -2,15 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- `makeView(navigationBarOwner:)` and `makeViewController(navigationBarOwner:)` take an
+  `AIChat.NavigationBarOwner`, so you can present the chat as a sheet or push it onto your own
+  navigation stack. Pass `.host` when you push it: your navigation bar then keeps its back button
+  and shows the chat's title and toolbar items. The default, `.chat`, keeps today's behaviour.
+
 ### Changed
 
 - The assistant's avatar image fills its round badge, and the gap between the avatar and the
   assistant's messages grows from 2 to 3 spacing units.
-
-### Fixed
-
-- While a reply streams, the conversation keeps the visitor's newest message at the top instead of
-  jumping up to the previous exchange when earlier replies hold product cards.
 
 ## [1.1.0] - 2026-11-12
 

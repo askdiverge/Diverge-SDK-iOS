@@ -50,6 +50,9 @@ chat.makeView()
 
 // UIKit
 present(chat.makeViewController(), animated: true)
+
+// UIKit, pushed: the host's navigation bar shows the chat's title and toolbar items
+navigationController?.pushViewController(chat.makeViewController(navigationBarOwner: .host), animated: true)
 ```
 
 Keep the `AIChat` for as long as its chat is on screen: create it when you present the chat, not
