@@ -99,7 +99,12 @@ private extension LivechatRatingView {
                 .font(self.appearance.font(size: 13))
                 .foregroundStyle(self.appearance.theme.secondaryText)
 
-            TextField(L10n.ratingFeedbackPlaceholder.string, text: self.feedbackText, axis: .vertical)
+            TextField(
+                text: self.feedbackText,
+                prompt: self.appearance.placeholder(L10n.ratingFeedbackPlaceholder.string),
+                axis: .vertical,
+                label: { Text(L10n.ratingFeedbackPlaceholder.string) }
+            )
                 .lineLimit(3...6)
                 .font(self.appearance.font(size: 15))
                 .foregroundStyle(self.appearance.theme.inputText)

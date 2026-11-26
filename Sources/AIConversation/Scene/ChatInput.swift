@@ -70,7 +70,12 @@ struct ChatInput: View {
     }
 
     private var inputTextField: some View {
-        TextField(self.placeholder, text: self.$currentMessage, axis: .vertical)
+        TextField(
+            text: self.$currentMessage,
+            prompt: self.appearance.placeholder(self.placeholder),
+            axis: .vertical,
+            label: { Text(self.placeholder) }
+        )
             .textFieldStyle(.plain)
             .lineLimit(1...6)
             .focused(self.inputFocus)
