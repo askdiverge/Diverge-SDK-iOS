@@ -29,6 +29,7 @@
 - Opening the privacy policy from the privacy sheet now closes the sheet first, so a host that
   routes the link through `onOpenLink` and shows a new screen no longer has the sheet left on top
   of it.
+- Deleting the visitor's data also clears the text they had typed in the composer but not sent.
 
 ## [1.1.0] - 2026-11-12
 

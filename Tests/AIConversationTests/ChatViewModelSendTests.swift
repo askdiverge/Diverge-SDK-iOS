@@ -53,4 +53,28 @@ struct ChatViewModelSendTests {
 
         #expect(viewModel.currentMessage == "hi")
     }
+
+    @Test("deleting the visitor's data clears the text they had not sent")
+    func deleteClearsDraft() async throws {
+        let viewModel = ChatView.ViewModel.forTesting(provider: StubChatProviding())
+        viewModel.currentMessage = "my order number is 1234"
+
+        try await viewModel.delete()
+
+        #expect(viewModel.currentMessage.isEmpty)
+    }
+
+    @Test("a delete that fails keeps the text the visitor had not sent")
+    func failedDeleteKeepsDraft() async {
+        let provider = StubChatProviding()
+        provider.deleteError = ChatServiceError.transport(.connection(URLError(.timedOut)))
+        let viewModel = ChatView.ViewModel.forTesting(provider: provider)
+        viewModel.currentMessage = "my order number is 1234"
+
+        await #expect(throws: ChatView.DeletionFailed.self) {
+            try await viewModel.delete()
+        }
+
+        #expect(viewModel.currentMessage == "my order number is 1234")
+    }
 }
