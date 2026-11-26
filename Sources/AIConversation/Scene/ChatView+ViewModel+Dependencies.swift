@@ -18,6 +18,7 @@ extension ChatView.ViewModel {
         var patchFormValues: WaitingFormController.ValuesPatcher
         var submitLivechatFeedback: LivechatRatingController.Submitter
         var rateConversation: ConversationRatingController.Submitter
+        var patchSessionMetadata: SessionMetadataQueue.Patcher
         var livechat: LivechatSession
 
         /// Encodes on the device and goes over the wire through `service`.
@@ -32,6 +33,7 @@ extension ChatView.ViewModel {
                 patchFormValues: { try await service.patchFormValues(formId: $0, values: $1) },
                 submitLivechatFeedback: { try await service.submitLivechatFeedback($0) },
                 rateConversation: { try await service.rateConversation($0) },
+                patchSessionMetadata: { try await service.patchSessionMetadata($0) },
                 livechat: LivechatSession(service: service)
             )
         }

@@ -53,6 +53,15 @@ package protocol ChatServicing: Sendable {
         values: [String: String]
     ) async throws(ChatServiceError) -> ChatSessionState
 
+    /// Merges host metadata into the visitor's session, and the claims of a signed token into its
+    /// verified metadata. A body the backend rejects (invalid or oversized metadata, a token that
+    /// fails verification or a chatbot without a key) surfaces as ``ChatServiceError/validation``,
+    /// and a session the backend no longer has as ``ChatServiceError/conflict``. A 401 surfaces as
+    /// ``ChatServiceError/sessionExpired`` and keeps the cached token: a backend without this route
+    /// also answers 401, so the session's own calls decide whether it ended. Any 2xx counts as
+    /// applied, whatever its body.
+    func patchSessionMetadata(_ request: SessionMetadataPatchRequest) async throws(ChatServiceError)
+
     /// Rotates the session — invalidates the current token and obtains a fresh
     /// one via the host's reset hook. The caller clears local conversation state.
     func resetConversation() async throws(ChatServiceError)

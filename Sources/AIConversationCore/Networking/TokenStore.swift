@@ -54,6 +54,8 @@ package actor TokenStore {
                 // real event, which is that the session expired.
                 _ = try? await self.refresh(replacing: token)
                 throw NetworkError.http(.unauthorized)
+            case .keepToken:
+                throw NetworkError.http(.unauthorized)
             }
         }
     }
@@ -121,5 +123,10 @@ extension TokenStore {
         /// Surface 401 so the caller can react to the session/conversation ending.
         /// pre-emptively get a fresh token so we're primed for the next session (best-effort).
         case surfaceExpiry
+
+        /// Call whose 401 says nothing certain about the session: surface it and keep the cached
+        /// token. The session's own calls decide whether the session ended, and ask the host for
+        /// the next token when it has.
+        case keepToken
     }
 }

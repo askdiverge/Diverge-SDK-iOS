@@ -38,6 +38,19 @@ struct ChatViewModelOpeningTests {
         try await eventually { viewModel.snapshot?.turns.map(\.model) == [Self.greeting] }
         #expect(viewModel.snapshot?.canLoadOlder == false)
     }
+
+    @Test("opening the chat sends the metadata set before it")
+    func openingSendsQueuedMetadata() async throws {
+        let queue = SessionMetadataQueue()
+        let patcher = ScriptedPatcher(failures: [:], gate: nil)
+        let metadata = SessionMetadataPatchRequest(metadata: ["storeSlug": .string("boozt-se")], signedMetadata: nil)
+        let viewModel = Self.makeSUT(history: .init(status: 500), sessionMetadata: queue, patcher: patcher)
+        queue.enqueue(metadata)
+
+        await viewModel.start()
+
+        try await eventually { patcher.sent == [metadata] }
+    }
 }
 
 private extension ChatViewModelOpeningTests {
@@ -46,8 +59,15 @@ private extension ChatViewModelOpeningTests {
 
     /// A view model whose `/config` succeeds and whose every later request, history included,
     /// gets `history`. A failing `history` also fails the font fetch, which the chat opens without.
-    static func makeSUT(history: ScriptedURLProtocol.Response) -> ChatView.ViewModel {
+    /// Metadata queued in `sessionMetadata` goes through `patcher`.
+    static func makeSUT(
+        history: ScriptedURLProtocol.Response,
+        sessionMetadata: SessionMetadataQueue = SessionMetadataQueue(),
+        patcher: ScriptedPatcher = ScriptedPatcher(failures: [:], gate: nil)
+    ) -> ChatView.ViewModel {
         let (service, _) = ChatServiceFixtures.makeSUT(responses: [.init(body: Data(Self.config.utf8)), history])
+        var dependencies = ChatView.ViewModel.Dependencies.live(service: service)
+        dependencies.patchSessionMetadata = patcher.patch
         return ChatView.ViewModel(
             service: service,
             contextProvider: nil,
@@ -58,7 +78,8 @@ private extension ChatViewModelOpeningTests {
             conversationRatingMode: .enabled,
             ratingSession: RatingSession(),
             liveCards: LiveCards(),
-            dependencies: .live(service: service)
+            sessionMetadata: sessionMetadata,
+            dependencies: dependencies
         )
     }
 

@@ -78,10 +78,11 @@ extension ChatView.ViewModel {
         await self.livechat.setSceneActive(active)
     }
 
-    /// Pauses livechat polling and waiting-form retries while the chat is off screen; the rating
-    /// prompt and the host's updates wait for it to be back.
+    /// Pauses livechat polling, waiting-form retries and the host's metadata while the chat is off
+    /// screen; the rating prompt and the host's updates wait for it to be back.
     func setVisible(_ visible: Bool) async {
         self.isChatVisible = visible
+        self.bindSessionMetadata()
         self.screenChanged()
         self.waitingForm.setVisible(visible)
         await self.livechat.setVisible(visible)
@@ -186,6 +187,8 @@ extension ChatView.ViewModel {
         attachments: [OutgoingAttachment],
         via provider: any ChatProviding
     ) async throws(ChatProvider.SendFailure) {
+        // Metadata a failure left queued goes again.
+        self.bindSessionMetadata()
         guard self.livechatStatus != .active else {
             try await provider.sendLivechat(text, attachments: attachments)
             return

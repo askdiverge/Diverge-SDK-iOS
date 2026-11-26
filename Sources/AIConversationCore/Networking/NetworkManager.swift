@@ -89,6 +89,20 @@ package final class NetworkManager: NetworkService, Sendable {
         return try await self.send(request)
     }
 
+    package func patch(
+        url: URL,
+        payload: some Encodable & Sendable,
+        headers: [String: String]?
+    ) async throws(NetworkError) {
+        let request = try self.makeRequest(
+            url: url,
+            method: .patch,
+            payload: payload,
+            headers: headers
+        )
+        try await self.sendVoid(request)
+    }
+
     package func delete(
         url: URL,
         headers: [String: String]?

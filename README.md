@@ -141,6 +141,37 @@ before they are released. The SDK owns the URLs for both.
 environment: .development
 ```
 
+## Session metadata
+
+Attach what your CS systems need to identify the visitor, the same way the web widget's
+`setMetadata` and `setSignedMetadata` do. Call them at any time, before the chat is shown too; they
+are sent in order while a chat of that `AIChat` is on screen with a session, and wait for the next
+chat shown otherwise.
+
+```swift
+chat.setMetadata([
+    "storeSlug": "boozt-se",
+    "languageCode": "sv",
+    "platformName": "ios",
+    "screen": .string(currentScreen.id)
+])
+```
+
+Repeated calls deep-merge into the session's metadata. It comes from the device, so treat it as
+untrusted. For trusted values, have your backend sign an RS256 JWT (`iat` and `exp` at most 15
+minutes apart) with the key you registered for the chatbot, and pass it on:
+
+```swift
+chat.setSignedMetadata(try await myAuth.signedChatMetadata())
+```
+
+Its claims are verified and stored as verified metadata, and actions use them only while the newest
+token is unexpired. A token has to be unexpired when it reaches the backend, and it is sent only
+while a chat is on screen, so sign one on login, again as you present the chat, and on a timer
+shorter than its lifetime while the chat is open. Of the tokens set while no chat is shown, the
+newest one is sent. A token the backend refuses is dropped. After `deleteData`, anything not yet
+sent is dropped too.
+
 ## Shared and per-instance configuration
 
 The two are not exclusive. Register a shared configuration once at launch and mint instances from it

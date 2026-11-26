@@ -116,6 +116,10 @@ extension ChatView {
         /// presentations. A form restored from history that none of them saw arrive stays
         /// read-only, the way the web widget does not reopen a form on reload.
         @ObservationIgnored private let liveCards: LiveCards
+        /// The metadata the host set, sent while this chat is on screen with a session; see
+        /// ``SessionMetadataQueue``.
+        @ObservationIgnored let sessionMetadata: SessionMetadataQueue
+        @ObservationIgnored let patchSessionMetadata: SessionMetadataQueue.Patcher
         /// `request_human_agent` cards the visitor answered "No thanks". They leave the
         /// conversation, and the chat stays with the assistant.
         private(set) var declinedHumanAgentPrompts: Set<String> = []
@@ -181,10 +185,13 @@ extension ChatView {
             conversationRatingMode: AIChat.Rating,
             ratingSession: RatingSession,
             liveCards: LiveCards,
+            sessionMetadata: SessionMetadataQueue,
             dependencies: Dependencies
         ) {
             self.service = service
             self.liveCards = liveCards
+            self.sessionMetadata = sessionMetadata
+            self.patchSessionMetadata = dependencies.patchSessionMetadata
             self.pageContext = { await contextProvider?() }
             self.conversationFlow = conversationFlow
             self.attachments = attachments
@@ -307,6 +314,8 @@ extension ChatView {
                     self.phase = .loading
                     return
                 }
+                // The chat has a session now, so the metadata set before it opened goes.
+                self.bindSessionMetadata()
                 self.waitingForm.configure(formId: config.livechatWaitingFormId)
                 self.startLivechat(with: config.livechat)
                 self.phase = .ready
@@ -523,16 +532,30 @@ extension ChatView {
             self.livechatEpoch += 1
             self.conversationEpoch += 1
             self.heldLivechat = []
+            // Metadata the host sets from here waits in the queue, and goes with the visitor's data.
+            self.bindSessionMetadata()
             do {
                 try await self.provider?.delete()
             } catch {
                 await self.releaseHeldLivechat()
+                self.bindSessionMetadata()
                 throw DeletionFailed()
             }
             await self.fenceLivechat()
             await self.releaseHeldLivechat()
             self.dropConversationState()
             self.dropComposerPhotos()
+            self.sessionMetadata.clear()
+        }
+
+        /// Sends the host's metadata through this chat while it is on screen with a session, and
+        /// leaves it queued while the chat is off screen or the visitor's data is being deleted.
+        func bindSessionMetadata() {
+            if self.isChatVisible, self.provider != nil, self.heldLivechat == nil {
+                self.sessionMetadata.attach(self.patchSessionMetadata, for: self)
+            } else {
+                self.sessionMetadata.detach(self)
+            }
         }
 
         /// Test seam — attach a stub provider without bootstrapping `/config`.
