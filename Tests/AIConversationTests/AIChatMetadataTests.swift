@@ -49,6 +49,62 @@ struct AIChatMetadataTests {
         ])
     }
 
+    @Test(
+        "a call that breaks a key, depth or number rule sends nothing; metadata set before and after it still goes",
+        arguments: [
+            ["total": .double(.nan)],
+            ["cart": ["total": .double(.infinity)]],
+            ["totals": [.double(-.infinity)]],
+            ["verified_metadata": ["tier": "gold"]],
+            ["signed_metadata": "header.claims.signature"],
+            ["__proto__": ["admin": true]],
+            ["product": ["prototype": true]],
+            ["cars": [["constructor": "Volvo"]]],
+            ["deep": AIChatMetadataTests.value(reachingLevel: 21)]
+        ] as [[String: AIChat.MetadataValue]]
+    )
+    func refusedCallSendsNothing(_ metadata: [String: AIChat.MetadataValue]) async throws {
+        let chat = AIChat(Self.configuration)
+        let patcher = ScriptedPatcher(failures: [:], gate: nil)
+        chat.setMetadata(["screen": "checkout"])
+        chat.setMetadata(metadata)
+        chat.setMetadata(["language": "sv"])
+
+        chat.sessionMetadata.attach(patcher.patch, for: chat)
+
+        try await eventually { patcher.sent.count == 1 }
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(patcher.attempts == 1)
+        #expect(patcher.sent == [
+            SessionMetadataPatchRequest(
+                metadata: ["screen": .string("checkout"), "language": .string("sv")],
+                signedMetadata: nil
+            )
+        ])
+    }
+
+    @Test(
+        "a call the backend takes is sent: level 20, a reserved key below the top level, a blocked name elsewhere",
+        arguments: [
+            ["deep": AIChatMetadataTests.value(reachingLevel: 20)],
+            ["cart": ["signed_metadata": 1]],
+            ["note": "prototype"],
+            ["Constructor": true]
+        ] as [[String: AIChat.MetadataValue]]
+    )
+    func acceptedCallGoes(_ metadata: [String: AIChat.MetadataValue]) async throws {
+        let chat = AIChat(Self.configuration)
+        let patcher = ScriptedPatcher(failures: [:], gate: nil)
+        chat.sessionMetadata.attach(patcher.patch, for: chat)
+
+        chat.setMetadata(metadata)
+
+        try await eventually { patcher.sent.count == 1 }
+        #expect(patcher.sent == [
+            SessionMetadataPatchRequest(metadata: metadata.mapValues(\.jsonValue), signedMetadata: nil)
+        ])
+    }
+
     @Test("instances from the shared configuration share one queue; a direct one keeps its own")
     func sharedConfigurationSharesQueue() {
         AIChat.configure(Self.configuration)
@@ -197,5 +253,11 @@ private extension AIChatMetadataTests {
 
     static func screen(_ name: String) -> SessionMetadataPatchRequest {
         .init(metadata: ["screen": .string(name)], signedMetadata: nil)
+    }
+
+    /// Arrays around a string, so that under a top-level key the string sits at `level`, the
+    /// dictionary's own values being level 1.
+    nonisolated static func value(reachingLevel level: Int) -> AIChat.MetadataValue {
+        (1..<level).reduce(.string("leaf")) { value, _ in .array([value]) }
     }
 }

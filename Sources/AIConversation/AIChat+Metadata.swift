@@ -11,20 +11,23 @@ public extension AIChat {
     /// Merges `metadata` into the visitor's chat session, where the backend, handover webhooks and
     /// Universal API variables read it as `session.metadata`. Repeated calls deep-merge: nested
     /// objects merge, any other value replaces the earlier one, and a key stays once set. The
-    /// merged metadata is limited to 32 KiB and 20 levels. The backend refuses a patch that uses
-    /// a reserved top-level key (`verified_metadata`, `signed_metadata`) or, at any depth, the key
-    /// `__proto__`, `prototype` or `constructor`.
+    /// merged metadata is limited to 32 KiB.
     ///
     /// Returns at once on the main actor and can be called at any time, before the chat is shown
     /// too. Calls are sent in order while a chat of this `AIChat` is on screen with a session.
-    /// Those made while none is wait, merged into one patch, for the next chat shown. Metadata the
-    /// backend refuses is dropped. It comes from the device, so systems that read it treat it as
-    /// untrusted.
+    /// Those made while none is wait, merged into one patch, for the next chat shown. The backend
+    /// refuses a patch over 32 KiB, alone or merged with what the session already holds, and the
+    /// patch is dropped with every call merged into it. Metadata comes from the device, so
+    /// systems that read it treat it as untrusted.
     ///
     /// - Parameter metadata: Values to merge, such as the store, language or screen the visitor
-    ///   is on. An empty dictionary does nothing.
+    ///   is on. They nest at most 20 levels deep, the dictionary's own values being the first,
+    ///   use neither a reserved top-level key (`verified_metadata`, `signed_metadata`) nor the key
+    ///   `__proto__`, `prototype` or `constructor` at any depth, and hold finite numbers only, as
+    ///   the backend requires of every patch. A call outside those rules, or with an empty
+    ///   dictionary, does nothing.
     func setMetadata(_ metadata: [String: MetadataValue]) {
-        guard !metadata.isEmpty else { return }
+        guard !metadata.isEmpty, MetadataValue.accepts(metadata) else { return }
         self.sessionMetadata.enqueue(.init(
             metadata: metadata.mapValues(\.jsonValue),
             signedMetadata: nil
@@ -126,6 +129,44 @@ extension AIChat.MetadataValue {
         case .array(let values): .array(values.map(\.jsonValue))
         case .object(let values): .object(values.mapValues(\.jsonValue))
         case .null: .null
+        }
+    }
+
+    /// Whether `metadata` keeps to the backend's rules for a patch, its 32 KiB limit aside: no
+    /// reserved top-level key, and every value within the depth limit, with finite numbers and no
+    /// blocked key.
+    static func accepts(_ metadata: [String: Self]) -> Bool {
+        metadata.keys.allSatisfy { !Self.reservedKeys.contains($0) }
+            && Self.object(metadata).isAccepted(atDepth: 0)
+    }
+}
+
+// MARK: - Backend rules
+
+private extension AIChat.MetadataValue {
+
+    /// The deepest level the backend takes a value at; the top-level dictionary is level 0.
+    static let maximumDepth = 20
+
+    /// Keys the backend refuses at any depth.
+    static let blockedKeys: Set<String> = ["__proto__", "prototype", "constructor"]
+
+    /// Top-level keys the backend keeps for verified metadata.
+    static let reservedKeys: Set<String> = ["verified_metadata", "signed_metadata"]
+
+    /// Whether the backend takes this value at `depth`: no deeper than ``maximumDepth``, with
+    /// finite numbers, which JSON requires, and no blocked key. The check stops at the limit, so
+    /// it stays shallow however deep the value goes.
+    func isAccepted(atDepth depth: Int) -> Bool {
+        guard depth <= Self.maximumDepth else { return false }
+        return switch self {
+        case .double(let value): value.isFinite
+        case .array(let values): values.allSatisfy { $0.isAccepted(atDepth: depth + 1) }
+        case .object(let values):
+            values.allSatisfy { key, value in
+                !Self.blockedKeys.contains(key) && value.isAccepted(atDepth: depth + 1)
+            }
+        case .string, .int, .bool, .null: true
         }
     }
 }
