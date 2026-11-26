@@ -545,6 +545,8 @@ extension ChatView {
             await self.releaseHeldLivechat()
             self.dropConversationState()
             self.dropComposerPhotos()
+            // The text the visitor had not sent goes with the rest of their data.
+            self.currentMessage = ""
             self.sessionMetadata.clear()
         }
 
