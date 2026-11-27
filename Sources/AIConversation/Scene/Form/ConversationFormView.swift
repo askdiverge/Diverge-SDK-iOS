@@ -236,3 +236,19 @@ extension ConversationFormView {
         L10n.formAccessibilityHint.string
     }
 }
+
+// MARK: - Equatable
+
+extension ConversationFormView: @MainActor Equatable {
+
+    /// Two cards are the same when they show the same draft under the same rules. A card keeps
+    /// the closures and the focus binding it was built with for as long as that holds; they act
+    /// on the form of `model`. A conversation passes new ones on every update of a streaming
+    /// reply, and a card that compares equal keeps its views.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.model == rhs.model
+            && lhs.isEditable == rhs.isEditable
+            && lhs.offersAttachments == rhs.offersAttachments
+            && lhs.isBusy == rhs.isBusy
+    }
+}
