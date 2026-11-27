@@ -632,6 +632,7 @@ private extension ChatView {
                         self.viewModel.setTicketAttachment(nil, inForm: form.partId)
                     }
                 )
+                .equatable()
                 .padding(.bottom, isLastResponse ? 0 : self.appearance.spacing.units(9))
                 .padding(.top, isFirstResponse ? 0 : self.appearance.spacing.units(9))
             }

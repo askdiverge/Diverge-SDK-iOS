@@ -141,7 +141,9 @@ private extension ConversationTopFlowingList {
 
     func conversation(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: self.rowSpacing) {
+            // Every turn is laid out, so the list measures its turns: it opens on the newest
+            // one, and a turn above the screen keeps its height while a reply streams.
+            VStack(alignment: .leading, spacing: self.rowSpacing) {
                 self.header()
 
                 if self.snapshot.canLoadOlder {
@@ -149,12 +151,14 @@ private extension ConversationTopFlowingList {
                 }
 
                 ForEach(self.snapshot.turns) { turn in
-                    self.content(turn)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                            self.measure(turn, height: $0, proxy: proxy)
-                        }
-                        .frame(maxWidth: .infinity, alignment: self.alignment(turn.model))
-                        .id(turn.id)
+                    ConversationTurnRow(
+                        turn: turn,
+                        isStreaming: turn.id == self.snapshot.streamingTurnID,
+                        isNewestBotTurn: turn.id == self.snapshot.incoming.last?.id,
+                        content: self.content,
+                        onHeightChange: { self.measure(turn, height: $0, proxy: proxy) }
+                    )
+                    .equatable()
                 }
 
                 self.buffer
@@ -189,13 +193,6 @@ private extension ConversationTopFlowingList {
         self.olderTurns.arm(at: self.snapshot.turns.first?.id)
         if await !self.onLoadOlder() {
             self.olderTurns.disarm()
-        }
-    }
-
-    func alignment(_ turn: ConversationSnapshot.Turn) -> Alignment {
-        switch turn {
-        case .bot: .topLeading
-        case .user: .topTrailing
         }
     }
 }
