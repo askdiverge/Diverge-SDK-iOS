@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-27
+
 ### Added
 
 - `makeView(navigationBarOwner:)` and `makeViewController(navigationBarOwner:)` take an
