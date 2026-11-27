@@ -35,6 +35,11 @@
   routes the link through `onOpenLink` and shows a new screen no longer has the sheet left on top
   of it.
 - Deleting the visitor's data also clears the text they had typed in the composer but not sent.
+- In the top-down flow, a livechat message that arrives in a chat the visitor has reopened
+  scrolls into view while they are at the newest message: an agent's reply, or the note that
+  they are in the queue or that an agent joined. It used to stay below the screen, and the
+  waiting-room form covered the queue note. A visitor who has scrolled up to read stays where
+  they are, and right after the visitor's own message the list is placed as before.
 
 ## [1.1.0] - 2026-11-12
 

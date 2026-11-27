@@ -21,7 +21,8 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
 
     let snapshot: ConversationSnapshot
     let isInputFocused: Bool
-    /// A form field has the keyboard, and the jump-to-newest button stays off it.
+    /// A form field has the keyboard: the jump-to-newest button stays off it, and content that
+    /// arrives leaves the reader's place as it is.
     let isEditingForm: Bool
     /// Loads the next older page, returning whether it loaded.
     let onLoadOlder: () async -> Bool
@@ -41,6 +42,7 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
 
     // Written from scroll callbacks, never read in `body` — boxed so their churn triggers no renders.
     @State private var isUserScrolling = Box(false)
+    @State private var rest = NewestTurnRest()
     @State private var scrollTask = ScrollTaskBox()
     @State private var olderTurns = OlderTurnsAnchor()
 
@@ -71,7 +73,12 @@ struct ConversationTopFlowingList<Content: View, Header: View>: View {
                     } else if landing == .none, let joinedID = new.joinedUserTurnID(since: old) {
                         // A send that joined the newest visitor turn arms the exchange as a new turn does.
                         self.arm(joinedID, proxy: proxy)
+                    } else if landing == .none, new.gainedBotContent(since: old), self.followsNewestTurn {
+                        // A livechat note or an agent's message reached a reader at the newest
+                        // turn, so the list scrolls it into view.
+                        self.scrollToNewest(proxy, animated: true)
                     }
+                    if new.streamingTurnID != nil { self.rest.replyGrew(heldByExchange: self.holdsExchange) }
                     // A page that replaced the conversation took the exchange's user turn with it,
                     // so the next send starts an exchange of its own.
                     if landing != .none, self.exchange != nil, !self.isArmed {
@@ -116,6 +123,22 @@ private extension ConversationTopFlowingList {
     var isArmed: Bool {
         guard let exchange else { return false }
         return self.snapshot.user.contains { $0.id == exchange.userID }
+    }
+
+    /// Whether the exchange places the list: its user turn is held at the top, with the buffer
+    /// beneath it untouched.
+    var holdsExchange: Bool {
+        guard let exchange else { return false }
+        return exchange.isHeld && self.isArmed && self.reclaimed == 0
+    }
+
+    /// Whether bot content that arrives now is scrolled into view (see ``NewestTurnRest``).
+    var followsNewestTurn: Bool {
+        self.rest.follows(
+            holdsExchange: self.holdsExchange,
+            bufferRemains: self.reclaimed < self.reserve,
+            isEditingForm: self.isEditingForm
+        )
     }
 
     /// The buffer height that makes the exchange fill exactly one screen: the viewport minus the height the
@@ -169,13 +192,25 @@ private extension ConversationTopFlowingList {
         .onScrollGeometryChange(for: Bool.self) { self.isAway($0) } action: { _, away in
             if self.isScrolledAway != away { self.isScrolledAway = away }
         }
-        .onScrollGeometryChange(for: CGFloat.self) { self.visibleViewport($0) } action: { _, height in
+        .onScrollGeometryChange(for: CGFloat.self) { self.visibleViewport($0) } action: { old, height in
             if height > self.viewportHeight { self.viewportHeight = height }
+            // The list's insets grew over its end, as when the waiting-room card appears or the
+            // insets are first reported after opening, so a list resting on its newest turn
+            // brings that turn back into view. The keyboard for the composer is followed by the
+            // scroll its focus starts.
+            if height < old, !self.isInputFocused, self.followsNewestTurn {
+                self.scrollToNewest(proxy, animated: true)
+            }
         }
         .onScrollGeometryChange(for: ScrollGeometry.self) { $0 } action: { self.reclaim($0, $1) }
-        .onScrollPhaseChange { _, phase, _ in
+        .onScrollPhaseChange { _, phase, context in
             self.isUserScrolling.value = phase == .interacting || phase == .decelerating
-            if phase == .interacting { self.exchange?.isHeld = false }
+            if phase == .interacting {
+                self.exchange?.isHeld = false
+                self.rest.readerScrolled()
+            } else if phase == .idle {
+                self.rest.scrollEnded(onNewestTurn: !self.isAway(context.geometry))
+            }
         }
     }
 
@@ -190,6 +225,7 @@ private extension ConversationTopFlowingList {
     }
 
     func loadEarlier() async {
+        self.rest.askedForEarlierTurns()
         self.olderTurns.arm(at: self.snapshot.turns.first?.id)
         if await !self.onLoadOlder() {
             self.olderTurns.disarm()
@@ -233,9 +269,7 @@ private extension ConversationTopFlowingList {
     /// turn in the same snapshot, so this checks `isArmed` rather than leaning on the order the two handlers
     /// run in.
     func answerArrived(_ proxy: ScrollViewProxy) {
-        guard let exchange, exchange.isHeld, self.isArmed, self.reclaimed == 0, !self.isUserScrolling.value else {
-            return
-        }
+        guard let exchange, self.holdsExchange, !self.isUserScrolling.value else { return }
         self.pinToTop(exchange.userID, proxy: proxy)
     }
 
